@@ -2,7 +2,7 @@
 
 This repository contains samples that highlight the combination of KX and Nvidia technologies. The focus is on combining insights from both structured and unstructured data though use-cases like advanced Retrieval-Augmented Generation (RAG).
 
-![NIM Architecture](./NVIDIA_accelerated_RAG/images/NIM_architecture.png)
+![NVIDIA Accelerated Multimodal RAG Architecture](./NVIDIA_accelerated_RAG/images/architecture.JPG)
 
 ## How is it a differentiator in modern GenAI arena?
 
