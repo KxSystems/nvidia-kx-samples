@@ -1,5 +1,7 @@
 # KX NVIDIA Accelerated RAG
 
+Developed by: Abhishek Singh
+
 For step-by-step setup instructions, scroll down to the **Setup** section.
 
 ## Architecture
