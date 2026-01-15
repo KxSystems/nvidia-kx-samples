@@ -1,0 +1,74 @@
+# KDB-X MCP Server deployment values
+mode: "internal"
+
+# MCP Server Image
+image:
+  repository: 105440091466.dkr.ecr.us-east-1.amazonaws.com/kdb-x-mcp-server
+  tag: "0.1.0"
+  pullPolicy: Always
+
+# Image pull secret for private registry
+imagePullSecret:
+  create: true
+  name: "kdb-mcp-ecr-secret"
+  registry: "105440091466.dkr.ecr.us-east-1.amazonaws.com"
+  username: "AWS"
+  password: ""  # Set via --set
+
+# KDB-X Database Configuration
+kdbx:
+  enabled: true
+  installMode: "runtime"
+
+  image:
+    repository: python
+    tag: "3.12-slim-bookworm"
+    pullPolicy: IfNotPresent
+
+  build:
+    bearerToken: "MDAwMSAyNV5gdVZuRUE8WTxYdz1YKkw1TzdJey1uY08jJTwlZEtyYWNQZVp1IKkF-hhodHRwczovL3BvcnRhbC5kbC5reC5jb23p2SpXafooUm9vdD0xLTY5NDlmYmQ5LTEyMjQ1MGE5MjFhMjYxODYwNjFmNDIyZkb6D2FhbGF0dGFyQGt4LmNvbQ"
+    licenseB64: "AkzOxSdQJDSbErFQJwwFkWnxcB3Af3bHqdjtq188Ber4RU3qmXAkg3zCvO+JJgW6mQNBTmSU/BsU/Efrtjq6CXWL7ft3MFlXrEeb/lLQmwJmkZCC1hVkv4eSQ7o27fYtQnCedtJt9s4nGAYGCt+znLPXR2j921kd+zllde4sR7wLB2BlZu8F1+vM8J9R3MQKjoQb4PTM0MyrMJubC4PSxRVwO3YyURz1sNK0ZP923gH21DQt5Y5G3Cbx0g1jH89Am9kUbWxnGbtEPuWwZZs2vWb7DocNAItG4438rSnBAkvyj8yw5StOt41m71e+9PJCFaEoS3MLU1pQT6X7p6MIdPD4yL1urEGtd4QplXZxtvrzeThbb15kmPjcds1RQ8pe963P3+e/Ak/ysrQZWZUJqwIcQo2/jql1xOMFDKxj3O0YaHeEgLdPPFtXKcbwQS6Cu3rlOczfMSz+iYKNDg0xqKW1UY1lnpfVt65uM6/1ynVyYD7ryjnr486gRqMa1N+ESCINjc9WqhS6W+cSngE7UHSWV4oX71FNGIB1r4WO2yncJw=="
+
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+
+# KDB License for PyKX
+kdbLicense:
+  create: true
+  type: "personal"
+  licenseB64: "AkzOxSdQJDSbErFQJwwFkWnxcB3Af3bHqdjtq188Ber4RU3qmXAkg3zCvO+JJgW6mQNBTmSU/BsU/Efrtjq6CXWL7ft3MFlXrEeb/lLQmwJmkZCC1hVkv4eSQ7o27fYtQnCedtJt9s4nGAYGCt+znLPXR2j921kd+zllde4sR7wLB2BlZu8F1+vM8J9R3MQKjoQb4PTM0MyrMJubC4PSxRVwO3YyURz1sNK0ZP923gH21DQt5Y5G3Cbx0g1jH89Am9kUbWxnGbtEPuWwZZs2vWb7DocNAItG4438rSnBAkvyj8yw5StOt41m71e+9PJCFaEoS3MLU1pQT6X7p6MIdPD4yL1urEGtd4QplXZxtvrzeThbb15kmPjcds1RQ8pe963P3+e/Ak/ysrQZWZUJqwIcQo2/jql1xOMFDKxj3O0YaHeEgLdPPFtXKcbwQS6Cu3rlOczfMSz+iYKNDg0xqKW1UY1lnpfVt65uM6/1ynVyYD7ryjnr486gRqMa1N+ESCINjc9WqhS6W+cSngE7UHSWV4oX71FNGIB1r4WO2yncJw=="
+
+# MCP Server Configuration
+mcp:
+  serverName: "KDBX_MCP_Server"
+  logLevel: "INFO"
+  transport: "streamable-http"
+  host: "0.0.0.0"
+  port: 8000
+
+# Database config (auto-configured when kdbx.enabled=true)
+database:
+  host: ""
+  port: 5000
+  tls: false
+  timeout: 1
+  retry: 2
+
+# Service
+service:
+  type: ClusterIP
+  port: 8000
+
+# Resources for MCP Server
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi

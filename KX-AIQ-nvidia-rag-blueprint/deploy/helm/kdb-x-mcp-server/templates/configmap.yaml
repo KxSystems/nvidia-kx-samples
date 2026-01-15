@@ -1,0 +1,26 @@
+{{/*
+ConfigMap that exports KDB MCP configuration for other services
+This allows the AIRA backend to discover the MCP endpoint
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kdb-x-mcp-server.fullname" . }}-config
+  labels:
+    {{- include "kdb-x-mcp-server.labels" . | nindent 4 }}
+data:
+  # Deployment mode: internal or external
+  KDB_MODE: {{ .Values.mode | quote }}
+
+  # MCP endpoint URL (computed based on mode)
+  {{- if eq .Values.mode "internal" }}
+  KDB_MCP_ENDPOINT: "http://{{ include "kdb-x-mcp-server.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}/mcp"
+  KDB_TIMEOUT: "30"
+  {{- else }}
+  KDB_MCP_ENDPOINT: {{ .Values.external.endpoint | quote }}
+  KDB_TIMEOUT: {{ .Values.external.timeout | quote }}
+  {{- end }}
+
+  # Feature flags
+  KDB_ENABLED: "true"
+  KDB_USE_NAT_CLIENT: "true"

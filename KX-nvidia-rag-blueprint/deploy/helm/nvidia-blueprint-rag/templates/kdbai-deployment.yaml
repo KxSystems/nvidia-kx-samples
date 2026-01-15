@@ -1,0 +1,122 @@
+{{- if .Values.kdbai.enabled }}
+# KDB.AI Vector Database Deployment
+# Reference: https://docs.kx.com/1.7/KDB_AI/Get_Started/kdb-ai-server-setup.htm
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.kdbai.fullnameOverride | default "kdbai" }}
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kdbai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.kdbai.fullnameOverride | default "kdbai" }}
+      app.kubernetes.io/component: kdbai
+      {{- include "nvidia-blueprint-rag.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.kdbai.fullnameOverride | default "kdbai" }}
+        app.kubernetes.io/component: kdbai
+        {{- include "nvidia-blueprint-rag.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- if and .Values.kdbai.gpu .Values.kdbai.gpu.enabled .Values.kdbai.gpuImagePullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.kdbai.gpuImagePullSecret.name }}
+      {{- else if .Values.kdbai.imagePullSecret.name }}
+      imagePullSecrets:
+        - name: {{ .Values.kdbai.imagePullSecret.name }}
+      {{- end }}
+      {{- if .Values.kdbai.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.kdbai.nodeSelector | nindent 8 }}
+      {{- end }}
+      {{- if .Values.kdbai.affinity }}
+      affinity:
+{{ toYaml .Values.kdbai.affinity | nindent 8 }}
+      {{- end }}
+      {{- if .Values.kdbai.tolerations }}
+      tolerations:
+{{ toYaml .Values.kdbai.tolerations | nindent 8 }}
+      {{- end }}
+      {{- if .Values.kdbai.persistence.enabled }}
+      initContainers:
+        - name: fix-permissions
+          image: busybox:1.36
+          command: ['sh', '-c', 'chown -R 65534:65534 /tmp/kx/data/vdb && chmod -R 755 /tmp/kx/data/vdb']
+          volumeMounts:
+            - name: kdbai-data
+              mountPath: /tmp/kx/data/vdb
+          securityContext:
+            runAsUser: 0
+      {{- end }}
+      containers:
+        - name: kdbai
+          {{- if and .Values.kdbai.gpu .Values.kdbai.gpu.enabled }}
+          # GPU-enabled cuVS image
+          image: "{{ .Values.kdbai.gpuImage.registry }}/{{ .Values.kdbai.gpuImage.repository }}:{{ .Values.kdbai.gpuImage.tag }}"
+          imagePullPolicy: {{ .Values.kdbai.gpuImage.pullPolicy }}
+          {{- else }}
+          # Standard CPU image
+          image: "{{ .Values.kdbai.image.registry }}/{{ .Values.kdbai.image.repository }}:{{ .Values.kdbai.image.tag }}"
+          imagePullPolicy: {{ .Values.kdbai.image.pullPolicy }}
+          {{- end }}
+          ports:
+            - name: rest-api
+              containerPort: 8081
+              protocol: TCP
+            - name: client
+              containerPort: 8082
+              protocol: TCP
+          env:
+            - name: KDB_LICENSE_B64
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.kdbai.licenseSecret.name }}
+                  key: KDB_LICENSE_B64
+            - name: VDB_DIR
+              value: {{ .Values.kdbai.config.dataDir | quote }}
+            - name: THREADS
+              value: {{ .Values.kdbai.config.threads | quote }}
+            {{- if and .Values.kdbai.gpu .Values.kdbai.gpu.enabled }}
+            - name: CUDA_VISIBLE_DEVICES
+              value: {{ .Values.kdbai.gpu.deviceId | default "0" | quote }}
+            {{- end }}
+          {{- if .Values.kdbai.livenessProbe }}
+          livenessProbe:
+{{ toYaml .Values.kdbai.livenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.kdbai.readinessProbe }}
+          readinessProbe:
+{{ toYaml .Values.kdbai.readinessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.kdbai.resources }}
+          resources:
+            {{- if and .Values.kdbai.gpu .Values.kdbai.gpu.enabled }}
+            limits:
+              {{- if .Values.kdbai.resources.limits }}
+{{ toYaml .Values.kdbai.resources.limits | nindent 14 }}
+              {{- end }}
+              nvidia.com/gpu: 1
+            {{- if .Values.kdbai.resources.requests }}
+            requests:
+{{ toYaml .Values.kdbai.resources.requests | nindent 14 }}
+            {{- end }}
+            {{- else }}
+{{ toYaml .Values.kdbai.resources | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.kdbai.persistence.enabled }}
+          volumeMounts:
+            - name: kdbai-data
+              mountPath: /tmp/kx/data/vdb
+          {{- end }}
+      {{- if .Values.kdbai.persistence.enabled }}
+      volumes:
+        - name: kdbai-data
+          persistentVolumeClaim:
+            claimName: {{ .Values.kdbai.fullnameOverride | default "kdbai" }}-data
+      {{- end }}
+{{- end }}

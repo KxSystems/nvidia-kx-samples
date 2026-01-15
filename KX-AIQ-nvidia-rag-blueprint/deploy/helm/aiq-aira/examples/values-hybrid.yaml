@@ -1,0 +1,334 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# =============================================================================
+# Hybrid Cloud + On-Prem Deployment for AIQ AIRA
+# =============================================================================
+#
+# Architecture:
+#   CLOUD (EKS/GKE/AKS):
+#     - AIRA Backend (stateless, auto-scaling)
+#     - AIRA Frontend (stateless, auto-scaling)
+#     - Redis (job tracking)
+#     - No GPU required
+#
+#   ON-PREM (GPU Cluster):
+#     - LLM NIM (shared with RAG Blueprint)
+#     - KDB-X Database + MCP Server
+#     - RAG Blueprint (KDB.AI, Embedding, Reranker, NV-Ingest)
+#
+# Benefits:
+#   - Cost optimization: No GPU costs in cloud
+#   - Data residency: All data stays on-premises
+#   - Elastic scaling: Cloud components scale with demand
+#   - Shared resources: Reuse RAG's LLM NIM
+#
+# =============================================================================
+# Prerequisites
+# =============================================================================
+#
+#   1. Network connectivity between cloud and on-prem:
+#      - AWS Direct Connect / Azure ExpressRoute / GCP Interconnect (recommended)
+#      - Site-to-Site VPN (alternative)
+#      - Tailscale/Wireguard (simpler setup)
+#
+#   2. On-prem services running and accessible:
+#      - LLM NIM: http://nim-llm.onprem.internal:8000 (deployed by RAG Blueprint)
+#      - RAG Server: http://rag-server.onprem.internal:8081
+#      - Ingestor: http://ingestor-server.onprem.internal:8082
+#      - KDB MCP: http://kdb-mcp-server.onprem.internal:8000
+#
+#   3. Create secrets in cloud cluster:
+#      kubectl create secret generic ngc-api \
+#        --from-literal=NGC_API_KEY=<your-ngc-api-key> \
+#        -n <namespace>
+#
+#      kubectl create secret generic tavily-secret \
+#        --from-literal=TAVILY_API_KEY=<your-tavily-key> \
+#        -n <namespace>
+#
+#   4. Deploy with:
+#      helm upgrade --install aira deploy/helm/aiq-aira \
+#        -n aira --create-namespace \
+#        -f deploy/helm/aiq-aira/examples/values-hybrid.yaml \
+#        --set onprem.domain=<your-onprem-domain>
+#
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# On-Prem Service Endpoints (customize these)
+# -----------------------------------------------------------------------------
+# These should be resolvable from the cloud cluster via VPN/Direct Connect
+#
+# IMPORTANT: KDB-X MCP Server
+# The MCP server endpoint below should point to YOUR organization's existing
+# KDB-X MCP server. The MCP server deployed by this blueprint is for testing
+# and development only. For production, use your own MCP server with:
+# - Enterprise security and authentication
+# - Production-scale performance tuning
+# - Integration with your data governance policies
+#
+onprem:
+  domain: "onprem.internal"  # Base domain for on-prem services
+
+  # RAG Blueprint services (on-prem)
+  rag:
+    server: "rag-server.onprem.internal"
+    serverPort: 8081
+    ingestor: "ingestor-server.onprem.internal"
+    ingestorPort: 8082
+
+  # LLM NIM (shared with RAG, on-prem)
+  llm:
+    host: "nim-llm.onprem.internal"
+    port: 8000
+
+  # KDB-X services (on-prem)
+  kdb:
+    mcpServer: "kdb-mcp-server.onprem.internal"
+    mcpPort: 8000
+
+# -----------------------------------------------------------------------------
+# AIRA Backend - Cloud Deployment with Auto-Scaling
+# -----------------------------------------------------------------------------
+replicaCount: 2
+
+# Auto-scaling configuration
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Resource requests (no GPU needed - orchestration only)
+resources:
+  requests:
+    memory: "1Gi"
+    cpu: "500m"
+  limits:
+    memory: "4Gi"
+    cpu: "2"
+
+# Pod disruption budget for high availability
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Health checks tuned for hybrid latency (on-prem calls may be slower)
+livenessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 15
+  failureThreshold: 3
+
+readinessProbe:
+  initialDelaySeconds: 15
+  periodSeconds: 5
+  timeoutSeconds: 10
+  failureThreshold: 3
+
+# -----------------------------------------------------------------------------
+# Backend Image (KDB-enabled)
+# -----------------------------------------------------------------------------
+image:
+  repository: docker.io/alattar43828/aiq-kx-backend
+  tag: "hybrid-search"
+  pullPolicy: Always
+
+# No imagePullSecret needed for public Docker Hub images
+imagePullSecret:
+  create: false
+
+# -----------------------------------------------------------------------------
+# Backend Environment Variables
+# -----------------------------------------------------------------------------
+backendEnvVars:
+  # -------------------------------------------------------------------------
+  # LLM Configuration - Reuse RAG's On-Prem LLM NIM
+  # -------------------------------------------------------------------------
+  # Both Instruct and Nemotron point to the same on-prem LLM
+  # RAG Blueprint deploys nim-llm with Nemotron Super 49B
+  INSTRUCT_BASE_URL: "http://nim-llm.onprem.internal:8000/v1"
+  INSTRUCT_MODEL_NAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+  INSTRUCT_MODEL_TEMP: "0.0"
+  INSTRUCT_MAX_TOKENS: "20000"
+  INSTRUCT_API_KEY: "not-needed"
+
+  NEMOTRON_BASE_URL: "http://nim-llm.onprem.internal:8000/v1"
+  NEMOTRON_MODEL_NAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+  NEMOTRON_MODEL_TEMP: "0.5"
+  NEMOTRON_MAX_TOKENS: "5000"
+
+  # -------------------------------------------------------------------------
+  # RAG Configuration - On-Prem RAG Blueprint
+  # -------------------------------------------------------------------------
+  RAG_SERVER_URL: "http://rag-server.onprem.internal:8081/v1"
+  RAG_INGEST_URL: "http://ingestor-server.onprem.internal:8082/v1"
+
+  # -------------------------------------------------------------------------
+  # KDB-X Configuration - On-Prem KDB MCP Server (External)
+  # -------------------------------------------------------------------------
+  KDB_ENABLED: "true"
+  KDB_USE_NAT_CLIENT: "true"
+  KDB_MCP_ENDPOINT: "http://kdb-mcp-server.onprem.internal:8000/mcp"
+  KDB_MCP_INTERNAL: "false"  # External MCP - data loader disabled (read-only)
+  KDB_TIMEOUT: "30"
+
+  # -------------------------------------------------------------------------
+  # Application Settings
+  # -------------------------------------------------------------------------
+  AIRA_APPLY_GUARDRAIL: "false"
+
+# -----------------------------------------------------------------------------
+# DISABLE Local LLM NIM (Using On-Prem Shared LLM)
+# -----------------------------------------------------------------------------
+nim-llm:
+  enabled: false
+
+# -----------------------------------------------------------------------------
+# Redis - Cloud Deployment (for job tracking)
+# -----------------------------------------------------------------------------
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: 7-alpine
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+# -----------------------------------------------------------------------------
+# Frontend - Cloud Deployment with Auto-Scaling
+# -----------------------------------------------------------------------------
+frontend:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: docker.io/alattar43828/aiq-kx-frontend
+    tag: "latest"
+    pullPolicy: Always
+
+  service:
+    type: ClusterIP  # Use with Ingress
+    port: 3000
+    targetPort: 3000
+
+  # Auto-scaling
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+  # Resources (lightweight)
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# -----------------------------------------------------------------------------
+# Phoenix Tracing (Optional - Cloud-based)
+# -----------------------------------------------------------------------------
+phoenix:
+  enabled: true
+  image:
+    repository: arizephoenix/phoenix
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+
+# -----------------------------------------------------------------------------
+# Ingress Configuration (Cloud Load Balancer)
+# -----------------------------------------------------------------------------
+ingress:
+  enabled: true
+  className: "alb"  # AWS ALB, or "nginx" for nginx-ingress
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /aiqhealth
+    # Uncomment for SSL
+    # alb.ingress.kubernetes.io/ssl-redirect: "443"
+    # alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:...
+  hosts:
+    - host: aira.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+
+# -----------------------------------------------------------------------------
+# Secrets Configuration
+# -----------------------------------------------------------------------------
+# NGC API secret (for any cloud NVIDIA API calls if needed)
+ngcApiSecret:
+  name: "ngc-api"
+  create: true
+  password: ""  # Set via --set or environment variable
+
+# Tavily API secret (for web search)
+tavilyApiSecret:
+  name: "tavily-secret"
+  create: true
+  password: ""  # Set via --set or environment variable
+
+# KDB API secret (if on-prem KDB requires authentication)
+kdbApiSecret:
+  name: "kdb-secret"
+  create: false
+  password: ""
+
+# -----------------------------------------------------------------------------
+# Pod Security (Cloud Best Practices)
+# -----------------------------------------------------------------------------
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false  # AIRA needs writable /tmp
+  capabilities:
+    drop:
+      - ALL
+
+# -----------------------------------------------------------------------------
+# Topology Spread (Multi-AZ for HA)
+# -----------------------------------------------------------------------------
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: aiq-aira
+
+# -----------------------------------------------------------------------------
+# Node Affinity (No GPU Nodes - Cost Savings)
+# -----------------------------------------------------------------------------
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        preference:
+          matchExpressions:
+            # Prefer non-GPU nodes to save costs
+            - key: nvidia.com/gpu
+              operator: DoesNotExist

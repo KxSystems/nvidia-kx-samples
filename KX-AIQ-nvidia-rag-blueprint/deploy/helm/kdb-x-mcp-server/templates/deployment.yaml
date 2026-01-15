@@ -1,0 +1,201 @@
+{{- if eq .Values.mode "internal" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kdb-x-mcp-server.fullname" . }}
+  labels:
+    {{- include "kdb-x-mcp-server.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "kdb-x-mcp-server.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "kdb-x-mcp-server.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- if or .Values.imagePullSecrets .Values.imagePullSecret.create }}
+      imagePullSecrets:
+        {{- with .Values.imagePullSecrets }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.imagePullSecret.create }}
+        - name: {{ .Values.imagePullSecret.name }}
+        {{- end }}
+      {{- end }}
+      serviceAccountName: {{ include "kdb-x-mcp-server.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.mcp.port }}
+              protocol: TCP
+          env:
+            # MCP Server Configuration
+            - name: KDBX_MCP_SERVER_NAME
+              value: {{ .Values.mcp.serverName | quote }}
+            - name: KDBX_MCP_LOG_LEVEL
+              value: {{ .Values.mcp.logLevel | quote }}
+            - name: KDBX_MCP_TRANSPORT
+              value: {{ .Values.mcp.transport | quote }}
+            - name: KDBX_MCP_HOST
+              value: {{ .Values.mcp.host | quote }}
+            - name: KDBX_MCP_PORT
+              value: {{ .Values.mcp.port | quote }}
+            # Database Configuration
+            # Auto-configure to connect to deployed KDB-X service if enabled
+            - name: KDBX_DB_HOST
+              {{- if and .Values.kdbx.enabled (not .Values.database.host) }}
+              value: "{{ include "kdb-x-mcp-server.fullname" . }}-kdbx"
+              {{- else }}
+              value: {{ .Values.database.host | quote }}
+              {{- end }}
+            - name: KDBX_DB_PORT
+              value: {{ .Values.database.port | quote }}
+            - name: KDBX_DB_TLS
+              value: {{ .Values.database.tls | quote }}
+            - name: KDBX_DB_TIMEOUT
+              value: {{ .Values.database.timeout | quote }}
+            - name: KDBX_DB_RETRY
+              value: {{ .Values.database.retry | quote }}
+            - name: KDBX_DB_METRIC
+              value: {{ .Values.database.metric | quote }}
+            - name: KDBX_DB_K
+              value: {{ .Values.database.k | quote }}
+            {{- if .Values.database.embeddingCsvPath }}
+            - name: KDBX_DB_EMBEDDING_CSV_PATH
+              value: {{ .Values.database.embeddingCsvPath | quote }}
+            {{- end }}
+            # Database Credentials from Secret
+            {{- if or .Values.dbSecret.create .Values.dbSecret.existingSecret }}
+            - name: KDBX_DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kdb-x-mcp-server.dbSecretName" . }}
+                  key: username
+                  optional: true
+            - name: KDBX_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kdb-x-mcp-server.dbSecretName" . }}
+                  key: password
+                  optional: true
+            {{- end }}
+            # TLS Configuration
+            {{- if .Values.tls.enabled }}
+            - name: KX_SSL_CA_CERT_FILE
+              value: {{ .Values.tls.caCertFile | quote }}
+            {{- if not .Values.tls.verifyServer }}
+            - name: KX_SSL_VERIFY_SERVER
+              value: "NO"
+            {{- end }}
+            {{- end }}
+            # OpenAI API Key (optional, for embeddings)
+            {{- if .Values.openaiSecret.create }}
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kdb-x-mcp-server.openaiSecretName" . }}
+                  key: api-key
+                  optional: true
+            {{- end }}
+            # KDB License Configuration (PyKX) - uses file mount only, not env var
+            {{- if or (and .Values.kdbLicense.create .Values.kdbLicense.licenseB64) .Values.kdbLicense.existingSecret }}
+            - name: QLIC
+              value: "/opt/kx/lic"
+            {{- end }}
+            # Extra environment variables
+            {{- with .Values.extraEnvVars }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.livenessProbe.httpGet.path }}
+              port: {{ .Values.livenessProbe.httpGet.port }}
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readinessProbe.httpGet.path }}
+              port: {{ .Values.readinessProbe.httpGet.port }}
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            {{- if .Values.tls.enabled }}
+            - name: tls-certs
+              mountPath: /etc/kdb-tls
+              readOnly: true
+            {{- end }}
+            {{- if and .Values.kdbLicense.create .Values.kdbLicense.licenseB64 }}
+            - name: kdb-license
+              mountPath: /opt/kx/lic
+              readOnly: true
+            {{- else if .Values.kdbLicense.existingSecret }}
+            - name: kdb-license
+              mountPath: /opt/kx/lic
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        {{- if .Values.tls.enabled }}
+        - name: tls-certs
+          secret:
+            secretName: {{ include "kdb-x-mcp-server.tlsSecretName" . }}
+        {{- end }}
+        {{- if and .Values.kdbLicense.create .Values.kdbLicense.licenseB64 }}
+        - name: kdb-license
+          secret:
+            secretName: {{ .Values.kdbLicense.name }}
+        {{- else if .Values.kdbLicense.existingSecret }}
+        - name: kdb-license
+          secret:
+            secretName: {{ .Values.kdbLicense.existingSecret }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

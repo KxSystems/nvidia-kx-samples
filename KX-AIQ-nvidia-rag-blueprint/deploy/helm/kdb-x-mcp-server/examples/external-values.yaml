@@ -1,0 +1,18 @@
+# Example values for External Mode
+# Use an existing MCP server endpoint (no local deployment required)
+#
+# Usage:
+#   helm upgrade --install kdb-mcp ./kdb-x-mcp-server -f examples/external-values.yaml
+
+mode: "external"
+
+# External MCP Server Configuration
+external:
+  # The MCP server endpoint URL
+  endpoint: "https://kdbxmcp.kxailab.com/mcp"
+
+  # Optional API key for authenticated servers
+  apiKey: ""
+
+  # Connection timeout in seconds
+  timeout: 30

@@ -1,0 +1,54 @@
+# SEC Filings Loader Configuration
+# Add this to your Helm values file to enable automatic SEC filings loading
+
+secLoader:
+  # Enable/disable the SEC loader job
+  enabled: false
+
+  # Run after KDB.AI is installed
+  runAfterKdbai: true
+
+  # Symbols to download (comma-separated in configmap)
+  symbols:
+    - AAPL
+    - GOOG
+    - MSFT
+    - TSLA
+    - AMZN
+    - NVDA
+    - META
+    - RIVN
+
+  # Number of years of filings to download
+  years: 5
+
+  # Collection name in vector store
+  collectionName: sec_filings
+
+  # Delay between uploads (seconds)
+  uploadDelay: 60
+
+  # Storage for downloaded filings
+  storage:
+    size: 10Gi
+    # storageClassName: gp3
+
+  # Resource limits
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+  # Job settings
+  job:
+    backoffLimit: 2
+    ttlSecondsAfterFinished: 86400
+
+# Example usage in deploy command:
+# helm upgrade --install rag nvidia-blueprint-rag \
+#   -f values-kdbai.yaml \
+#   -f values-sec-loader.yaml \
+#   --set secLoader.enabled=true

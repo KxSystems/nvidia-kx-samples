@@ -1,0 +1,104 @@
+# Example values for Internal Mode with Runtime KDB-X Installation
+# This mode installs KDB-X at container startup - no pre-built image required.
+#
+# Usage:
+#   1. Copy this file: cp examples/internal-runtime-values.yaml my-kdb-values.yaml
+#   2. Edit my-kdb-values.yaml and replace all REPLACE_WITH_* placeholders
+#   3. Deploy:
+#      # For ECR:
+#      ECR_PASSWORD=$(aws ecr get-login-password --region us-east-1 --profile your-profile)
+#      helm upgrade --install kdb-mcp ./kdb-x-mcp-server -n aiq \
+#        -f my-kdb-values.yaml \
+#        --set imagePullSecret.password="$ECR_PASSWORD"
+#
+# Required Credentials (from https://portal.kx.com):
+#   - Bearer Token: Portal -> Profile -> Tokens -> Generate new token
+#   - License B64: Base64-encode your kc.lic file: cat kc.lic | base64
+#
+# IMPORTANT: Keep your values file with credentials private. Add to .gitignore:
+#   deploy/helm/kdb-x-mcp-server/my-kdb-values.yaml
+
+mode: "internal"
+
+# MCP Server Image (must be built and pushed first)
+# Build with: docker build -f deploy/helm/kdb-x-mcp-server/Dockerfile -t your-registry/kdb-x-mcp-server:0.1.0 .
+image:
+  repository: 105440091466.dkr.ecr.us-east-1.amazonaws.com/kdb-x-mcp-server
+  tag: "0.1.0"
+  pullPolicy: Always
+
+# Image pull secret for MCP server (required for private registries like ECR)
+# For ECR: set password via --set imagePullSecret.password="$(aws ecr get-login-password ...)"
+imagePullSecret:
+  create: true
+  name: "kdb-mcp-ecr-secret"
+  registry: "105440091466.dkr.ecr.us-east-1.amazonaws.com"  # e.g., 123456789.dkr.ecr.us-east-1.amazonaws.com
+  username: "AWS"                          # Use "AWS" for ECR
+  password: ""                             # Set via --set flag, not here
+
+# KDB-X Database Configuration
+kdbx:
+  enabled: true
+  installMode: "runtime"  # Install KDB-X at container startup
+
+  # Base image for runtime installation
+  image:
+    repository: python
+    tag: "3.12-slim-bookworm"
+    pullPolicy: IfNotPresent
+
+  # Build/Installation credentials (REQUIRED)
+  build:
+    # KX Portal OAuth bearer token
+    # Get from: https://portal.kx.com -> Profile -> Tokens -> Generate new token
+    # Note: Token is invalidated if you change your portal password
+    bearerToken: "MDAwMSAyNV5gdVZuRUE8WTxYdz1YKkw1TzdJey1uY08jJTwlZEtyYWNQZVp1IKkF-hhodHRwczovL3BvcnRhbC5kbC5reC5jb23p2SpXafooUm9vdD0xLTY5NDlmYmQ5LTEyMjQ1MGE5MjFhMjYxODYwNjFmNDIyZkb6D2FhbGF0dGFyQGt4LmNvbQ"
+
+    # Base64-encoded KDB-X license
+    # Generate with: cat kc.lic | base64 (single line, no newlines)
+    licenseB64: "AkzOxSdQJDSbErFQJwwFkWnxcB3Af3bHqdjtq188Ber4RU3qmXAkg3zCvO+JJgW6mQNBTmSU/BsU/Efrtjq6CXWL7ft3MFlXrEeb/lLQmwJmkZCC1hVkv4eSQ7o27fYtQnCedtJt9s4nGAYGCt+znLPXR2j921kd+zllde4sR7wLB2BlZu8F1+vM8J9R3MQKjoQb4PTM0MyrMJubC4PSxRVwO3YyURz1sNK0ZP923gH21DQt5Y5G3Cbx0g1jH89Am9kUbWxnGbtEPuWwZZs2vWb7DocNAItG4438rSnBAkvyj8yw5StOt41m71e+9PJCFaEoS3MLU1pQT6X7p6MIdPD4yL1urEGtd4QplXZxtvrzeThbb15kmPjcds1RQ8pe963P3+e/Ak/ysrQZWZUJqwIcQo2/jql1xOMFDKxj3O0YaHeEgLdPPFtXKcbwQS6Cu3rlOczfMSz+iYKNDg0xqKW1UY1lnpfVt65uM6/1ynVyYD7ryjnr486gRqMa1N+ESCINjc9WqhS6W+cSngE7UHSWV4oX71FNGIB1r4WO2yncJw=="
+
+  # Resources for KDB-X
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+
+# KDB License for PyKX (MCP server) - same license as kdbx.build.licenseB64
+kdbLicense:
+  create: true
+  type: "personal"  # "personal" for kc.lic, "commercial" for k4.lic
+  licenseB64: "AkzOxSdQJDSbErFQJwwFkWnxcB3Af3bHqdjtq188Ber4RU3qmXAkg3zCvO+JJgW6mQNBTmSU/BsU/Efrtjq6CXWL7ft3MFlXrEeb/lLQmwJmkZCC1hVkv4eSQ7o27fYtQnCedtJt9s4nGAYGCt+znLPXR2j921kd+zllde4sR7wLB2BlZu8F1+vM8J9R3MQKjoQb4PTM0MyrMJubC4PSxRVwO3YyURz1sNK0ZP923gH21DQt5Y5G3Cbx0g1jH89Am9kUbWxnGbtEPuWwZZs2vWb7DocNAItG4438rSnBAkvyj8yw5StOt41m71e+9PJCFaEoS3MLU1pQT6X7p6MIdPD4yL1urEGtd4QplXZxtvrzeThbb15kmPjcds1RQ8pe963P3+e/Ak/ysrQZWZUJqwIcQo2/jql1xOMFDKxj3O0YaHeEgLdPPFtXKcbwQS6Cu3rlOczfMSz+iYKNDg0xqKW1UY1lnpfVt65uM6/1ynVyYD7ryjnr486gRqMa1N+ESCINjc9WqhS6W+cSngE7UHSWV4oX71FNGIB1r4WO2yncJw=="  # Same value as kdbx.build.licenseB64
+
+# MCP Server Configuration
+mcp:
+  serverName: "KDBX_MCP_Server"
+  logLevel: "INFO"
+  transport: "streamable-http"
+  host: "0.0.0.0"
+  port: 8000
+
+# Database configuration (auto-configured when kdbx.enabled=true)
+database:
+  host: ""  # Leave empty - auto-configured to connect to deployed KDB-X
+  port: 5000
+  tls: false
+  timeout: 1
+  retry: 2
+
+# Service
+service:
+  type: ClusterIP
+  port: 8000
+
+# Resources for MCP Server
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi

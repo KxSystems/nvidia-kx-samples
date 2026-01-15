@@ -1,0 +1,25 @@
+{{- if .Values.kdbai.enabled }}
+# KDB.AI Vector Database Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.kdbai.fullnameOverride | default "kdbai" }}
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kdbai
+spec:
+  type: {{ .Values.kdbai.service.type }}
+  ports:
+    - name: rest-api
+      port: {{ .Values.kdbai.service.restPort }}
+      targetPort: 8081
+      protocol: TCP
+    - name: client
+      port: {{ .Values.kdbai.service.clientPort }}
+      targetPort: 8082
+      protocol: TCP
+  selector:
+    app: {{ .Values.kdbai.fullnameOverride | default "kdbai" }}
+    app.kubernetes.io/component: kdbai
+    {{- include "nvidia-blueprint-rag.selectorLabels" . | nindent 4 }}
+{{- end }}

@@ -1,0 +1,101 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 KX Systems, Inc. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# AIQ-KX Docker Compose - Runs with Hosted NVIDIA NIMs (no local GPU required)
+#
+# Usage:
+#   export NVIDIA_API_KEY="nvapi-xxx"
+#   docker compose -f docker-compose-kx.yaml up -d
+#
+# Access: http://localhost:3000
+
+services:
+  # KDB-X MCP Server
+  kdb-mcp-server:
+    container_name: kdb-mcp-server
+    image: docker.io/alattar43828/kdb-x-mcp-server:latest
+    ports:
+      - "8000:8000"
+    environment:
+      KDBX_MCP_TRANSPORT: "streamable-http"
+      KDBX_MCP_HOST: "0.0.0.0"
+      KDBX_MCP_PORT: "8000"
+      KDBX_MCP_LOG_LEVEL: "INFO"
+      # KDB-X Database connection (update if using external KDB-X)
+      KDBX_DB_HOST: "${KDBX_DB_HOST:-kdbx-database}"
+      KDBX_DB_PORT: "${KDBX_DB_PORT:-5000}"
+      KDBX_DB_TLS: "false"
+    networks:
+      - aiq-kx-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # AIQ-KX Backend
+  aiq-kx-backend:
+    container_name: aiq-kx-backend
+    image: docker.io/alattar43828/aiq-kx-backend:latest
+    ports:
+      - "3838:3838"
+    volumes:
+      - ../../configs:/app/configs:ro
+    command: ["uv", "run", "nat", "serve", "--config_file", "/app/configs/docker-config.yml", "--host", "0.0.0.0", "--port", "3838"]
+    environment:
+      # NVIDIA API Key for hosted NIMs
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY}
+
+      # LLM Configuration - Hosted NIMs
+      INSTRUCT_BASE_URL: "https://integrate.api.nvidia.com/v1"
+      NEMOTRON_BASE_URL: "https://integrate.api.nvidia.com/v1"
+      INSTRUCT_MODEL_NAME: "meta/llama-3.3-70b-instruct"
+      NEMOTRON_MODEL_NAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+
+      # KDB Configuration - Internal MCP server deployed by this compose
+      KDB_ENABLED: "true"
+      KDB_MCP_ENDPOINT: "http://kdb-mcp-server:8000/mcp"
+      KDB_MCP_INTERNAL: "true"  # Enables data loader (write operations)
+      KDB_TIMEOUT: "30"
+
+      # Optional: Tavily for web search
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+
+      # Guardrails
+      AIRA_APPLY_GUARDRAIL: "false"
+      AIRA_HOSTED_NIMS: "true"
+
+      # RAG (optional - comment out if not using)
+      # RAG_SERVER_URL: "http://rag-server:8081/v1"
+      # RAG_INGEST_URL: "http://ingestor-server:8082/v1"
+    depends_on:
+      - kdb-mcp-server
+    networks:
+      - aiq-kx-network
+
+  # AIQ-KX Frontend
+  aiq-kx-frontend:
+    container_name: aiq-kx-frontend
+    image: docker.io/alattar43828/aiq-kx-frontend:latest
+    ports:
+      - "3000:3000"
+    environment:
+      INFERENCE_ORIGIN: "http://aiq-kx-backend:3838"
+      VITE_API_BASE_URL: "http://aiq-kx-backend:3838"
+    depends_on:
+      - aiq-kx-backend
+    networks:
+      - aiq-kx-network
+
+  # Redis for job tracking
+  redis:
+    container_name: aiq-kx-redis
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - aiq-kx-network
+
+networks:
+  aiq-kx-network:
+    driver: bridge

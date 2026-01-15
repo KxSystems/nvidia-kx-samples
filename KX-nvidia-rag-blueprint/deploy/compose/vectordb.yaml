@@ -1,0 +1,284 @@
+services:
+
+  # Milvus can be made GPU accelerated by uncommenting the lines as specified below
+  milvus:
+    container_name: milvus-standalone
+    image: milvusdb/milvus:${MILVUS_VERSION:-v2.6.2-gpu} # milvusdb/milvus:v2.6.2 for CPU
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9010
+      KNOWHERE_GPU_MEM_POOL_SIZE: 2048;4096
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+    #   interval: 30s
+    #   start_period: 90s
+    #   timeout: 20s
+    #   retries: 3
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    depends_on:
+      - "etcd"
+      - "minio"
+    # Comment out this section if CPU based image is used and set below env variables to False
+    # export APP_VECTORSTORE_ENABLEGPUSEARCH=False
+    # export APP_VECTORSTORE_ENABLEGPUINDEX=False
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: ["gpu"]
+              # count: ${INFERENCE_GPU_COUNT:-all}
+              device_ids: ['${VECTORSTORE_GPU_DEVICE_ID:-0}']
+    profiles: ["milvus"]
+
+  etcd:
+    container_name: milvus-etcd
+    image: quay.io/coreos/etcd:v3.6.5
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/etcd:/etcd
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    profiles: ["milvus"]
+
+  minio:
+    container_name: minio
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    ports:
+      - "9011:9011"
+      - "9010:9010"
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/minio:/minio_data
+    command: minio server /minio_data --console-address ":9011" --address ":9010"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9010/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    profiles: ["milvus", "elasticsearch", "minio"]
+
+  elasticsearch:
+    container_name: elasticsearch
+    image: "docker.elastic.co/elasticsearch/elasticsearch:9.0.3"
+    ports:
+      - 9200:9200
+    volumes:
+      # Run "sudo chown -R 1000:1000 deploy/compose/volumes/elasticsearch/" to fix permissions
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/elasticsearch:/usr/share/elasticsearch/data
+    restart: on-failure
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms1024m -Xmx1024m"
+      - xpack.security.enabled=false
+      - xpack.license.self_generated.type=basic
+      - network.host=0.0.0.0
+      - cluster.routing.allocation.disk.threshold_enabled=false
+    hostname: elasticsearch
+    healthcheck:
+      test: ["CMD", "curl", "-s", "-f", "http://localhost:9200/_cat/health"]
+      interval: 10s
+      timeout: 1s
+      retries: 10
+    profiles: ["elasticsearch"]
+
+  # KDB.AI Vector Database Server (Self-Hosted)
+  # Reference: https://docs.kx.com/1.7/KDB_AI/Get_Started/kdb-ai-server-setup.htm
+  #
+  # Prerequisites:
+  #   1. Obtain a KDB.AI license from KX (valid for 90 days)
+  #   2. Set the required environment variables (see below)
+  #   3. Run the docker-login-kdbai service first to authenticate
+  #
+  # Required environment variables:
+  #   - KDBAI_REGISTRY_EMAIL: Your KX signup email for Docker registry auth
+  #   - KDBAI_REGISTRY_TOKEN: Bearer token from KX welcome email
+  #   - KDB_LICENSE_B64: Base64-encoded KDB.AI license string
+  #   - KDBAI_THREADS: Number of threads for KDB.AI (default: 8)
+  #
+  # To use KDB.AI with this stack:
+  #   1. export KDBAI_REGISTRY_EMAIL=<your-email>
+  #   2. export KDBAI_REGISTRY_TOKEN=<bearer-token>
+  #   3. export KDB_LICENSE_B64=<your-license-string>
+  #   4. export APP_VECTORSTORE_NAME=kdbai
+  #   5. docker compose -f vectordb.yaml --profile kdbai up -d
+  #
+  # Ports:
+  #   - 8081: REST API endpoint
+  #   - 8082: Client endpoint (used by kdbai-client Python SDK)
+  #
+
+  # Helper service to authenticate with KX Docker registry
+  # This runs once before kdbai service starts to ensure image can be pulled
+  kdbai-registry-login:
+    container_name: kdbai-registry-login
+    image: docker:24-cli
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${HOME}/.docker:/root/.docker
+    environment:
+      KDBAI_REGISTRY_EMAIL: ${KDBAI_REGISTRY_EMAIL:?KDBAI_REGISTRY_EMAIL is required}
+      KDBAI_REGISTRY_TOKEN: ${KDBAI_REGISTRY_TOKEN:?KDBAI_REGISTRY_TOKEN is required}
+    command: >
+      sh -c '
+        echo "Authenticating with KX Docker registry..."
+        echo "$${KDBAI_REGISTRY_TOKEN}" | docker login portal.dl.kx.com -u "$${KDBAI_REGISTRY_EMAIL}" --password-stdin
+        if [ $$? -eq 0 ]; then
+          echo "Successfully authenticated with portal.dl.kx.com"
+        else
+          echo "Failed to authenticate with KX Docker registry"
+          exit 1
+        fi
+      '
+    profiles: ["kdbai"]
+
+  # Init container to fix volume permissions before KDB.AI starts
+  # KDB.AI runs as user 65534 (nobody) and needs write access to the data volume
+  kdbai-init:
+    container_name: kdbai-init
+    image: busybox:latest
+    volumes:
+      - kdbai-data:/tmp/kx/data/vdb
+    command: ["sh", "-c", "chown -R 65534:65534 /tmp/kx/data/vdb && chmod -R 777 /tmp/kx/data/vdb"]
+    user: root
+    profiles: ["kdbai"]
+
+  kdbai:
+    # Note: container_name must match the hostname expected by other services (kdbai)
+    # IMPORTANT: Run `docker login portal.dl.kx.com -u $KDBAI_REGISTRY_EMAIL -p $KDBAI_REGISTRY_TOKEN`
+    # before starting this service for the first time.
+    container_name: kdbai
+    image: portal.dl.kx.com/kdbai-db
+    depends_on:
+      kdbai-init:
+        condition: service_completed_successfully
+    ports:
+      - "8083:8081"  # REST API (remapped to avoid conflict with rag-server)
+      - "8084:8082"  # Client endpoint
+    environment:
+      KDB_LICENSE_B64: ${KDB_LICENSE_B64:?KDB_LICENSE_B64 is required - obtain from KX}
+      VDB_DIR: "/tmp/kx/data/vdb"
+      THREADS: ${KDBAI_THREADS:-8}
+    volumes:
+      # Using named volume to avoid SELinux/permission issues with bind mounts
+      - kdbai-data:/tmp/kx/data/vdb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/v2/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: on-failure
+    user: "65534:65534"
+    profiles: ["kdbai"]
+
+  # KDB.AI cuVS (GPU-Accelerated) Vector Database Server
+  # Uses NVIDIA cuVS for GPU-accelerated vector indexing and search
+  #
+  # Prerequisites:
+  #   1. All kdbai requirements (license, registry auth)
+  #   2. NVIDIA GPU with CUDA support
+  #   3. nvidia-container-toolkit installed
+  #   4. Access to KDB.AI cuVS image
+  #
+  # Required environment variables:
+  #   - KDBAI_REGISTRY_EMAIL: Your KX signup email
+  #   - KDBAI_REGISTRY_TOKEN: Bearer token from KX
+  #   - KDB_LICENSE_B64: Base64-encoded license
+  #   - KDBAI_GPU_IMAGE: cuVS Docker image (default: ext-dev-registry.kxi-dev.kx.com/kdbai-db:1.8.1-rc.2-cuvs)
+  #
+  # To use GPU-accelerated KDB.AI:
+  #   export APP_VECTORSTORE_ENABLEGPUINDEX=True
+  #   export APP_VECTORSTORE_ENABLEGPUSEARCH=True
+  #   docker compose -f vectordb.yaml --profile kdbai-gpu up -d
+  #
+  kdbai-gpu-registry-login:
+    container_name: kdbai-gpu-registry-login
+    image: docker:24-cli
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${HOME}/.docker:/root/.docker
+    environment:
+      KDBAI_REGISTRY_EMAIL: ${KDBAI_REGISTRY_EMAIL:?KDBAI_REGISTRY_EMAIL is required}
+      KDBAI_REGISTRY_TOKEN: ${KDBAI_REGISTRY_TOKEN:?KDBAI_REGISTRY_TOKEN is required}
+    command: >
+      sh -c '
+        echo "Authenticating with KX Docker registries for cuVS image..."
+        echo "$${KDBAI_REGISTRY_TOKEN}" | docker login portal.dl.kx.com -u "$${KDBAI_REGISTRY_EMAIL}" --password-stdin
+        echo "$${KDBAI_REGISTRY_TOKEN}" | docker login ext-dev-registry.kxi-dev.kx.com -u "$${KDBAI_REGISTRY_EMAIL}" --password-stdin
+        if [ $$? -eq 0 ]; then
+          echo "Successfully authenticated with KX registries"
+        else
+          echo "Failed to authenticate with KX Docker registry"
+          exit 1
+        fi
+      '
+    profiles: ["kdbai-gpu"]
+
+  # Init container to fix volume permissions for GPU KDB.AI
+  kdbai-gpu-init:
+    container_name: kdbai-gpu-init
+    image: busybox:latest
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/kdbai:/tmp/kx/data/vdb
+    command: ["sh", "-c", "chown -R 65534:65534 /tmp/kx/data/vdb && chmod -R 777 /tmp/kx/data/vdb"]
+    user: root
+    profiles: ["kdbai-gpu"]
+
+  kdbai-gpu:
+    container_name: kdbai-server-gpu
+    image: ${KDBAI_GPU_IMAGE:-ext-dev-registry.kxi-dev.kx.com/kdbai-db:1.8.1-rc.2-cuvs}
+    depends_on:
+      kdbai-gpu-registry-login:
+        condition: service_completed_successfully
+      kdbai-gpu-init:
+        condition: service_completed_successfully
+    ports:
+      - "8083:8081"  # REST API
+      - "8084:8082"  # Client endpoint
+    environment:
+      KDB_LICENSE_B64: ${KDB_LICENSE_B64:?KDB_LICENSE_B64 is required}
+      VDB_DIR: "/tmp/kx/data/vdb"
+      THREADS: ${KDBAI_THREADS:-8}
+      CUDA_VISIBLE_DEVICES: ${KDBAI_GPU_DEVICE_ID:-0}
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/kdbai:/tmp/kx/data/vdb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/v2/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: on-failure
+    user: "65534:65534"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: ["gpu"]
+              device_ids: ['${KDBAI_GPU_DEVICE_ID:-0}']
+    profiles: ["kdbai-gpu"]
+
+volumes:
+  kdbai-data:
+    name: kdbai-data
+
+networks:
+  default:
+    name: nvidia-rag

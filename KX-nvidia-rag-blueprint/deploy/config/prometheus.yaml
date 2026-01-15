@@ -1,0 +1,14 @@
+
+# SPDX-FileCopyrightText: Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES.
+# All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+scrape_configs:
+  # This job scrapes your multi-worker FastAPI application
+  - job_name: "rag-app"
+    scrape_interval: 5s
+    metrics_path: /metrics  # The endpoint you added to your app
+    static_configs:
+      # Use the docker-compose service name and port of your application
+      - targets: ["rag-server:8081"]
+

@@ -1,0 +1,21 @@
+{{- if .Values.kdbai.enabled }}
+{{- if and .Values.kdbai.storageClass .Values.kdbai.storageClass.create }}
+# KDB.AI Storage Class with WaitForFirstConsumer
+# Prevents volume scheduling issues when nodes scale up/down
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ .Values.kdbai.storageClass.name | default "kdbai-storage" }}
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kdbai
+provisioner: {{ .Values.kdbai.storageClass.provisioner | default "ebs.csi.aws.com" }}
+volumeBindingMode: {{ .Values.kdbai.storageClass.volumeBindingMode | default "WaitForFirstConsumer" }}
+reclaimPolicy: {{ .Values.kdbai.storageClass.reclaimPolicy | default "Delete" }}
+allowVolumeExpansion: {{ .Values.kdbai.storageClass.allowVolumeExpansion | default true }}
+{{- if .Values.kdbai.storageClass.parameters }}
+parameters:
+  {{- toYaml .Values.kdbai.storageClass.parameters | nindent 2 }}
+{{- end }}
+{{- end }}
+{{- end }}

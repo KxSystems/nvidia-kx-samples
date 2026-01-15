@@ -1,0 +1,19 @@
+{{- if and .Values.minio.enabled .Values.minio.persistence.enabled }}
+# Standalone MinIO Persistent Volume Claim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.minio.fullnameOverride | default "rag-minio" }}
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+    app.kubernetes.io/component: minio
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.minio.persistence.size | default "50Gi" }}
+  {{- if .Values.minio.persistence.storageClass }}
+  storageClassName: {{ .Values.minio.persistence.storageClass }}
+  {{- end }}
+{{- end }}
