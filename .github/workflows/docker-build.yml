@@ -23,20 +23,20 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+'
       - 'v[0-9]+.[0-9]+.[0-9]+-*'  # Prereleases like v1.2.3-rc.1
     paths:
-      - 'src/**'
-      - 'frontend/**'
-      - 'pyproject.toml'
-      - 'uv.lock'
+      - 'KX-nvidia-rag-blueprint/src/**'
+      - 'KX-nvidia-rag-blueprint/frontend/**'
+      - 'KX-nvidia-rag-blueprint/pyproject.toml'
+      - 'KX-nvidia-rag-blueprint/uv.lock'
       - '.github/workflows/docker-build.yml'
   pull_request:
     branches:
       - main
       - develop
     paths:
-      - 'src/**'
-      - 'frontend/**'
-      - 'pyproject.toml'
-      - 'uv.lock'
+      - 'KX-nvidia-rag-blueprint/src/**'
+      - 'KX-nvidia-rag-blueprint/frontend/**'
+      - 'KX-nvidia-rag-blueprint/pyproject.toml'
+      - 'KX-nvidia-rag-blueprint/uv.lock'
   workflow_dispatch:
     inputs:
       environment:
@@ -61,6 +61,9 @@ env:
   RAG_SERVER_IMAGE: rag-server-kdbai
   INGESTOR_SERVER_IMAGE: ingestor-server-kdbai
   FRONTEND_IMAGE: rag-frontend-kdbai
+
+  # Working directory for the blueprint
+  BLUEPRINT_DIR: KX-nvidia-rag-blueprint
 
 jobs:
   # Determine build configuration
@@ -121,6 +124,7 @@ jobs:
 
       - name: Determine version
         id: version
+        working-directory: ${{ env.BLUEPRINT_DIR }}
         run: |
           # KX Downloads enforces Semantic Versioning
           # Format: MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-prerelease+build
@@ -137,7 +141,6 @@ jobs:
             # This ensures uniqueness while being semver compliant
             BASE_VERSION=$(grep -E '^version\s*=' pyproject.toml | sed 's/version = "\(.*\)"/\1/' | sed 's/\.dev$//')
             SHORT_SHA=$(git rev-parse --short HEAD)
-            BRANCH_NAME=$(echo "${{ github.ref_name }}" | sed 's/[^a-zA-Z0-9]/-/g' | cut -c1-20)
             VERSION="${BASE_VERSION}-dev.${SHORT_SHA}"
           fi
 
@@ -180,8 +183,8 @@ jobs:
       - name: Build and push RAG Server
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: src/nvidia_rag/rag_server/Dockerfile
+          context: ${{ env.BLUEPRINT_DIR }}
+          file: ${{ env.BLUEPRINT_DIR }}/src/nvidia_rag/rag_server/Dockerfile
           push: ${{ needs.setup.outputs.push_images == 'true' }}
           # Note: 'latest' tag is server-side maintained by KX Downloads
           tags: ${{ needs.setup.outputs.registry }}/${{ env.RAG_SERVER_IMAGE }}:${{ needs.setup.outputs.version }}
@@ -215,8 +218,8 @@ jobs:
       - name: Build and push Ingestor Server
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: src/nvidia_rag/ingestor_server/Dockerfile
+          context: ${{ env.BLUEPRINT_DIR }}
+          file: ${{ env.BLUEPRINT_DIR }}/src/nvidia_rag/ingestor_server/Dockerfile
           push: ${{ needs.setup.outputs.push_images == 'true' }}
           # Note: 'latest' tag is server-side maintained by KX Downloads
           tags: ${{ needs.setup.outputs.registry }}/${{ env.INGESTOR_SERVER_IMAGE }}:${{ needs.setup.outputs.version }}
@@ -250,8 +253,8 @@ jobs:
       - name: Build and push Frontend
         uses: docker/build-push-action@v5
         with:
-          context: frontend
-          file: frontend/Dockerfile
+          context: ${{ env.BLUEPRINT_DIR }}/frontend
+          file: ${{ env.BLUEPRINT_DIR }}/frontend/Dockerfile
           push: ${{ needs.setup.outputs.push_images == 'true' }}
           # Note: 'latest' tag is server-side maintained by KX Downloads
           tags: ${{ needs.setup.outputs.registry }}/${{ env.FRONTEND_IMAGE }}:${{ needs.setup.outputs.version }}
