@@ -106,12 +106,12 @@ jobs:
 
           if [[ "$ENV" == "prod" ]]; then
             echo "registry=${{ env.PROD_REGISTRY }}" >> $GITHUB_OUTPUT
-            echo "username_secret=KX_DOWNLOADS_USER_PROD" >> $GITHUB_OUTPUT
-            echo "token_secret=KX_DOWNLOADS_TOKEN_PROD" >> $GITHUB_OUTPUT
+            echo "username_secret=KX_DOWNLOADS_CI_USER_PROD" >> $GITHUB_OUTPUT
+            echo "token_secret=KX_DOWNLOADS_CI_TOKEN_PROD" >> $GITHUB_OUTPUT
           else
             echo "registry=${{ env.DEV_REGISTRY }}" >> $GITHUB_OUTPUT
-            echo "username_secret=KX_DOWNLOADS_USER_DEV" >> $GITHUB_OUTPUT
-            echo "token_secret=KX_DOWNLOADS_TOKEN_DEV" >> $GITHUB_OUTPUT
+            echo "username_secret=KX_DOWNLOADS_CI_USER_DEV" >> $GITHUB_OUTPUT
+            echo "token_secret=KX_DOWNLOADS_CI_TOKEN_DEV" >> $GITHUB_OUTPUT
           fi
 
           # Only push on non-PR events
