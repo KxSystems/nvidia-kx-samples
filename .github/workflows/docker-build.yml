@@ -71,8 +71,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       registry: ${{ steps.config.outputs.registry }}
-      username_secret: ${{ steps.config.outputs.username_secret }}
-      token_secret: ${{ steps.config.outputs.token_secret }}
+      environment: ${{ steps.config.outputs.environment }}
       version: ${{ steps.version.outputs.version }}
       push_images: ${{ steps.config.outputs.push_images }}
       is_prerelease: ${{ steps.version.outputs.is_prerelease }}
@@ -103,15 +102,12 @@ jobs:
           fi
 
           echo "Environment: $ENV"
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
 
           if [[ "$ENV" == "prod" ]]; then
             echo "registry=${{ env.PROD_REGISTRY }}" >> $GITHUB_OUTPUT
-            echo "username_secret=KX_DOWNLOADS_USER_PROD" >> $GITHUB_OUTPUT
-            echo "token_secret=KX_DOWNLOADS_TOKEN_PROD" >> $GITHUB_OUTPUT
           else
             echo "registry=${{ env.DEV_REGISTRY }}" >> $GITHUB_OUTPUT
-            echo "username_secret=KX_DOWNLOADS_USER_DEV" >> $GITHUB_OUTPUT
-            echo "token_secret=KX_DOWNLOADS_TOKEN_DEV" >> $GITHUB_OUTPUT
           fi
 
           # Only push on non-PR events
@@ -172,13 +168,21 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to KX Downloads Registry
-        if: needs.setup.outputs.push_images == 'true'
+      - name: Login to KX Downloads Registry (Dev)
+        if: needs.setup.outputs.push_images == 'true' && needs.setup.outputs.environment == 'dev'
         uses: docker/login-action@v3
         with:
-          registry: ${{ needs.setup.outputs.registry }}
-          username: ${{ secrets[needs.setup.outputs.username_secret] }}
-          password: ${{ secrets[needs.setup.outputs.token_secret] }}
+          registry: ${{ env.DEV_REGISTRY }}
+          username: ${{ secrets.KX_DOWNLOADS_USER_DEV }}
+          password: ${{ secrets.KX_DOWNLOADS_TOKEN_DEV }}
+
+      - name: Login to KX Downloads Registry (Prod)
+        if: needs.setup.outputs.push_images == 'true' && needs.setup.outputs.environment == 'prod'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.PROD_REGISTRY }}
+          username: ${{ secrets.KX_DOWNLOADS_USER_PROD }}
+          password: ${{ secrets.KX_DOWNLOADS_TOKEN_PROD }}
 
       - name: Build and push RAG Server
         uses: docker/build-push-action@v5
@@ -207,13 +211,21 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to KX Downloads Registry
-        if: needs.setup.outputs.push_images == 'true'
+      - name: Login to KX Downloads Registry (Dev)
+        if: needs.setup.outputs.push_images == 'true' && needs.setup.outputs.environment == 'dev'
         uses: docker/login-action@v3
         with:
-          registry: ${{ needs.setup.outputs.registry }}
-          username: ${{ secrets[needs.setup.outputs.username_secret] }}
-          password: ${{ secrets[needs.setup.outputs.token_secret] }}
+          registry: ${{ env.DEV_REGISTRY }}
+          username: ${{ secrets.KX_DOWNLOADS_USER_DEV }}
+          password: ${{ secrets.KX_DOWNLOADS_TOKEN_DEV }}
+
+      - name: Login to KX Downloads Registry (Prod)
+        if: needs.setup.outputs.push_images == 'true' && needs.setup.outputs.environment == 'prod'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.PROD_REGISTRY }}
+          username: ${{ secrets.KX_DOWNLOADS_USER_PROD }}
+          password: ${{ secrets.KX_DOWNLOADS_TOKEN_PROD }}
 
       - name: Build and push Ingestor Server
         uses: docker/build-push-action@v5
@@ -242,13 +254,21 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to KX Downloads Registry
-        if: needs.setup.outputs.push_images == 'true'
+      - name: Login to KX Downloads Registry (Dev)
+        if: needs.setup.outputs.push_images == 'true' && needs.setup.outputs.environment == 'dev'
         uses: docker/login-action@v3
         with:
-          registry: ${{ needs.setup.outputs.registry }}
-          username: ${{ secrets[needs.setup.outputs.username_secret] }}
-          password: ${{ secrets[needs.setup.outputs.token_secret] }}
+          registry: ${{ env.DEV_REGISTRY }}
+          username: ${{ secrets.KX_DOWNLOADS_USER_DEV }}
+          password: ${{ secrets.KX_DOWNLOADS_TOKEN_DEV }}
+
+      - name: Login to KX Downloads Registry (Prod)
+        if: needs.setup.outputs.push_images == 'true' && needs.setup.outputs.environment == 'prod'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.PROD_REGISTRY }}
+          username: ${{ secrets.KX_DOWNLOADS_USER_PROD }}
+          password: ${{ secrets.KX_DOWNLOADS_TOKEN_PROD }}
 
       - name: Build and push Frontend
         uses: docker/build-push-action@v5
@@ -283,6 +303,7 @@ jobs:
           echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Registry | \`${{ needs.setup.outputs.registry }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | \`${{ needs.setup.outputs.environment }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Version | \`${{ needs.setup.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Prerelease | ${{ needs.setup.outputs.is_prerelease }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Push Images | ${{ needs.setup.outputs.push_images }} |" >> $GITHUB_STEP_SUMMARY
