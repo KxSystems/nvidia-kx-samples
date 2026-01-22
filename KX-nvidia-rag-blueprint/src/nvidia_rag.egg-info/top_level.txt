@@ -1,2 +1,0 @@
-nvidia_rag
-observability

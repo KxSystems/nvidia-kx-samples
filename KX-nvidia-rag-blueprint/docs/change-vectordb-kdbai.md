@@ -356,6 +356,14 @@ Access the RAG UI at `http://<host-ip>:8090`. In the UI, navigate to: Settings >
 
 This section covers deploying the full RAG stack on a server with 8 NVIDIA GPUs using a pre-configured deployment script. This is ideal for on-premises or dedicated GPU servers where you want to run all components locally with maximum performance.
 
+> [!NOTE]
+> **Development/Testing Only**: This deployment configuration is intended for development, testing, and proof-of-concept purposes. For production deployments, consider proper scaling strategies including:
+> - High availability (HA) configurations with multiple replicas
+> - Load balancing across multiple nodes
+> - Kubernetes-based orchestration for auto-scaling
+> - Proper resource limits and monitoring
+> - Backup and disaster recovery procedures
+
 ### Prerequisites
 
 1. **8 NVIDIA GPUs** - The deployment script is configured for 8x GPUs (tested on RTX PRO 6000 Blackwell with 96GB each, but works with other configurations)
@@ -1099,13 +1107,13 @@ For production deployments, use the standard KDB.AI image with HNSW index, which
 
 KDB.AI-enabled RAG images are available from the KX registry and use the same credentials as the KDB.AI database image:
 
-- `portal.dl.kx.com/rag-server-kdbai:v2.3.2`
-- `portal.dl.kx.com/ingestor-server-kdbai:v2.3.2`
+- `portal.dl.kx.com/rag-server-kdbai:2.3.4`
+- `portal.dl.kx.com/ingestor-server-kdbai:2.3.4`
 
 **To build custom images:**
 ```bash
 export REGISTRY=<your-registry>
-export TAG=v2.3.2
+export TAG=2.3.4
 
 # Build and push rag-server
 docker buildx build --platform linux/amd64 \
@@ -1214,7 +1222,16 @@ mv deploy/helm/nvidia-blueprint-rag/*-backup ../
 
 ## Amazon EKS Deployment
 
-For Amazon EKS deployments, a pre-configured values file is available that combines KDB.AI with cloud-hosted NVIDIA AI endpoints for a production-ready setup.
+For Amazon EKS deployments, a pre-configured values file is available that combines KDB.AI with cloud-hosted NVIDIA AI endpoints.
+
+> [!NOTE]
+> **Development/Testing Configuration**: The provided EKS values file is configured for development and testing purposes with single replicas. For production deployments, you should:
+> - Increase replica counts for high availability
+> - Configure Horizontal Pod Autoscaling (HPA)
+> - Set appropriate resource requests and limits
+> - Enable persistent storage with proper backup strategies
+> - Configure monitoring, alerting, and logging
+> - Review and harden security configurations
 
 ### Prerequisites
 

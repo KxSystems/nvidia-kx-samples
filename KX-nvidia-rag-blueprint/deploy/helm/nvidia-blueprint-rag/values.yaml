@@ -37,8 +37,8 @@ ngcApiSecret:
 
 # -- RAG server container image
 image:
-  repository: nvcr.io/nvidia/blueprint/rag-server
-  tag: "2.3.0"
+  repository: portal.dl.kx.com/rag-server-kdbai
+  tag: "2.3.4"
   pullPolicy: Always
 
 # -- RAG server service configuration
@@ -249,8 +249,8 @@ ingestor-server:
     password: ""
 
   image:
-    repository: nvcr.io/nvidia/blueprint/ingestor-server
-    tag: "2.3.0"
+    repository: portal.dl.kx.com/ingestor-server-kdbai
+    tag: "2.3.4"
     pullPolicy: Always
 
   # -- Service config for ingestor-server

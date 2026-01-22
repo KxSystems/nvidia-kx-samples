@@ -3,7 +3,7 @@ services:
   # Main orchestrator server which stiches together all calls to different services to fulfill the user request
   rag-server:
     container_name: rag-server
-    image: ${RAG_SERVER_IMAGE:-portal.dl.kx.com/rag-server-kdbai:v2.3.2}
+    image: ${RAG_SERVER_IMAGE:-portal.dl.kx.com/rag-server-kdbai:2.3.4}
     build:
       # Set context to repo's root directory
       context: ../../

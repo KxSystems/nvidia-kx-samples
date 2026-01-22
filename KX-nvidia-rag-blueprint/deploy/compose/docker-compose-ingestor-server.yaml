@@ -3,7 +3,7 @@ services:
   # Main ingestor server which is responsible for ingestion
   ingestor-server:
     container_name: ingestor-server
-    image: ${INGESTOR_SERVER_IMAGE:-portal.dl.kx.com/ingestor-server-kdbai:v2.3.2}
+    image: ${INGESTOR_SERVER_IMAGE:-portal.dl.kx.com/ingestor-server-kdbai:2.3.4}
     build:
       # Set context to repo's root directory
       context: ../../

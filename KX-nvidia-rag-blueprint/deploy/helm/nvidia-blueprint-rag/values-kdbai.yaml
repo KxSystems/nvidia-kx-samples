@@ -27,6 +27,14 @@
 #   deploy/EKS/rag-values-kdbai.yaml
 
 # =============================================================================
+# KDB.AI-Enabled RAG Images (from KX Registry)
+# =============================================================================
+image:
+  repository: portal.dl.kx.com/rag-server-kdbai
+  tag: "2.3.4"
+  pullPolicy: IfNotPresent
+
+# =============================================================================
 # KDB.AI Vector Database Configuration
 # =============================================================================
 kdbai:
@@ -57,17 +65,17 @@ kdbai:
     deviceId: "0"
 
   # GPU image pull secret for cuVS registry (when using GPU mode)
-  # Create with: kubectl create secret docker-registry kdbai-cuvs-registry-secret \
-  #   --docker-server=ext-dev-registry.kxi-dev.kx.com \
-  #   --docker-username=<username> --docker-password=<password>
-  # gpuImagePullSecret:
-  #   name: "kdbai-cuvs-registry-secret"
+  # Public preview cuVS images are on portal.dl.kx.com - same as CPU images
+  # DEV REGISTRY (if needed): --docker-server=ext-dev-registry.kxi-dev.kx.com
+  gpuImagePullSecret:
+    name: "kdbai-registry-secret"
 
   # GPU-enabled KDB.AI cuVS image (used when gpu.enabled=true)
+  # DEV REGISTRY (if needed): ext-dev-registry.kxi-dev.kx.com/kdbai-db-cuvs:1.8.2
   gpuImage:
-    registry: ext-dev-registry.kxi-dev.kx.com
-    repository: kdbai-db
-    tag: "1.8.1-rc.2-cuvs"
+    registry: portal.dl.kx.com
+    repository: kdbai-db-cuvs
+    tag: "1.8.2"
     pullPolicy: Always
 
   # Server configuration
@@ -119,6 +127,10 @@ envVars:
 # Ingestor Server Configuration
 # =============================================================================
 ingestor-server:
+  image:
+    repository: portal.dl.kx.com/ingestor-server-kdbai
+    tag: "2.3.4"
+    pullPolicy: IfNotPresent
   envVars:
     # Vector Store - KDB.AI
     APP_VECTORSTORE_URL: "http://kdbai:8082"

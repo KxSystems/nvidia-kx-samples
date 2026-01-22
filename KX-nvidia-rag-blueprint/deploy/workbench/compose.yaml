@@ -203,7 +203,7 @@ services:
   # Main ingestor server which is responsible for ingestion
   ingestor-server:
     container_name: ingestor-server
-    image: nvcr.io/nvidia/blueprint/ingestor-server:${TAG:-2.3.0}
+    image: portal.dl.kx.com/ingestor-server-kdbai:${TAG:-2.3.4}
     build:
       # Set context to repo's root directory
       context: ../../
@@ -405,7 +405,7 @@ services:
   # Main orchestrator server which stiches together all calls to different services to fulfill the user request
   rag-server:
     container_name: rag-server
-    image: nvcr.io/nvidia/blueprint/rag-server:${TAG:-2.3.0}
+    image: portal.dl.kx.com/rag-server-kdbai:${TAG:-2.3.4}
     build:
       # Set context to repo's root directory
       context: ../../

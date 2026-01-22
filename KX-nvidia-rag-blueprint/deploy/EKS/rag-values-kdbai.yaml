@@ -15,7 +15,7 @@
 #
 #      Optional: To build custom images:
 #      export REGISTRY=<your-registry>
-#      export TAG=v2.3.2
+#      export TAG=2.3.4
 #      docker buildx build --platform linux/amd64 \
 #        -t ${REGISTRY}/rag-server-kdbai:${TAG} \
 #        -f src/nvidia_rag/rag_server/Dockerfile --push .
@@ -31,11 +31,15 @@
 #        -n <your-namespace>
 #
 #   3. Create the KDB.AI cuVS registry secret (for GPU/cuVS images):
+#      Note: Public preview cuVS images are now on portal.dl.kx.com (same as CPU images)
 #      kubectl create secret docker-registry kdbai-cuvs-registry-secret \
-#        --docker-server=ext-dev-registry.kxi-dev.kx.com \
+#        --docker-server=portal.dl.kx.com \
 #        --docker-username=<your-kx-email> \
 #        --docker-password=<bearer-token-from-kx> \
 #        -n <your-namespace>
+#
+#      DEV REGISTRY (if using dev images):
+#        --docker-server=ext-dev-registry.kxi-dev.kx.com
 #
 #   4. Create the KDB.AI license secret:
 #      kubectl create secret generic kdbai-license-secret \
@@ -77,7 +81,7 @@
 # Uses the same credentials as the KDB.AI image (kdbai-registry-secret).
 image:
   repository: portal.dl.kx.com/rag-server-kdbai
-  tag: "v2.3.2"
+  tag: "2.3.4"
   pullPolicy: Always
 
 
@@ -111,15 +115,18 @@ kdbai:
     enabled: true
     deviceId: "0"
 
-  # GPU image pull secret for cuVS registry (ext-dev-registry.kxi-dev.kx.com)
+  # GPU image pull secret for cuVS registry
+  # PUBLIC PREVIEW uses portal.dl.kx.com - same as CPU images, reuse kdbai-registry-secret
+  # DEV REGISTRY (if needed): use "kdbai-cuvs-registry-secret" for ext-dev-registry.kxi-dev.kx.com
   gpuImagePullSecret:
-    name: "kdbai-cuvs-registry-secret"
+    name: "kdbai-registry-secret"
 
   # GPU-enabled KDB.AI cuVS image (used when gpu.enabled=true)
+  # DEV REGISTRY (if needed): ext-dev-registry.kxi-dev.kx.com/kdbai-db-cuvs:1.8.2
   gpuImage:
-    registry: ext-dev-registry.kxi-dev.kx.com
-    repository: kdbai-db
-    tag: "1.8.1-rc.2-cuvs"
+    registry: portal.dl.kx.com
+    repository: kdbai-db-cuvs
+    tag: "1.8.2"
     pullPolicy: Always
 
   # Server configuration
@@ -231,7 +238,7 @@ envVars:
 ingestor-server:
   image:
     repository: portal.dl.kx.com/ingestor-server-kdbai
-    tag: "v2.3.2"
+    tag: "2.3.4"
     pullPolicy: Always
   resources:
     limits:

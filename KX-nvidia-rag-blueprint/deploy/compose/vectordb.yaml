@@ -200,7 +200,8 @@ services:
   #   - KDBAI_REGISTRY_EMAIL: Your KX signup email
   #   - KDBAI_REGISTRY_TOKEN: Bearer token from KX
   #   - KDB_LICENSE_B64: Base64-encoded license
-  #   - KDBAI_GPU_IMAGE: cuVS Docker image (default: ext-dev-registry.kxi-dev.kx.com/kdbai-db:1.8.1-rc.2-cuvs)
+  #   - KDBAI_GPU_IMAGE: cuVS Docker image (default: portal.dl.kx.com/kdbai-db-cuvs:1.8.2)
+  #   - DEV REGISTRY (if needed): ext-dev-registry.kxi-dev.kx.com/kdbai-db-cuvs:1.8.2
   #
   # To use GPU-accelerated KDB.AI:
   #   export APP_VECTORSTORE_ENABLEGPUINDEX=True
@@ -242,7 +243,8 @@ services:
 
   kdbai-gpu:
     container_name: kdbai-server-gpu
-    image: ${KDBAI_GPU_IMAGE:-ext-dev-registry.kxi-dev.kx.com/kdbai-db:1.8.1-rc.2-cuvs}
+    # DEV REGISTRY (if needed): ext-dev-registry.kxi-dev.kx.com/kdbai-db-cuvs:1.8.2
+    image: ${KDBAI_GPU_IMAGE:-portal.dl.kx.com/kdbai-db-cuvs:1.8.2}
     depends_on:
       kdbai-gpu-registry-login:
         condition: service_completed_successfully
