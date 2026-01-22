@@ -3,6 +3,18 @@
 #
 # AIQ-KX Docker Compose - Runs with Hosted NVIDIA NIMs (no local GPU required)
 #
+# =============================================================================
+# DEVELOPMENT/TESTING ONLY
+# =============================================================================
+# This configuration is intended for development and testing purposes.
+# For production deployments, use Kubernetes (Helm charts) with:
+#   - Horizontal pod autoscaling (HPA)
+#   - Load balancing and high availability
+#   - Proper resource limits and requests
+#   - Production-grade monitoring and alerting
+#   - See: deploy/helm/aiq-aira/ for production deployment
+# =============================================================================
+#
 # Usage:
 #   export NVIDIA_API_KEY="nvapi-xxx"
 #   docker compose -f docker-compose-kx.yaml up -d
@@ -36,7 +48,7 @@ services:
   # AIQ-KX Backend
   aiq-kx-backend:
     container_name: aiq-kx-backend
-    image: docker.io/alattar43828/aiq-kx-backend:latest
+    image: portal.dl.kx.com/aiq-kx-backend:1.0.1
     ports:
       - "3838:3838"
     volumes:
@@ -76,7 +88,7 @@ services:
   # AIQ-KX Frontend
   aiq-kx-frontend:
     container_name: aiq-kx-frontend
-    image: docker.io/alattar43828/aiq-kx-frontend:latest
+    image: portal.dl.kx.com/aiq-kx-frontend:1.0.1
     ports:
       - "3000:3000"
     environment:

@@ -3,11 +3,22 @@
 #
 # AIQ-KX Docker Compose - Reuse Existing RAG NIMs (No additional GPUs needed)
 #
+# =============================================================================
+# DEVELOPMENT/TESTING ONLY
+# =============================================================================
+# This configuration is intended for development and testing purposes.
+# For production deployments, use Kubernetes (Helm charts) with:
+#   - Horizontal pod autoscaling (HPA)
+#   - Load balancing and high availability
+#   - Proper resource limits and requests
+#   - Production-grade monitoring and alerting
+#   - See: deploy/helm/aiq-aira/ for production deployment
+# =============================================================================
+#
 # Use this if you already have NVIDIA RAG blueprint deployed with NIMs.
 # This config connects to existing LLM services instead of deploying new ones.
 #
-# Designed for: 8x RTX PRO 6000 Blackwell (96GB each) with KDB.AI RAG
-# GPU Assignment (from RAG):
+# Example GPU Assignment (8x RTX PRO 6000 Blackwell with KDB.AI RAG):
 #   GPU 0: LLM (49B) → nim-llm:8000
 #   GPU 1: Embedding + Reranker → nemoretriever-embedding-ms:8000
 #   GPU 2-5: Document processing NIMs
@@ -167,7 +178,7 @@ services:
   # AIQ-KX Backend - Connects to EXISTING RAG NIMs
   aiq-kx-backend:
     container_name: aiq-kx-backend
-    image: docker.io/alattar43828/aiq-kx-backend:kdb-discovery
+    image: portal.dl.kx.com/aiq-kx-backend:1.0.1
     ports:
       - "3838:3838"
     volumes:
@@ -221,7 +232,7 @@ services:
   # AIQ-KX Frontend
   aiq-kx-frontend:
     container_name: aiq-kx-frontend
-    image: docker.io/alattar43828/aiq-kx-frontend:latest
+    image: portal.dl.kx.com/aiq-kx-frontend:1.0.1
     ports:
       - "3000:3000"
     environment:

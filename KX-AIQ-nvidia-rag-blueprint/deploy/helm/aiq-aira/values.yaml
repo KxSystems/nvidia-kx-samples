@@ -9,7 +9,16 @@ replicaCount: 1
 global:
   registry: ""  # Leave empty to use repository values as-is, or set to override (e.g., "105440091466.dkr.ecr.us-east-1.amazonaws.com")
 
+# KX Portal registry secret (for aiq-kx-backend and aiq-kx-frontend images)
 imagePullSecret:
+  name: "kx-portal-secret"
+  registry: "portal.dl.kx.com"
+  username: ""  # Set to your KX portal email
+  password: ""  # Set to your KX portal token
+  create: true
+
+# NGC registry secret (for NIM images from nvcr.io)
+ngcImagePullSecret:
   name: "ngc-secret"
   registry: "nvcr.io"
   username: "$oauthtoken"
@@ -42,8 +51,8 @@ redis:
 
 # The image repository and tag for the AIQ AIRA backend service.
 image:
-  repository: nvcr.io/nvidia/blueprint/aira-backend
-  tag: v1.2.0
+  repository: portal.dl.kx.com/aiq-kx-backend
+  tag: "1.0.1"
   pullPolicy: Always
 
 # The service type and port for the main AIQ AIRA backend service
@@ -104,8 +113,8 @@ frontend:
     targetPort: 3000
     nodePort: 30080
   image:
-    repository: nvcr.io/nvidia/blueprint/aira-frontend
-    tag: v1.2.0
+    repository: portal.dl.kx.com/aiq-kx-frontend
+    tag: "1.0.1"
     pullPolicy: Always
   replicaCount: 1
 

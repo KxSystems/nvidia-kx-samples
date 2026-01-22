@@ -87,8 +87,15 @@ Create secret for KDB+ API Key
 {{- end }}
 
 {{/*
-Generate DockerConfigJson for image pull secrets
+Generate DockerConfigJson for image pull secrets (KX Portal)
 */}}
 {{- define "imagePullSecret" }}
 {{- printf "{\"auths\":{\"%s\":{\"auth\":\"%s\"}}}" .Values.imagePullSecret.registry (printf "%s:%s" .Values.imagePullSecret.username .Values.imagePullSecret.password | b64enc) | b64enc }}
+{{- end }}
+
+{{/*
+Generate DockerConfigJson for NGC image pull secrets
+*/}}
+{{- define "ngcImagePullSecret" }}
+{{- printf "{\"auths\":{\"%s\":{\"auth\":\"%s\"}}}" .Values.ngcImagePullSecret.registry (printf "%s:%s" .Values.ngcImagePullSecret.username .Values.ngcImagePullSecret.password | b64enc) | b64enc }}
 {{- end }}

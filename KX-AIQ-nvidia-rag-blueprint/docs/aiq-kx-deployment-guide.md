@@ -146,15 +146,18 @@ This deployment is **cloud-agnostic** and works with any standard Kubernetes clu
 
 ### AIQ-KX Pre-built Images
 
-AIQ-KX images are available on Docker Hub:
+AIQ-KX images are available from the **KX Portal Registry**:
 
 ```
-docker.io/alattar43828/aiq-kx-backend:latest
-docker.io/alattar43828/aiq-kx-frontend:latest
-docker.io/alattar43828/kdb-x-mcp-server:latest
+portal.dl.kx.com/aiq-kx-backend:1.0.1
+portal.dl.kx.com/aiq-kx-frontend:1.0.1
 ```
+
+> **Registry Authentication:** Access to `portal.dl.kx.com` requires KX Portal credentials. Contact [KX Sales](https://kx.com/contact/) for access.
 
 > **Note:** These images are different from the base NVCR images (`nvcr.io/nvidia/blueprint/aira-*`) which do NOT include KDB integration.
+
+Development builds are also available on `dev.downloads.kx.com` for testing.
 
 ### Building Custom Images (Optional)
 
@@ -190,9 +193,22 @@ docker push your-registry/aiq-kx-frontend:latest
 
 Choose the registry that fits your infrastructure:
 
-#### Option A: NVIDIA NGC (Base Version Only)
+#### Option A: KX Portal (Recommended for AIQ-KX)
 
-> **Note:** NVCR images are the **base AI-Q Research Assistant** without KDB integration. For AIQ-KX with KDB support, use Options B-E with your own hosted images.
+Pre-built AIQ-KX images with full KDB integration. Requires KX Portal credentials.
+
+```bash
+# AIQ-KX from KX Portal (default)
+helm upgrade --install aiq-kx deploy/helm/aiq-aira \
+  -n aiq --create-namespace \
+  --set imagePullSecret.username="your-email@kx.com" \
+  --set imagePullSecret.password="your-kx-portal-token" \
+  --set ngcApiSecret.password="$NVIDIA_API_KEY"
+```
+
+#### Option B: NVIDIA NGC (Base Version Only)
+
+> **Note:** NVCR images are the **base AI-Q Research Assistant** without KDB integration. For AIQ-KX with KDB support, use Option A (KX Portal).
 
 Uses pre-built images from NVIDIA Container Registry. No image building required.
 
@@ -203,9 +219,9 @@ helm upgrade --install aiq deploy/helm/aiq-aira \
   --set ngcApiSecret.password="$NVIDIA_API_KEY"
 ```
 
-#### Option B: Docker Hub
+#### Option C: Private Registry
 
-Best for public deployments, small teams, and quick testing.
+Best for enterprise deployments with custom registry requirements.
 
 ```yaml
 # values-docker-hub.yaml
@@ -316,8 +332,9 @@ Pre-configured examples are available in `deploy/helm/aiq-aira/examples/`:
 
 | File | Description |
 |------|-------------|
+| `values.yaml` (default) | **KX Portal registry** (`portal.dl.kx.com`) |
 | `values-generic-k8s.yaml` | Minimal config for any K8s cluster |
-| `values-docker-hub.yaml` | Docker Hub deployment template |
+| `values-hybrid.yaml` | Hybrid cloud + on-prem deployment |
 | `values-private-registry.yaml` | Enterprise private registry template |
 
 ---

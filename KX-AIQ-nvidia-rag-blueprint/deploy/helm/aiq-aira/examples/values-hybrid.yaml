@@ -132,8 +132,8 @@ readinessProbe:
 # Backend Image (KDB-enabled)
 # -----------------------------------------------------------------------------
 image:
-  repository: docker.io/alattar43828/aiq-kx-backend
-  tag: "hybrid-search"
+  repository: portal.dl.kx.com/aiq-kx-backend
+  tag: "1.0.1"
   pullPolicy: Always
 
 # No imagePullSecret needed for public Docker Hub images
@@ -211,8 +211,8 @@ frontend:
   replicaCount: 2
 
   image:
-    repository: docker.io/alattar43828/aiq-kx-frontend
-    tag: "latest"
+    repository: portal.dl.kx.com/aiq-kx-frontend
+    tag: "1.0.1"
     pullPolicy: Always
 
   service:

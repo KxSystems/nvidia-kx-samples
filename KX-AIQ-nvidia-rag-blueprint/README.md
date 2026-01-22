@@ -43,15 +43,16 @@ The AI-Q NVIDIA Research Assistant blueprint allows you to create a deep researc
 
 AIQ-KX is the KDB-enabled edition with pre-built Docker images for rapid deployment.
 
-### Pre-built Images (Docker Hub)
+### Pre-built Images (KX Portal)
 
 | Component | Image | Description |
 |-----------|-------|-------------|
-| Backend | `docker.io/alattar43828/aiq-kx-backend:latest` | FastAPI research assistant service |
-| Frontend | `docker.io/alattar43828/aiq-kx-frontend:latest` | React web application |
-| KDB-X MCP Server | `docker.io/alattar43828/kdb-x-mcp-server:latest` | MCP protocol bridge (connects to KDB-X via IPC) |
+| Backend | `portal.dl.kx.com/aiq-kx-backend:1.0.1` | FastAPI research assistant service |
+| Frontend | `portal.dl.kx.com/aiq-kx-frontend:1.0.1` | React web application |
 
-> **Note:** The KDB-X database itself is **not** a pre-built image. It runs in a separate container using `python:3.12-slim-bookworm` base image and installs KDB-X at startup from the KX Portal (requires `KDB_BEARER_TOKEN` and `KDB_LICENSE_B64`).
+> **Registry Authentication:** Images are hosted on `portal.dl.kx.com`. You need KX Portal credentials to pull them. Contact [KX Sales](https://kx.com/contact/) for access.
+
+> **Note:** The KDB-X database and MCP server are deployed separately. See the [AIQ-KX Deployment Guide](docs/aiq-kx-deployment-guide.md) for full deployment instructions.
 
 ### Option A: Docker Compose (Single Server)
 
@@ -89,12 +90,16 @@ helm upgrade --install kdb-mcp deploy/helm/kdb-x-mcp-server -n aiq --create-name
 # 2. Deploy AIQ-KX (backend + frontend)
 helm upgrade --install aiq-kx deploy/helm/aiq-aira -n aiq \
   -f deploy/helm/aiq-aira/examples/values-generic-k8s.yaml \
+  --set imagePullSecret.username="your-email@kx.com" \
+  --set imagePullSecret.password="your-kx-portal-token" \
   --set ngcApiSecret.password="$NVIDIA_API_KEY"
 
 # 3. Access the frontend
 kubectl -n aiq port-forward svc/aiq-kx-aira-frontend 3000:3000
 # Open http://localhost:3000
 ```
+
+> **Registry Credentials:** Replace `your-email@kx.com` and `your-kx-portal-token` with your KX Portal credentials.
 
 ### Supported Platforms
 
@@ -108,8 +113,9 @@ kubectl -n aiq port-forward svc/aiq-kx-aira-frontend 3000:3000
 
 | Use Case | Values File |
 |----------|-------------|
+| **KX Portal (Default)** | [`values.yaml`](deploy/helm/aiq-aira/values.yaml) - Uses `portal.dl.kx.com` |
 | Generic Kubernetes | [`values-generic-k8s.yaml`](deploy/helm/aiq-aira/examples/values-generic-k8s.yaml) |
-| Docker Hub images | [`values-docker-hub.yaml`](deploy/helm/aiq-aira/examples/values-docker-hub.yaml) |
+| Hybrid Cloud + On-Prem | [`values-hybrid.yaml`](deploy/helm/aiq-aira/examples/values-hybrid.yaml) |
 | Private registry | [`values-private-registry.yaml`](deploy/helm/aiq-aira/examples/values-private-registry.yaml) |
 
 For detailed deployment instructions, see the [AIQ-KX Deployment Guide](docs/aiq-kx-deployment-guide.md).

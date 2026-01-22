@@ -14,6 +14,9 @@ spec:
     spec:
       imagePullSecrets:
         - name: {{ .Values.imagePullSecret.name }}
+        {{- if .Values.ngcImagePullSecret }}
+        - name: {{ .Values.ngcImagePullSecret.name }}
+        {{- end }}
       volumes:
         - name: config-volume
           configMap:

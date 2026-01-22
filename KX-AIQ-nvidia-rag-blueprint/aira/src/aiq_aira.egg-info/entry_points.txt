@@ -1,5 +1,0 @@
-[console_scripts]
-aira = aiq_aira.cli:run_cli
-
-[nat.plugins]
-aiq_aira = aiq_aira.register

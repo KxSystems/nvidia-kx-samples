@@ -74,7 +74,7 @@
 # Backend image configuration (KDB-enabled)
 image:
   repository: REPLACE_WITH_REGISTRY/aiq/aiq-kx-backend
-  tag: "latest"
+  tag: "1.0.1"
   pullPolicy: Always
 
 # Frontend image configuration (KDB-enabled)
@@ -82,7 +82,7 @@ frontend:
   enabled: true
   image:
     repository: REPLACE_WITH_REGISTRY/aiq/aiq-kx-frontend
-    tag: "latest"
+    tag: "1.0.1"
     pullPolicy: Always
   service:
     type: NodePort
