@@ -48,7 +48,7 @@ services:
   # AIQ-KX Backend
   aiq-kx-backend:
     container_name: aiq-kx-backend
-    image: portal.dl.kx.com/aiq-kx-backend:1.0.1
+    image: portal.dl.kx.com/aiq-kx-backend:1.0.2
     ports:
       - "3838:3838"
     volumes:
@@ -88,7 +88,7 @@ services:
   # AIQ-KX Frontend
   aiq-kx-frontend:
     container_name: aiq-kx-frontend
-    image: portal.dl.kx.com/aiq-kx-frontend:1.0.1
+    image: portal.dl.kx.com/aiq-kx-frontend:1.0.2
     ports:
       - "3000:3000"
     environment:

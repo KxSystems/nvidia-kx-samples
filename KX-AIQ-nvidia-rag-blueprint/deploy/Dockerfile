@@ -34,7 +34,7 @@ ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 
 # Install uv package manager
 # The installer requires curl (and certificates) to download the release archive
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates tzdata
 
 # Download the latest installer
 ADD https://astral.sh/uv/install.sh /uv-installer.sh

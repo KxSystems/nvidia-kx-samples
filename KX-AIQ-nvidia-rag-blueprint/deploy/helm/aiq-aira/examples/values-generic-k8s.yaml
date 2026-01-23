@@ -43,7 +43,7 @@
 # AIQ-KX images (KDB-enabled) hosted on Docker Hub
 image:
   repository: portal.dl.kx.com/aiq-kx-backend
-  tag: "1.0.1"
+  tag: "1.0.2"
   pullPolicy: Always
 
 # Frontend configuration
@@ -51,7 +51,7 @@ frontend:
   enabled: true
   image:
     repository: portal.dl.kx.com/aiq-kx-frontend
-    tag: "1.0.1"
+    tag: "1.0.2"
     pullPolicy: Always
   service:
     # NodePort for on-premise access without LoadBalancer

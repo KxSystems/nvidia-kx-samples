@@ -133,7 +133,7 @@ readinessProbe:
 # -----------------------------------------------------------------------------
 image:
   repository: portal.dl.kx.com/aiq-kx-backend
-  tag: "1.0.1"
+  tag: "1.0.2"
   pullPolicy: Always
 
 # No imagePullSecret needed for public Docker Hub images
@@ -212,7 +212,7 @@ frontend:
 
   image:
     repository: portal.dl.kx.com/aiq-kx-frontend
-    tag: "1.0.1"
+    tag: "1.0.2"
     pullPolicy: Always
 
   service:

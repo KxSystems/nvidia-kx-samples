@@ -149,8 +149,8 @@ This deployment is **cloud-agnostic** and works with any standard Kubernetes clu
 AIQ-KX images are available from the **KX Portal Registry**:
 
 ```
-portal.dl.kx.com/aiq-kx-backend:1.0.1
-portal.dl.kx.com/aiq-kx-frontend:1.0.1
+portal.dl.kx.com/aiq-kx-backend:1.0.2
+portal.dl.kx.com/aiq-kx-frontend:1.0.2
 ```
 
 > **Registry Authentication:** Access to `portal.dl.kx.com` requires KX Portal credentials. Contact [KX Sales](https://kx.com/contact/) for access.

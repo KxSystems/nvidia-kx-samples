@@ -52,7 +52,7 @@ redis:
 # The image repository and tag for the AIQ AIRA backend service.
 image:
   repository: portal.dl.kx.com/aiq-kx-backend
-  tag: "1.0.1"
+  tag: "1.0.2"
   pullPolicy: Always
 
 # The service type and port for the main AIQ AIRA backend service
@@ -114,7 +114,7 @@ frontend:
     nodePort: 30080
   image:
     repository: portal.dl.kx.com/aiq-kx-frontend
-    tag: "1.0.1"
+    tag: "1.0.2"
     pullPolicy: Always
   replicaCount: 1
 
