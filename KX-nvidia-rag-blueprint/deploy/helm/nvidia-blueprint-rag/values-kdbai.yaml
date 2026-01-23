@@ -51,17 +51,17 @@ kdbai:
     name: "kdbai-license-secret"
     create: false
 
-  # Standard KDB.AI image (CPU)
+  # KDB.AI cuVS image (GPU-accelerated)
   image:
     registry: portal.dl.kx.com
-    repository: kdbai-db
-    tag: "latest"
+    repository: kdbai-db-cuvs
+    tag: "1.8.2"
     pullPolicy: IfNotPresent
 
   # GPU/cuVS Configuration
-  # Set gpu.enabled=true to use GPU-accelerated KDB.AI with cuVS
+  # GPU-accelerated KDB.AI with cuVS is enabled by default
   gpu:
-    enabled: false
+    enabled: true
     deviceId: "0"
 
   # GPU image pull secret for cuVS registry (when using GPU mode)
@@ -116,12 +116,12 @@ envVars:
 
   # KDB.AI specific settings
   KDBAI_DATABASE: "default"
-  KDBAI_INDEX_TYPE: "hnsw"
+  KDBAI_INDEX_TYPE: "cagra"
   KDBAI_API_KEY: ""
 
-  # GPU Configuration (set to "True" when using KDB.AI cuVS image)
-  APP_VECTORSTORE_ENABLEGPUINDEX: "False"
-  APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
+  # GPU Configuration (enabled for cuVS GPU-accelerated index)
+  APP_VECTORSTORE_ENABLEGPUINDEX: "True"
+  APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
 
 # =============================================================================
 # Ingestor Server Configuration
@@ -139,9 +139,9 @@ ingestor-server:
 
     # KDB.AI specific settings
     KDBAI_DATABASE: "default"
-    KDBAI_INDEX_TYPE: "hnsw"
+    KDBAI_INDEX_TYPE: "cagra"
     KDBAI_API_KEY: ""
 
-    # GPU Configuration (set to "True" when using KDB.AI cuVS image)
-    APP_VECTORSTORE_ENABLEGPUINDEX: "False"
-    APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
+    # GPU Configuration (enabled for cuVS GPU-accelerated index)
+    APP_VECTORSTORE_ENABLEGPUINDEX: "True"
+    APP_VECTORSTORE_ENABLEGPUSEARCH: "True"

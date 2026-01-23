@@ -162,8 +162,9 @@ services:
     # Note: container_name must match the hostname expected by other services (kdbai)
     # IMPORTANT: Run `docker login portal.dl.kx.com -u $KDBAI_REGISTRY_EMAIL -p $KDBAI_REGISTRY_TOKEN`
     # before starting this service for the first time.
+    # Uses cuVS GPU-accelerated image by default for CAGRA index support
     container_name: kdbai
-    image: portal.dl.kx.com/kdbai-db
+    image: ${KDBAI_GPU_IMAGE:-portal.dl.kx.com/kdbai-db-cuvs:1.8.2}
     depends_on:
       kdbai-init:
         condition: service_completed_successfully
@@ -185,6 +186,13 @@ services:
       start_period: 30s
     restart: on-failure
     user: "65534:65534"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     profiles: ["kdbai"]
 
   # KDB.AI cuVS (GPU-Accelerated) Vector Database Server

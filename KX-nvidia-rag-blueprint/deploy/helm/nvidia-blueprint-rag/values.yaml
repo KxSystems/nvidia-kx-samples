@@ -103,8 +103,8 @@ envVars:
   # Type of vectordb search to be used
   APP_VECTORSTORE_SEARCHTYPE: "dense"
   # Boolean to control GPU search/indexing
-  APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
-  APP_VECTORSTORE_ENABLEGPUINDEX: "False"
+  APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
+  APP_VECTORSTORE_ENABLEGPUINDEX: "True"
   # ef: Parameter controlling query time/accuracy trade-off. Higher ef leads to more accurate but slower search.
   APP_VECTORSTORE_EF: "100"
 
@@ -112,7 +112,7 @@ envVars:
   # KDB.AI database name
   KDBAI_DATABASE: "default"
   # KDB.AI index type: flat, hnsw, ivf, ivfpq, cagra (GPU)
-  KDBAI_INDEX_TYPE: "hnsw"
+  KDBAI_INDEX_TYPE: "cagra"
   # KDB.AI API key (optional for self-hosted deployments)
   KDBAI_API_KEY: ""
 
@@ -283,13 +283,13 @@ ingestor-server:
     APP_VECTORSTORE_URL: "http://kdbai:8082"
     APP_VECTORSTORE_NAME: "kdbai" # supported values: "kdbai", "milvus", or "elasticsearch"
     APP_VECTORSTORE_SEARCHTYPE: "dense"
-    APP_VECTORSTORE_ENABLEGPUINDEX: "False"
-    APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
+    APP_VECTORSTORE_ENABLEGPUINDEX: "True"
+    APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
     COLLECTION_NAME: "multimodal_data"
 
     # === KDB.AI specific configurations ===
     KDBAI_DATABASE: "default"
-    KDBAI_INDEX_TYPE: "hnsw"
+    KDBAI_INDEX_TYPE: "cagra"
     KDBAI_API_KEY: ""
 
     # === MinIO Configurations ===
@@ -470,12 +470,12 @@ kdbai:
   enabled: false
   fullnameOverride: kdbai
 
-  # -- KDB.AI image configuration
+  # -- KDB.AI image configuration (cuVS GPU-accelerated)
   # Requires authentication with KX Docker registry (portal.dl.kx.com)
   image:
     registry: portal.dl.kx.com
-    repository: kdbai-db
-    tag: latest
+    repository: kdbai-db-cuvs
+    tag: "1.8.2"
     pullPolicy: IfNotPresent
 
   # -- Image pull secret for KX Docker registry

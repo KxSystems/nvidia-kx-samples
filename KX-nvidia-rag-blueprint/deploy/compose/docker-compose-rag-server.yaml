@@ -37,14 +37,14 @@ services:
       # KDB.AI specific configurations
       KDBAI_API_KEY: ${KDBAI_API_KEY:-}
       KDBAI_DATABASE: ${KDBAI_DATABASE:-default}
-      KDBAI_INDEX_TYPE: ${KDBAI_INDEX_TYPE:-hnsw}
+      KDBAI_INDEX_TYPE: ${KDBAI_INDEX_TYPE:-cagra}
       # Type of index to be used for vectorstore (hnsw for KDB.AI, GPU_CAGRA for Milvus)
       APP_VECTORSTORE_INDEXTYPE: ${APP_VECTORSTORE_INDEXTYPE:-"hnsw"}
       # Type of vectordb search to be used
       APP_VECTORSTORE_SEARCHTYPE: ${APP_VECTORSTORE_SEARCHTYPE:-"dense"} # Can be dense or hybrid
       # Boolean to control GPU search/indexing
-      APP_VECTORSTORE_ENABLEGPUSEARCH: ${APP_VECTORSTORE_ENABLEGPUSEARCH:-False}
-      APP_VECTORSTORE_ENABLEGPUINDEX: ${APP_VECTORSTORE_ENABLEGPUINDEX:-False}
+      APP_VECTORSTORE_ENABLEGPUSEARCH: ${APP_VECTORSTORE_ENABLEGPUSEARCH:-True}
+      APP_VECTORSTORE_ENABLEGPUINDEX: ${APP_VECTORSTORE_ENABLEGPUINDEX:-True}
       # ef: Parameter controlling query time/accuracy trade-off. Higher ef leads to more accurate but slower search.
       APP_VECTORSTORE_EF: ${APP_VECTORSTORE_EF:-100} # Must be greater or equal to VECTOR_DB_TOPK
       # vectorstore collection name to store embeddings
