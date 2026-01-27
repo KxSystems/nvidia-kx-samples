@@ -128,7 +128,7 @@ This modular design ensures efficient query processing, accurate retrieval of in
 - **RAG Orchestrator Server** – Coordinates interactions between the user, retrievers, vector database, and inference models, ensuring multi-turn and context-aware query handling. This is [LangChain](https://www.langchain.com/)-based.
 
 - **Vector Database** – Stores and searches embeddings at scale with high-performance indexing and retrieval. Supported vector databases:
-    - [KDB.AI](https://kdb.ai/) – **Default** – High-performance vector database built on kdb+ technology, with optional GPU acceleration via NVIDIA cuVS
+    - [KDB.AI CuVS](https://kdb.ai/) – **Default** – High-performance vector database built on kdb+ technology, with GPU acceleration via NVIDIA cuVS
     - [Milvus Vector Database](https://milvus.io/) – GPU-accelerated with cuVS
     - [Elasticsearch](https://www.elastic.co/elasticsearch/vector-database) – Hybrid search with BM25
 
