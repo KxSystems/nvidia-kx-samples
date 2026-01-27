@@ -101,10 +101,10 @@ KDBAI_DEBUG = os.getenv("KDBAI_DEBUG", "false").lower() == "true"
 # Can be overridden via environment variable for performance tuning
 KDBAI_INSERT_BATCH_SIZE = int(os.getenv("KDBAI_INSERT_BATCH_SIZE", "200"))
 
-# CAGRA extend workaround: cuvsCagraExtend() crashes when extending existing index.
-# Set to "true" to force single-batch insert for GPU indexes (avoids extend).
-# When KDB.AI/cuVS fixes this issue, set to "false" to use normal batch size.
-KDBAI_CAGRA_SINGLE_BATCH = os.getenv("KDBAI_CAGRA_SINGLE_BATCH", "true").lower() == "true"
+# CAGRA extend: cuvsCagraExtend() issue was fixed in cuVS 1.8.2+
+# Set to "true" only if experiencing issues with incremental index updates.
+# Default "false" uses normal batch inserts with index extension.
+KDBAI_CAGRA_SINGLE_BATCH = os.getenv("KDBAI_CAGRA_SINGLE_BATCH", "false").lower() == "true"
 
 # cuVS CAGRA itopk_size: number of candidates considered during GPU search.
 # Higher values = better accuracy but slower. Must be >= top_k.
@@ -366,18 +366,15 @@ class KdbaiVDB(VDBRag):
         total_records = len(data_rows)
         uploaded_count = 0
 
-        # CAGRA (cuVS GPU) index limitation: cuvsCagraExtend() can crash when
-        # extending an existing index. To avoid this, insert all data in a single
-        # batch when GPU indexing is enabled AND the workaround is active.
-        #
-        # When KDB.AI/cuVS fixes cuvsCagraExtend(), set KDBAI_CAGRA_SINGLE_BATCH=false
-        # to use normal batch size (200) for better memory efficiency.
+        # CAGRA (cuVS GPU) index: cuvsCagraExtend() issue was fixed in cuVS 1.8.2+
+        # Normal batch inserts with index extension now work correctly.
+        # Set KDBAI_CAGRA_SINGLE_BATCH=true only if experiencing issues.
         if self.enable_gpu_index and KDBAI_CAGRA_SINGLE_BATCH:
-            batch_size = total_records  # Single batch for CAGRA to avoid extend
+            batch_size = total_records  # Single batch mode (legacy workaround)
             logger.info(
-                f"GPU indexing enabled (CAGRA) with single-batch workaround. "
-                f"Inserting {total_records} records at once to avoid cuvsCagraExtend() crash. "
-                f"Set KDBAI_CAGRA_SINGLE_BATCH=false when KDB.AI fixes this issue."
+                f"GPU indexing enabled (CAGRA) with single-batch mode. "
+                f"Inserting {total_records} records at once. "
+                f"Set KDBAI_CAGRA_SINGLE_BATCH=false to use normal batching."
             )
         else:
             batch_size = KDBAI_INSERT_BATCH_SIZE

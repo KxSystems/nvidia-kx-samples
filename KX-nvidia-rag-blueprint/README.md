@@ -179,7 +179,7 @@ For details, refer to the [KDB.AI Deployment Guide](docs/change-vectordb-kdbai.m
 | Deployment | Vector Database | LLM | Documentation |
 |------------|-----------------|-----|---------------|
 | **Docker Compose (Recommended)** | KDB.AI | Self-hosted NIM | [Guide](docs/change-vectordb-kdbai.md#docker-compose-deployment) |
-| **Amazon EKS (Production)** | KDB.AI | NVIDIA API Endpoints | [Guide](docs/change-vectordb-kdbai.md#amazon-eks-deployment) |
+| **Amazon EKS** | KDB.AI | NVIDIA API Endpoints | [Guide](docs/change-vectordb-kdbai.md#amazon-eks-deployment) |
 | Kubernetes/Helm | KDB.AI | Self-hosted NIM | [Guide](docs/change-vectordb-kdbai.md#helmkubernetes-deployment) |
 
 ### Alternative Vector Databases

@@ -139,7 +139,7 @@ Additionally, the blueprint uses these components:
 
 - [**NVIDIA NeMo Agent Toolkit**](https://github.com/NVIDIA/NeMo-Agent-Toolkit)
   Provides a toolkit for managing a LangGraph codebase. Provides observability, API services and documentation, and easy configuration of different LLMs.
-- [**NVIDIA RAG Blueprint**](https://github.com/NVIDIA-AI-Blueprints/rag)
+- [**NVIDIA RAG Blueprint**](https://github.com/KxSystems/nvidia-kx-samples/tree/main)
   Provides a solution for querying large sets of on-premise multi-modal documents.
 - [**NVIDIA NeMo Retriever Microservices**](https://developer.nvidia.com/nemo-retriever?sortBy=developer_learning_library%2Fsort%2Ffeatured_in.nemo_retriever%3Adesc%2Ctitle%3Aasc&hitsPerPage=12)
 - [**NVIDIA NIM Microservices**](https://developer.nvidia.com/nim?sortBy=developer_learning_library%2Fsort%2Ffeatured_in.nim%3Adesc%2Ctitle%3Aasc&hitsPerPage=12) 
@@ -172,7 +172,7 @@ Ubuntu 22.04
 |--------|-------------|-------|
 | Docker Compose | Local development with GPU | [Get Started](docs/get-started/get-started-docker-compose.md) |
 | NVIDIA AI Workbench | Managed environment | [README](deploy/workbench/README.md#get-started) |
-| Helm | Production Kubernetes | [Get Started](docs/get-started/get-started-helm.md) |
+| Helm | Kubernetes | [Get Started](docs/get-started/get-started-helm.md) |
 | **AIQ-KX (Docker Compose)** | KDB+ on single server | [AIQ-KX Guide](docs/aiq-kx-deployment-guide.md#docker-compose-deployment) |
 | **AIQ-KX (Helm)** | KDB+ on Kubernetes | [AIQ-KX Guide](docs/aiq-kx-deployment-guide.md) |
 
@@ -197,14 +197,14 @@ Reasoning Model for Report Generation and RAG Q&A Retrieval | `llama-3_3-nemotro
 Instruct Model for Report Generation | `llama-3.3-70b-instruct` | 2 x H100 80GB* <br /> 4 x A100 80GB <br /> 2 x B200 <br /> 2 x RTX PRO 6000
 **Total** | Entire AI-Q Research Blueprint | 4 x H100 80GB* <br /> 7 x A100 80GB <br /> 5 x B200 <br /> 4 x RTX PRO 6000
 
-  *This recommendation is based off of the configuration used to test the blueprint. For alternative configurations, view the [RAG blueprint documentation](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/support-matrix.md).
+  *This recommendation is based off of the configuration used to test the blueprint. For alternative configurations, view the [RAG blueprint documentation](https://github.com/KxSystems/nvidia-kx-samples/blob/main/docs/support-matrix.md).
 
 #### Helm
 
 | Option | RAG Deployment | AI-Q Research Assistant Deployment | Total Hardware Requirement |
 |--------|----------------|-----------------|---------------------------|
-| Single Node - MIG Sharing | [Use MIG sharing](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/mig-deployment.md) | [Default Deployment](#deploy-the-ai-q-research-assistant) | 4 x H100 80GB for RAG<br/>2 x H100 80GB for AI-Q Research Assistant<br/> |
-| Multi Node | [Default Deployment](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/deploy-helm.md) | [Default Deployment](#deploy-the-ai-q-research-assistant) | 8 x H100 80GB for RAG<br/>2 x H100 80GB for AI-Q Research Assistant<br/>---<br/>9 x A100 80GB for RAG<br/>4 x A100 80GB for AI-Q Research Assistant<br/>---<br/>9 x B200 for RAG<br/>2 x B200 for AI-Q Research Assistant<br/>---<br/>8 x RTX PRO 6000 for RAG<br/>2 x RTX PRO 6000 for AI-Q Research Assistant|
+| Single Node - MIG Sharing | [Use MIG sharing](https://github.com/KxSystems/nvidia-kx-samples/blob/main/docs/mig-deployment.md) | [Default Deployment](#deploy-the-ai-q-research-assistant) | 4 x H100 80GB for RAG<br/>2 x H100 80GB for AI-Q Research Assistant<br/> |
+| Multi Node | [Default Deployment](https://github.com/KxSystems/nvidia-kx-samples/blob/main/docs/deploy-helm.md) | [Default Deployment](#deploy-the-ai-q-research-assistant) | 8 x H100 80GB for RAG<br/>2 x H100 80GB for AI-Q Research Assistant<br/>---<br/>9 x A100 80GB for RAG<br/>4 x A100 80GB for AI-Q Research Assistant<br/>---<br/>9 x B200 for RAG<br/>2 x B200 for AI-Q Research Assistant<br/>---<br/>8 x RTX PRO 6000 for RAG<br/>2 x RTX PRO 6000 for AI-Q Research Assistant|
 
 
 #### Running with hosted NVIDIA NIM Microservices
