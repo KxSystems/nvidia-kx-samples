@@ -1,0 +1,96 @@
+# Example values for Internal Mode with Runtime KDB-X Installation
+# This mode installs KDB-X at container startup - no pre-built image required.
+#
+# Usage:
+#   1. Copy this file: cp examples/internal-runtime-values.yaml my-kdb-values.yaml
+#   2. Edit my-kdb-values.yaml and replace all REPLACE_WITH_* placeholders
+#   3. Deploy:
+#      # For ECR:
+#      ECR_PASSWORD=$(aws ecr get-login-password --region us-east-1 --profile your-profile)
+#      helm upgrade --install kdb-mcp ./kdb-x-mcp-server -n aiq \
+#        -f my-kdb-values.yaml \
+#        --set imagePullSecret.password="$ECR_PASSWORD"
+#
+# Required Credentials (from https://portal.kx.com):
+#   - Bearer Token: Portal -> Profile -> Tokens -> Generate new token
+#   - License B64: Base64-encode your kc.lic file: cat kc.lic | base64
+#
+# IMPORTANT: Keep your values file with credentials private. Add to .gitignore:
+#   deploy/helm/kdb-x-mcp-server/my-kdb-values.yaml
+
+mode: "internal"
+
+# MCP Server Image (pre-built on Docker Hub)
+image:
+  repository: docker.io/alattar43828/kdb-x-mcp-server
+  tag: "latest"
+  pullPolicy: Always
+
+# No imagePullSecret needed - image is public on Docker Hub
+
+# KDB-X Database Configuration
+kdbx:
+  enabled: true
+  installMode: "runtime"  # Install KDB-X at container startup
+
+  # Base image for runtime installation
+  image:
+    repository: python
+    tag: "3.12-slim-bookworm"
+    pullPolicy: IfNotPresent
+
+  # Build/Installation credentials (REQUIRED)
+  build:
+    # KX Portal OAuth bearer token
+    # Get from: https://portal.kx.com -> Profile -> Tokens -> Generate new token
+    # Note: Token is invalidated if you change your portal password
+    bearerToken: "REPLACE_WITH_YOUR_BEARER_TOKEN"
+
+    # Base64-encoded KDB-X license
+    # Generate with: cat kc.lic | base64 (single line, no newlines)
+    licenseB64: "REPLACE_WITH_YOUR_LICENSE_B64"
+
+  # Resources for KDB-X
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+
+# KDB License for PyKX (MCP server) - same license as kdbx.build.licenseB64
+kdbLicense:
+  create: true
+  type: "personal"  # "personal" for kc.lic, "commercial" for k4.lic
+  licenseB64: "REPLACE_WITH_YOUR_LICENSE_B64"  # Same value as kdbx.build.licenseB64
+
+# MCP Server Configuration
+mcp:
+  serverName: "KDBX_MCP_Server"
+  logLevel: "INFO"
+  transport: "streamable-http"
+  host: "0.0.0.0"
+  port: 8000
+
+# Database configuration (auto-configured when kdbx.enabled=true)
+database:
+  host: ""  # Leave empty - auto-configured to connect to deployed KDB-X
+  port: 5000
+  tls: false
+  timeout: 1
+  retry: 2
+
+# Service
+service:
+  type: ClusterIP
+  port: 8000
+
+# Resources for MCP Server
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi

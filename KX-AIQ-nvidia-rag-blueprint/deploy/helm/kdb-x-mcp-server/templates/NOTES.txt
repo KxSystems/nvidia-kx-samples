@@ -1,0 +1,81 @@
+KDB-X MCP Server Configuration Complete!
+
+{{- if eq .Values.mode "internal" }}
+=== INTERNAL MODE ===
+KDB-X MCP Server has been deployed as part of this release.
+
+1. Get the application URL by running these commands:
+{{- if .Values.ingress.enabled }}
+{{- range $host := .Values.ingress.hosts }}
+  {{- range .paths }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}{{ .path }}
+  {{- end }}
+{{- end }}
+{{- else if contains "NodePort" .Values.service.type }}
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "kdb-x-mcp-server.fullname" . }})
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo http://$NODE_IP:$NODE_PORT
+{{- else if contains "LoadBalancer" .Values.service.type }}
+     NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+           You can watch its status by running 'kubectl get --namespace {{ .Release.Namespace }} svc -w {{ include "kdb-x-mcp-server.fullname" . }}'
+  export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "kdb-x-mcp-server.fullname" . }} --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+  echo http://$SERVICE_IP:{{ .Values.service.port }}
+{{- else if contains "ClusterIP" .Values.service.type }}
+  export POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "kdb-x-mcp-server.name" . }},app.kubernetes.io/instance={{ .Release.Name }}" -o jsonpath="{.items[0].metadata.name}")
+  export CONTAINER_PORT=$(kubectl get pod --namespace {{ .Release.Namespace }} $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
+  echo "Visit http://127.0.0.1:8000 to use your MCP server"
+  kubectl --namespace {{ .Release.Namespace }} port-forward $POD_NAME 8000:$CONTAINER_PORT
+{{- end }}
+
+2. The internal MCP server URL for AIRA backend is:
+   http://{{ include "kdb-x-mcp-server.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}/mcp
+
+3. KDB+/KDB-X Database Connection:
+   - Host: {{ .Values.database.host }}
+   - Port: {{ .Values.database.port }}
+   - TLS: {{ .Values.database.tls }}
+
+{{- else }}
+=== EXTERNAL MODE ===
+Using external KDB-X MCP Server endpoint.
+
+1. External MCP Server Configuration:
+   - Endpoint: {{ .Values.external.endpoint }}
+   - Timeout: {{ .Values.external.timeout }}s
+   {{- if .Values.external.apiKey }}
+   - API Key: (configured via secret)
+   {{- end }}
+
+2. No internal MCP server deployment was created.
+   AIRA backend will connect directly to the external endpoint.
+
+3. Ensure the external MCP server is accessible from your cluster:
+   - If using a public endpoint, verify network connectivity
+   - If using a private endpoint, ensure proper VPC peering or network configuration
+
+{{- end }}
+
+=== AIRA BACKEND CONFIGURATION ===
+
+To configure the AIRA backend to use this KDB-X MCP server, set these values in your aiq-aira Helm chart:
+
+{{- if eq .Values.mode "internal" }}
+backendEnvVars:
+  KDB_ENABLED: "true"
+  KDB_USE_NAT_CLIENT: "true"
+  KDB_MCP_ENDPOINT: "http://{{ include "kdb-x-mcp-server.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}/mcp"
+  KDB_TIMEOUT: "30"
+{{- else }}
+backendEnvVars:
+  KDB_ENABLED: "true"
+  KDB_USE_NAT_CLIENT: "true"
+  KDB_MCP_ENDPOINT: "{{ .Values.external.endpoint }}"
+  KDB_TIMEOUT: "{{ .Values.external.timeout }}"
+{{- end }}
+
+=== MCP TOOLS AVAILABLE ===
+- sql_execute: Execute SQL queries against KDB+/KDB-X
+- similarity_search: Vector similarity search (KDB-X only)
+- hybrid_search: Combined vector and SQL search (KDB-X only)
+
+For more information, visit: https://github.com/KxSystems/kdb-x-mcp-server

@@ -1,0 +1,49 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: rag-dev
+  region: us-east-1
+  version: "1.30"
+
+iam:
+  withOIDC: true
+
+managedNodeGroups:
+  - name: gpu-pool
+    instanceType: g5.2xlarge  # Upgraded from g5.xlarge for more memory (32GB vs 16GB)
+    amiFamily: AmazonLinux2
+    desiredCapacity: 8
+    minSize: 0
+    maxSize: 10
+    volumeSize: 100
+    volumeType: gp3
+    spot: false
+    labels:
+      node-type: gpu
+      nvidia.com/gpu.present: "true"
+    iam:
+      withAddonPolicies:
+        ebs: true
+
+  - name: cpu-system
+    instanceType: t3.medium
+    desiredCapacity: 3
+    minSize: 0
+    maxSize: 4
+    volumeSize: 50
+    spot: false
+    labels:
+      node-type: system
+
+addons:
+  - name: vpc-cni
+    version: latest
+  - name: coredns
+    version: latest
+  - name: kube-proxy
+    version: latest
+  - name: aws-ebs-csi-driver
+    version: latest
+    wellKnownPolicies:
+      ebsCSIController: true

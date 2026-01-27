@@ -1,0 +1,19 @@
+{{- if and .Values.kdbai.enabled .Values.kdbai.persistence.enabled }}
+# KDB.AI Persistent Volume Claim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.kdbai.fullnameOverride | default "kdbai" }}-data
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kdbai
+spec:
+  accessModes:
+    {{- toYaml .Values.kdbai.persistence.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.kdbai.persistence.size }}
+  {{- if .Values.kdbai.persistence.storageClass }}
+  storageClassName: {{ .Values.kdbai.persistence.storageClass }}
+  {{- end }}
+{{- end }}

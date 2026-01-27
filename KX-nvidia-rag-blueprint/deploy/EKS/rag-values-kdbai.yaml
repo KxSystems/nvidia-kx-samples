@@ -1,0 +1,297 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# EKS-Specific Deployment Values for NVIDIA RAG Blueprint with KDB.AI
+#
+# This file extends values-kdbai.yaml with EKS-specific configurations:
+#   - Custom ECR images
+#   - StorageClass with WaitForFirstConsumer for dynamic node scaling
+#   - Cloud-hosted LLM endpoints (reduces GPU requirements)
+#   - Standalone MinIO for object storage
+#
+# Prerequisites:
+#   1. KDB.AI-enabled RAG images are available from the KX registry (portal.dl.kx.com).
+#      These images use the same registry credentials as the KDB.AI database image.
+#
+#      Optional: To build custom images:
+#      export REGISTRY=<your-registry>
+#      export TAG=2.3.4
+#      docker buildx build --platform linux/amd64 \
+#        -t ${REGISTRY}/rag-server-kdbai:${TAG} \
+#        -f src/nvidia_rag/rag_server/Dockerfile --push .
+#      docker buildx build --platform linux/amd64 \
+#        -t ${REGISTRY}/ingestor-server-kdbai:${TAG} \
+#        -f src/nvidia_rag/ingestor_server/Dockerfile --push .
+#
+#   2. Create the KDB.AI registry secret (for standard CPU images):
+#      kubectl create secret docker-registry kdbai-registry-secret \
+#        --docker-server=portal.dl.kx.com \
+#        --docker-username=<your-kx-email> \
+#        --docker-password=<bearer-token-from-kx-welcome-email> \
+#        -n <your-namespace>
+#
+#   3. Create the KDB.AI cuVS registry secret (for GPU/cuVS images):
+#      Note: Public preview cuVS images are now on portal.dl.kx.com (same as CPU images)
+#      kubectl create secret docker-registry kdbai-cuvs-registry-secret \
+#        --docker-server=portal.dl.kx.com \
+#        --docker-username=<your-kx-email> \
+#        --docker-password=<bearer-token-from-kx> \
+#        -n <your-namespace>
+#
+#      DEV REGISTRY (if using dev images):
+#        --docker-server=ext-dev-registry.kxi-dev.kx.com
+#
+#   4. Create the KDB.AI license secret:
+#      kubectl create secret generic kdbai-license-secret \
+#        --from-literal=KDB_LICENSE_B64=<your-base64-encoded-license> \
+#        -n <your-namespace>
+#
+#   5. Create the NGC API secret (for NVIDIA cloud LLM endpoints):
+#      kubectl create secret generic ngc-api \
+#        --from-literal=NGC_API_KEY=<your-ngc-api-key> \
+#        --from-literal=NGC_CLI_API_KEY=<your-ngc-api-key> \
+#        --from-literal=NVIDIA_API_KEY=<your-ngc-api-key> \
+#        -n <your-namespace>
+#
+#   6. Update Helm dependencies:
+#      helm dependency update deploy/helm/nvidia-blueprint-rag
+#
+#   7. Deploy with both base KDB.AI values and EKS-specific overlay:
+#      helm upgrade --install rag deploy/helm/nvidia-blueprint-rag \
+#        -n <your-namespace> \
+#        -f deploy/helm/nvidia-blueprint-rag/values-kdbai.yaml \
+#        -f deploy/EKS/rag-values-kdbai.yaml
+#
+# For custom images: Login to Docker Hub before pushing
+#   docker login --username <your-dockerhub-username>
+
+# =============================================================================
+# Secrets (pass via --set flags, never hardcode)
+# =============================================================================
+# imagePullSecret:
+#   password: ""  # Pass via: --set imagePullSecret.password="${NGC_API_KEY}"
+#
+# ngcApiSecret:
+#   password: ""  # Pass via: --set ngcApiSecret.password="${NGC_API_KEY}"
+
+# =============================================================================
+# KDB.AI-Enabled RAG Images (from KX Registry)
+# =============================================================================
+# These images include KDB.AI support and are hosted on the KX portal registry.
+# Uses the same credentials as the KDB.AI image (kdbai-registry-secret).
+image:
+  repository: portal.dl.kx.com/rag-server-kdbai
+  tag: "2.3.4"
+  pullPolicy: Always
+
+
+# =============================================================================
+# KDB.AI Vector Database Configuration
+# =============================================================================
+kdbai:
+  enabled: true
+  fullnameOverride: kdbai
+
+  # Image pull secret for KX Docker registry (must be created beforehand)
+  imagePullSecret:
+    name: "kdbai-registry-secret"
+    create: false
+
+  # License secret (must be created beforehand)
+  licenseSecret:
+    name: "kdbai-license-secret"
+    create: false
+
+  # Standard KDB.AI image (CPU)
+  image:
+    registry: portal.dl.kx.com
+    repository: kdbai-db
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  # GPU/cuVS Configuration
+  # Set gpu.enabled=true to use GPU-accelerated KDB.AI with cuVS
+  gpu:
+    enabled: true
+    deviceId: "0"
+
+  # GPU image pull secret for cuVS registry
+  # PUBLIC PREVIEW uses portal.dl.kx.com - same as CPU images, reuse kdbai-registry-secret
+  # DEV REGISTRY (if needed): use "kdbai-cuvs-registry-secret" for ext-dev-registry.kxi-dev.kx.com
+  gpuImagePullSecret:
+    name: "kdbai-registry-secret"
+
+  # GPU-enabled KDB.AI cuVS image (used when gpu.enabled=true)
+  # DEV REGISTRY (if needed): ext-dev-registry.kxi-dev.kx.com/kdbai-db-cuvs:1.8.2
+  gpuImage:
+    registry: portal.dl.kx.com
+    repository: kdbai-db-cuvs
+    tag: "1.8.2"
+    pullPolicy: Always
+
+  # Server configuration
+  config:
+    threads: 8
+    dataDir: "/tmp/kx/data/vdb"
+
+  # Resources - adjust based on your cluster capacity
+  resources:
+    limits:
+      memory: "16Gi"
+      cpu: "8"
+    requests:
+      memory: "4Gi"
+      cpu: "2"
+
+  # Persistence
+  persistence:
+    enabled: true
+    size: 50Gi
+    # Use the custom storage class with WaitForFirstConsumer
+    storageClass: "kdbai-storage"
+
+  # Storage class with WaitForFirstConsumer binding mode
+  # Fixes volume scheduling issues when nodes scale up/down in EKS
+  storageClass:
+    create: true
+    name: "kdbai-storage"
+    volumeBindingMode: WaitForFirstConsumer
+    reclaimPolicy: Delete
+    allowVolumeExpansion: true
+    provisioner: "ebs.csi.aws.com"
+    parameters:
+      type: gp3
+
+# =============================================================================
+# Standalone MinIO Object Storage
+# =============================================================================
+# MinIO is required for storing multimodal content (images extracted from documents).
+# This standalone MinIO uses the official minio/minio image.
+minio:
+  enabled: true
+  fullnameOverride: "rag-minio"
+  image:
+    repository: minio/minio
+    tag: "RELEASE.2025-09-07T16-13-09Z"
+  auth:
+    rootUser: "minioadmin"
+    rootPassword: "minioadmin"
+  defaultBuckets: "nv-ingest"
+  persistence:
+    enabled: true
+    size: 50Gi
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "2Gi"
+      cpu: "1"
+
+# =============================================================================
+# Disable self-hosted LLM NIM (use cloud-hosted)
+# =============================================================================
+nim-llm:
+  enabled: false
+
+# =============================================================================
+# RAG Server Configuration
+# =============================================================================
+envVars:
+  # Vector Store - KDB.AI
+  APP_VECTORSTORE_URL: "http://kdbai:8082"
+  APP_VECTORSTORE_NAME: "kdbai"
+  APP_VECTORSTORE_SEARCHTYPE: "dense"
+
+  # KDB.AI specific settings
+  KDBAI_DATABASE: "default"
+  KDBAI_INDEX_TYPE: "cagra"
+  KDBAI_API_KEY: ""
+
+  # GPU Configuration (cuVS enabled)
+  APP_VECTORSTORE_ENABLEGPUINDEX: "True"
+  APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
+
+  # MinIO endpoint - standalone MinIO
+  MINIO_ENDPOINT: "rag-minio:9000"
+
+  # Cloud-hosted LLM endpoints
+  APP_LLM_SERVERURL: "https://integrate.api.nvidia.com/v1/chat/completions"
+  APP_LLM_MODELNAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+  APP_LLM_MODELENGINE: "nvidia-ai-endpoints"
+
+  # Query rewriter - cloud endpoint
+  APP_QUERYREWRITER_SERVERURL: "https://integrate.api.nvidia.com/v1/chat/completions"
+  APP_QUERYREWRITER_MODELNAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+
+  # Filter expression generator
+  APP_FILTEREXPRESSIONGENERATOR_SERVERURL: "https://integrate.api.nvidia.com/v1/chat/completions"
+  APP_FILTEREXPRESSIONGENERATOR_MODELNAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+
+  # Reflection LLM
+  REFLECTION_LLM_SERVERURL: "https://integrate.api.nvidia.com/v1/chat/completions"
+  REFLECTION_LLM: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+
+# =============================================================================
+# Ingestor Server Configuration
+# =============================================================================
+ingestor-server:
+  image:
+    repository: portal.dl.kx.com/ingestor-server-kdbai
+    tag: "2.3.4"
+    pullPolicy: Always
+  resources:
+    limits:
+      memory: "12Gi"
+    requests:
+      memory: "8Gi"
+  envVars:
+    # Vector Store - KDB.AI
+    APP_VECTORSTORE_URL: "http://kdbai:8082"
+    APP_VECTORSTORE_NAME: "kdbai"
+    APP_VECTORSTORE_SEARCHTYPE: "dense"
+
+    # KDB.AI specific settings
+    KDBAI_DATABASE: "default"
+    KDBAI_INDEX_TYPE: "cagra"
+    KDBAI_API_KEY: ""
+
+    # GPU Configuration (cuVS enabled)
+    APP_VECTORSTORE_ENABLEGPUINDEX: "True"
+    APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
+
+    # Test multi-batch CAGRA extend fix (set to "false" to test, "true" for workaround)
+    KDBAI_CAGRA_SINGLE_BATCH: "false"
+
+    # MinIO endpoint - standalone MinIO
+    MINIO_ENDPOINT: "rag-minio:9000"
+
+    # Summary LLM - cloud endpoint
+    SUMMARY_LLM_SERVERURL: "https://integrate.api.nvidia.com/v1/chat/completions"
+    SUMMARY_LLM: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+
+# =============================================================================
+# NV-Ingest Configuration
+# =============================================================================
+nv-ingest:
+  otelEnabled: false
+  resources:
+    limits:
+      cpu: "8"
+      memory: "24Gi"
+      nvidia.com/gpu: "1"
+    requests:
+      cpu: "2"
+      memory: "12Gi"
+
+  # Disable Milvus entirely - we use KDB.AI for vectors and standalone MinIO for objects
+  milvusDeployed: false
+  milvus:
+    enabled: false
+
+  # Point nv-ingest to standalone MinIO
+  envVars:
+    MINIO_INTERNAL_ADDRESS: "rag-minio:9000"
+    MINIO_PUBLIC_ADDRESS: "http://rag-minio:9000"
+    MINIO_BUCKET: "nv-ingest"
+

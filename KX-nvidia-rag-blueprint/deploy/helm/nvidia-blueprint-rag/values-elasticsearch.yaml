@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Elasticsearch Vector Database Configuration for NVIDIA RAG Blueprint
+#
+# This values file configures Elasticsearch as the vector database instead of Milvus.
+# Use this as an overlay with: helm install rag . -f values-elasticsearch.yaml
+#
+# Prerequisites:
+#   1. Ensure sufficient storage for Elasticsearch data
+#   2. Deploy with:
+#      helm upgrade --install rag . -n <namespace> -f values-elasticsearch.yaml
+#
+# Note: Slow VDB upload is observed in Helm deployments for Elasticsearch.
+# For more details, refer to the troubleshooting documentation.
+
+# =============================================================================
+# Elasticsearch Vector Database Configuration
+# =============================================================================
+elasticsearch:
+  enabled: true
+
+# =============================================================================
+# Disable Milvus (use Elasticsearch instead)
+# =============================================================================
+nv-ingest:
+  milvusDeployed: false
+  milvus:
+    enabled: false
+
+# =============================================================================
+# RAG Server Configuration
+# =============================================================================
+envVars:
+  # Vector Store - Elasticsearch
+  APP_VECTORSTORE_URL: "http://elasticsearch:9200"
+  APP_VECTORSTORE_NAME: "elasticsearch"
+  APP_VECTORSTORE_SEARCHTYPE: "dense"
+
+# =============================================================================
+# Ingestor Server Configuration
+# =============================================================================
+ingestor-server:
+  envVars:
+    # Vector Store - Elasticsearch
+    APP_VECTORSTORE_URL: "http://elasticsearch:9200"
+    APP_VECTORSTORE_NAME: "elasticsearch"
+    APP_VECTORSTORE_SEARCHTYPE: "dense"

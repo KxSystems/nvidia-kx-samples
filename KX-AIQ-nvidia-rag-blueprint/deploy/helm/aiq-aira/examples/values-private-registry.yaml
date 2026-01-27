@@ -1,0 +1,119 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 KX Systems, Inc. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# =============================================================================
+# Private Registry Deployment Example (AIQ-KX with KDB Integration)
+# =============================================================================
+#
+# Use this template for enterprise private registries:
+#   - Harbor
+#   - GitLab Container Registry
+#   - Quay.io
+#   - JFrog Artifactory
+#   - Nexus Repository
+#   - Any OCI-compliant registry
+#
+# IMPORTANT: Image Hosting
+#   The AIQ-KX (KDB-enabled) images are NOT on NVCR. You must either:
+#   1. Use the hosted AIQ-KX images (when available)
+#   2. Build and push your own images from this repository to your registry
+#
+# Prerequisites:
+#   1. Build and push images to your private registry:
+#      docker build -f deploy/Dockerfile -t registry.company.com/aiq/aiq-kx-backend:latest .
+#      docker build -f frontend/Dockerfile -t registry.company.com/aiq/aiq-kx-frontend:latest ./frontend
+#      docker push registry.company.com/aiq/aiq-kx-backend:latest
+#      docker push registry.company.com/aiq/aiq-kx-frontend:latest
+#
+#   2. Obtain registry credentials (robot account, deploy token, or service account)
+#
+# Usage:
+#   cp values-private-registry.yaml my-values.yaml
+#   # Edit my-values.yaml and replace REPLACE_WITH_* placeholders
+#   helm upgrade --install aiq-kx ../. -n aiq --create-namespace \
+#     -f my-values.yaml \
+#     --set imagePullSecret.password="your-registry-token" \
+#     --set ngcApiSecret.password="$NVIDIA_API_KEY"
+#
+# Registry-Specific Examples:
+#
+#   Harbor:
+#     --set imagePullSecret.registry="harbor.company.com"
+#     --set imagePullSecret.username="robot\$aiq-reader"
+#     --set imagePullSecret.password="robot-secret-token"
+#
+#   GitLab Container Registry:
+#     --set imagePullSecret.registry="registry.gitlab.com"
+#     --set imagePullSecret.username="deploy-token-username"
+#     --set imagePullSecret.password="gldt-xxxxxxxxxxxx"
+#
+#   Quay.io:
+#     --set imagePullSecret.registry="quay.io"
+#     --set imagePullSecret.username="yourorg+robot"
+#     --set imagePullSecret.password="robot-token"
+#
+#   JFrog Artifactory:
+#     --set imagePullSecret.registry="company.jfrog.io"
+#     --set imagePullSecret.username="deployer@company.com"
+#     --set imagePullSecret.password="api-key-or-token"
+#
+# =============================================================================
+
+# Backend image configuration (KDB-enabled)
+image:
+  repository: REPLACE_WITH_REGISTRY/aiq/aiq-kx-backend
+  tag: "1.0.2"
+  pullPolicy: Always
+
+# Frontend image configuration (KDB-enabled)
+frontend:
+  enabled: true
+  image:
+    repository: REPLACE_WITH_REGISTRY/aiq/aiq-kx-frontend
+    tag: "1.0.2"
+    pullPolicy: Always
+  service:
+    type: NodePort
+    port: 3000
+    nodePort: 30080
+
+# Private registry authentication
+imagePullSecret:
+  create: true
+  name: "private-registry-secret"
+  registry: "REPLACE_WITH_REGISTRY"    # e.g., harbor.company.com
+  username: "REPLACE_WITH_USERNAME"    # e.g., robot$aiq-reader
+  password: ""  # Set via: --set imagePullSecret.password="token"
+
+# Use hosted NVIDIA NIMs (no local GPU required)
+nim-llm:
+  enabled: false
+
+# Enable Redis for job tracking
+redis:
+  enabled: true
+
+# Backend configuration
+backendEnvVars:
+  # LLM Configuration - Hosted NIMs
+  INSTRUCT_BASE_URL: "https://integrate.api.nvidia.com/v1"
+  NEMOTRON_BASE_URL: "https://integrate.api.nvidia.com/v1"
+  INSTRUCT_MODEL_NAME: "meta/llama-3.3-70b-instruct"
+  NEMOTRON_MODEL_NAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+
+  # KDB-X Configuration (optional - set KDB_ENABLED to "true" to enable)
+  KDB_ENABLED: "false"
+  KDB_MCP_ENDPOINT: "https://kdbxmcp.kxailab.com/mcp"
+  KDB_TIMEOUT: "30"

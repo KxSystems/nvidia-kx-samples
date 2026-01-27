@@ -1,0 +1,412 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Hybrid Deployment Values for NVIDIA RAG Blueprint with KDB.AI
+#
+# Architecture:
+#   - CLOUD (EKS/GKE/AKS): Frontend, RAG Server, Ingestor Server (auto-scaling)
+#   - ON-PREM (GPU Cluster): KDB.AI, Embedding NIM, Reranker NIM, NV-Ingest, MinIO
+#
+# This configuration provides:
+#   - Cost optimization: GPU workloads on-prem, elastic scaling in cloud
+#   - Data residency: Vectors and documents stay on-premises
+#   - Performance: Low latency for GPU operations, global reach for users
+#
+# =============================================================================
+# Prerequisites
+# =============================================================================
+#
+#   1. Network Connectivity between cloud and on-prem:
+#      - AWS Direct Connect / Azure ExpressRoute / GCP Interconnect (recommended)
+#      - Site-to-Site VPN (alternative)
+#      - Tailscale/Wireguard (simpler setup)
+#
+#   2. DNS Resolution for on-prem services:
+#      - Configure CoreDNS or external-dns to resolve *.onprem.internal
+#      - Or use static IPs with /etc/hosts configmap
+#
+#   3. On-prem services must be running and accessible:
+#      - KDB.AI: http://kdbai.onprem.internal:8082
+#      - Embedding NIM: http://embedding-nim.onprem.internal:8000
+#      - Reranker NIM: http://reranker-nim.onprem.internal:8000
+#      - NV-Ingest: http://nv-ingest.onprem.internal:7670
+#      - MinIO: http://minio.onprem.internal:9000
+#
+#   4. Create required secrets in cloud cluster:
+#      # NGC API secret (for cloud LLM endpoints)
+#      kubectl create secret generic ngc-api \
+#        --from-literal=NGC_API_KEY=<your-ngc-api-key> \
+#        --from-literal=NVIDIA_API_KEY=<your-ngc-api-key> \
+#        -n <namespace>
+#
+#      # MinIO credentials (must match on-prem MinIO)
+#      kubectl create secret generic minio-credentials \
+#        --from-literal=MINIO_ACCESS_KEY=<access-key> \
+#        --from-literal=MINIO_SECRET_KEY=<secret-key> \
+#        -n <namespace>
+#
+#   5. Deploy with:
+#      helm upgrade --install rag deploy/helm/nvidia-blueprint-rag \
+#        -n <namespace> \
+#        -f deploy/helm/nvidia-blueprint-rag/values-kdbai.yaml \
+#        -f deploy/EKS/rag-values-hybrid.yaml \
+#        --set onprem.domain=<your-onprem-domain>
+#
+# =============================================================================
+# On-Prem Service Endpoints (customize these)
+# =============================================================================
+# These should be resolvable from the cloud cluster via VPN/Direct Connect
+onprem:
+  domain: "onprem.internal"  # Base domain for on-prem services
+
+  # Individual service endpoints (override if using different naming)
+  kdbai:
+    host: "kdbai.onprem.internal"
+    port: 8082
+
+  embedding:
+    host: "embedding-nim.onprem.internal"
+    port: 8000
+
+  reranker:
+    host: "reranker-nim.onprem.internal"
+    port: 8000
+
+  nvingest:
+    host: "nv-ingest.onprem.internal"
+    port: 7670
+
+  minio:
+    host: "minio.onprem.internal"
+    port: 9000
+
+# =============================================================================
+# Frontend - Cloud Deployment with Auto-Scaling
+# =============================================================================
+frontend:
+  enabled: true
+  replicaCount: 2
+
+  # Auto-scaling for traffic spikes
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  # Resource requests (lightweight - no GPU needed)
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+  # Pod disruption budget for high availability
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+# =============================================================================
+# RAG Server - Cloud Deployment with Auto-Scaling
+# =============================================================================
+# Orchestration layer - stateless, scales horizontally
+replicaCount: 3
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Resource requests (no GPU - just API orchestration)
+resources:
+  requests:
+    memory: "1Gi"
+    cpu: "500m"
+  limits:
+    memory: "4Gi"
+    cpu: "2"
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+# Health checks tuned for hybrid latency
+livenessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 15  # Higher timeout for on-prem calls
+  failureThreshold: 3
+
+readinessProbe:
+  initialDelaySeconds: 15
+  periodSeconds: 5
+  timeoutSeconds: 10
+  failureThreshold: 3
+
+# =============================================================================
+# Ingestor Server - Cloud Deployment with Auto-Scaling
+# =============================================================================
+ingestor-server:
+  replicaCount: 2
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+  # Resource requests (no GPU - orchestration only)
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "500m"
+    limits:
+      memory: "8Gi"
+      cpu: "2"
+
+  # Environment variables pointing to on-prem services
+  envVars:
+    # On-prem KDB.AI
+    APP_VECTORSTORE_URL: "http://kdbai.onprem.internal:8082"
+    APP_VECTORSTORE_NAME: "kdbai"
+    APP_VECTORSTORE_SEARCHTYPE: "dense"
+
+    # KDB.AI settings
+    KDBAI_DATABASE: "default"
+    KDBAI_INDEX_TYPE: "cagra"  # GPU index on-prem
+    KDBAI_API_KEY: ""
+
+    # GPU features enabled (running on-prem)
+    APP_VECTORSTORE_ENABLEGPUINDEX: "True"
+    APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
+
+    # On-prem NV-Ingest
+    NVINGEST_ENDPOINT: "http://nv-ingest.onprem.internal:7670"
+
+    # On-prem MinIO
+    MINIO_ENDPOINT: "minio.onprem.internal:9000"
+
+    # Summary LLM - cloud endpoint (no GPU needed)
+    SUMMARY_LLM_SERVERURL: "https://integrate.api.nvidia.com/v1/chat/completions"
+    SUMMARY_LLM: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+
+# =============================================================================
+# DISABLE GPU Components in Cloud (Running On-Prem)
+# =============================================================================
+
+# KDB.AI - Running on-prem with GPU/cuVS
+kdbai:
+  enabled: false
+
+# Self-hosted LLM - Using cloud API endpoints instead
+nim-llm:
+  enabled: false
+
+# Embedding NIM - Running on-prem with GPU
+nvidia-nim-llama-32-nv-embedqa-1b-v2:
+  enabled: false
+
+# VLM Embedding - Running on-prem with GPU
+nvidia-nim-llama-32-nemoretriever-1b-vlm-embed-v1:
+  enabled: false
+
+# Reranker NIM - Running on-prem with GPU
+nvidia-nim-llama-32-nv-rerankqa-1b-v2:
+  enabled: false
+
+# VLM - Running on-prem with GPU (if used)
+nim-vlm:
+  enabled: false
+
+# NV-Ingest - Running on-prem with GPU NIMs
+nv-ingest:
+  enabled: false
+
+# MinIO - Running on-prem (data residency)
+minio:
+  enabled: false
+
+# =============================================================================
+# RAG Server Environment Variables
+# =============================================================================
+envVars:
+  # ---------------------------------------------------------------------------
+  # On-Prem Vector Store (KDB.AI with cuVS)
+  # ---------------------------------------------------------------------------
+  APP_VECTORSTORE_URL: "http://kdbai.onprem.internal:8082"
+  APP_VECTORSTORE_NAME: "kdbai"
+  APP_VECTORSTORE_SEARCHTYPE: "dense"
+
+  # KDB.AI settings
+  KDBAI_DATABASE: "default"
+  KDBAI_INDEX_TYPE: "cagra"
+  KDBAI_API_KEY: ""
+
+  # GPU features enabled (on-prem GPU)
+  APP_VECTORSTORE_ENABLEGPUINDEX: "True"
+  APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
+
+  # ---------------------------------------------------------------------------
+  # On-Prem Embedding NIM
+  # ---------------------------------------------------------------------------
+  APP_EMBEDDINGS_SERVERURL: "http://embedding-nim.onprem.internal:8000"
+  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nv-embedqa-1b-v2"
+  APP_EMBEDDINGS_DIMENSIONS: "2048"
+
+  # ---------------------------------------------------------------------------
+  # On-Prem Reranker NIM
+  # ---------------------------------------------------------------------------
+  APP_RANKING_SERVERURL: "http://reranker-nim.onprem.internal:8000"
+  APP_RANKING_MODELNAME: "nvidia/llama-3.2-nv-rerankqa-1b-v2"
+  ENABLE_RERANKER: "True"
+
+  # ---------------------------------------------------------------------------
+  # Cloud-Hosted LLM (NVIDIA API Endpoints)
+  # ---------------------------------------------------------------------------
+  # Using cloud API eliminates need for GPU in cloud cluster
+  APP_LLM_SERVERURL: "https://integrate.api.nvidia.com/v1/chat/completions"
+  APP_LLM_MODELNAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+  APP_LLM_MODELENGINE: "nvidia-ai-endpoints"
+
+  # Query rewriter - cloud endpoint
+  APP_QUERYREWRITER_SERVERURL: "https://integrate.api.nvidia.com/v1/chat/completions"
+  APP_QUERYREWRITER_MODELNAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+  ENABLE_QUERYREWRITER: "False"  # Enable if needed
+
+  # Filter expression generator - cloud endpoint
+  APP_FILTEREXPRESSIONGENERATOR_SERVERURL: "https://integrate.api.nvidia.com/v1/chat/completions"
+  APP_FILTEREXPRESSIONGENERATOR_MODELNAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+  ENABLE_FILTER_GENERATOR: "False"  # Enable if needed
+
+  # Reflection LLM - cloud endpoint
+  REFLECTION_LLM_SERVERURL: "https://integrate.api.nvidia.com/v1/chat/completions"
+  REFLECTION_LLM: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+  ENABLE_REFLECTION: "false"  # Enable if needed
+
+  # ---------------------------------------------------------------------------
+  # On-Prem NV-Ingest
+  # ---------------------------------------------------------------------------
+  NVINGEST_ENDPOINT: "http://nv-ingest.onprem.internal:7670"
+
+  # ---------------------------------------------------------------------------
+  # On-Prem MinIO (Object Storage)
+  # ---------------------------------------------------------------------------
+  MINIO_ENDPOINT: "minio.onprem.internal:9000"
+  # Credentials should be mounted from secret
+
+# =============================================================================
+# Ingress / Load Balancer Configuration
+# =============================================================================
+ingress:
+  enabled: true
+  className: "alb"  # AWS ALB, or "nginx" for nginx-ingress
+  annotations:
+    # AWS ALB annotations
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    # Enable if using ACM certificate
+    # alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:...
+  hosts:
+    - host: rag.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+
+# =============================================================================
+# Service Configuration
+# =============================================================================
+service:
+  type: ClusterIP  # Use ClusterIP with Ingress, or LoadBalancer for direct access
+  port: 8081
+
+# =============================================================================
+# Observability (Optional - Cloud-based)
+# =============================================================================
+# Enable for cloud-based observability
+opentelemetry-collector:
+  enabled: false  # Enable if using cloud observability
+
+zipkin:
+  enabled: false
+
+kube-prometheus-stack:
+  enabled: false  # Enable for Prometheus/Grafana in cloud
+
+# =============================================================================
+# Network Policies (Security)
+# =============================================================================
+# Restrict traffic to known sources
+networkPolicy:
+  enabled: true
+
+  # Allow ingress from:
+  ingress:
+    # From ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+    # From same namespace
+    - from:
+        - podSelector: {}
+
+  # Allow egress to:
+  egress:
+    # To on-prem services (via VPN)
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/8  # Adjust to your on-prem CIDR
+    # To NVIDIA API endpoints
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+
+# =============================================================================
+# Pod Security
+# =============================================================================
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# =============================================================================
+# Topology Spread (Multi-AZ)
+# =============================================================================
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: rag-server
+
+# =============================================================================
+# Node Affinity (No GPU Nodes in Cloud)
+# =============================================================================
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            # Schedule on non-GPU nodes to save costs
+            - key: nvidia.com/gpu
+              operator: DoesNotExist

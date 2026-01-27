@@ -1,0 +1,24 @@
+{{- if .Values.minio.enabled }}
+# Standalone MinIO Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.minio.fullnameOverride | default "rag-minio" }}
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+    app.kubernetes.io/component: minio
+spec:
+  type: {{ .Values.minio.service.type | default "ClusterIP" }}
+  ports:
+    - name: api
+      port: 9000
+      targetPort: 9000
+      protocol: TCP
+    - name: console
+      port: 9001
+      targetPort: 9001
+      protocol: TCP
+  selector:
+    app: {{ .Values.minio.fullnameOverride | default "rag-minio" }}
+    app.kubernetes.io/component: minio
+{{- end }}

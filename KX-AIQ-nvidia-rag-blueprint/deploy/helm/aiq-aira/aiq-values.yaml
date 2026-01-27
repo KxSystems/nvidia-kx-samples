@@ -1,0 +1,45 @@
+nim-llm:
+  enabled: false
+
+# Redis for KDB job tracking
+redis:
+  enabled: true
+
+# ECR image overrides (comment out to use default NVCR images)
+imagePullSecret:
+  name: "ecr-secret"
+  registry: "105440091466.dkr.ecr.us-east-1.amazonaws.com"
+  username: "AWS"
+  password: ""
+  create: true
+
+image:
+  repository: 105440091466.dkr.ecr.us-east-1.amazonaws.com/aira-backend
+  tag: kdb-timing
+  pullPolicy: Always
+
+frontend:
+  enabled: true
+  image:
+    repository: 105440091466.dkr.ecr.us-east-1.amazonaws.com/aira-frontend
+    tag: kdb-timing
+    pullPolicy: Always
+
+backendEnvVars:
+  INSTRUCT_MODEL_NAME: "meta/llama-3.3-70b-instruct"
+  INSTRUCT_MODEL_TEMP: "0.0"
+  NEMOTRON_MAX_TOKENS: "5000"
+  INSTRUCT_MAX_TOKENS: "20000"
+  INSTRUCT_BASE_URL: "https://integrate.api.nvidia.com/v1"
+  NEMOTRON_MODEL_NAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+  NEMOTRON_MODEL_TEMP: "0.5"
+  NEMOTRON_BASE_URL: "https://integrate.api.nvidia.com/v1"
+  AIRA_APPLY_GUARDRAIL: "false"
+  RAG_SERVER_URL: "http://rag-server.rag.svc.cluster.local:8081"
+  RAG_INGEST_URL: "http://ingestor-server.rag.svc.cluster.local:8082"
+  # KDB+ MCP Server Configuration - Internal deployment
+  KDB_ENABLED: "true"
+  KDB_USE_NAT_CLIENT: "true"  # Use NAT's native MCP client (requires NAT 1.3.0+)
+  KDB_MCP_ENDPOINT: "http://kdb-mcp-kdb-x-mcp-server.aiq.svc.cluster.local:8000/mcp"
+  KDB_MCP_INTERNAL: "true"  # MCP server deployed by this blueprint - enables data loader
+  KDB_TIMEOUT: "30"

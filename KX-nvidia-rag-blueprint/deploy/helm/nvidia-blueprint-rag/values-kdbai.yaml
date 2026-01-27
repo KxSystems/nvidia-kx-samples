@@ -1,0 +1,147 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# KDB.AI Vector Database Configuration for NVIDIA RAG Blueprint
+#
+# This values file configures KDB.AI as the vector database instead of Milvus.
+# Use this as an overlay with: helm install rag . -f values-kdbai.yaml
+#
+# Prerequisites:
+#   1. Obtain a KDB.AI license from KX (https://kx.com) - valid for 90 days
+#   2. Create the KDB.AI registry secret:
+#      kubectl create secret docker-registry kdbai-registry-secret \
+#        --docker-server=portal.dl.kx.com \
+#        --docker-username=<your-kx-email> \
+#        --docker-password=<bearer-token-from-kx-welcome-email> \
+#        -n <your-namespace>
+#
+#   3. Create the KDB.AI license secret:
+#      kubectl create secret generic kdbai-license-secret \
+#        --from-literal=KDB_LICENSE_B64=<your-base64-encoded-license> \
+#        -n <your-namespace>
+#
+#   4. Deploy with:
+#      helm upgrade --install rag . -n <namespace> -f values-kdbai.yaml
+#
+# For EKS-specific configuration (custom images, StorageClass), see:
+#   deploy/EKS/rag-values-kdbai.yaml
+
+# =============================================================================
+# KDB.AI-Enabled RAG Images (from KX Registry)
+# =============================================================================
+image:
+  repository: portal.dl.kx.com/rag-server-kdbai
+  tag: "2.3.4"
+  pullPolicy: IfNotPresent
+
+# =============================================================================
+# KDB.AI Vector Database Configuration
+# =============================================================================
+kdbai:
+  enabled: true
+  fullnameOverride: kdbai
+
+  # Image pull secret for KX Docker registry (must be created beforehand)
+  imagePullSecret:
+    name: "kdbai-registry-secret"
+    create: false
+
+  # License secret (must be created beforehand)
+  licenseSecret:
+    name: "kdbai-license-secret"
+    create: false
+
+  # KDB.AI cuVS image (GPU-accelerated)
+  image:
+    registry: portal.dl.kx.com
+    repository: kdbai-db-cuvs
+    tag: "1.8.2"
+    pullPolicy: IfNotPresent
+
+  # GPU/cuVS Configuration
+  # GPU-accelerated KDB.AI with cuVS is enabled by default
+  gpu:
+    enabled: true
+    deviceId: "0"
+
+  # GPU image pull secret for cuVS registry (when using GPU mode)
+  # Public preview cuVS images are on portal.dl.kx.com - same as CPU images
+  # DEV REGISTRY (if needed): --docker-server=ext-dev-registry.kxi-dev.kx.com
+  gpuImagePullSecret:
+    name: "kdbai-registry-secret"
+
+  # GPU-enabled KDB.AI cuVS image (used when gpu.enabled=true)
+  # DEV REGISTRY (if needed): ext-dev-registry.kxi-dev.kx.com/kdbai-db-cuvs:1.8.2
+  gpuImage:
+    registry: portal.dl.kx.com
+    repository: kdbai-db-cuvs
+    tag: "1.8.2"
+    pullPolicy: Always
+
+  # Server configuration
+  config:
+    threads: 8
+    dataDir: "/tmp/kx/data/vdb"
+
+  # Resources - adjust based on your cluster capacity
+  resources:
+    limits:
+      memory: "16Gi"
+      cpu: "8"
+    requests:
+      memory: "4Gi"
+      cpu: "2"
+
+  # Persistence
+  persistence:
+    enabled: true
+    size: 50Gi
+
+# =============================================================================
+# Disable Milvus (use KDB.AI instead)
+# =============================================================================
+nv-ingest:
+  milvusDeployed: false
+  milvus:
+    enabled: false
+
+# =============================================================================
+# RAG Server Configuration
+# =============================================================================
+envVars:
+  # Vector Store - KDB.AI
+  APP_VECTORSTORE_URL: "http://kdbai:8082"
+  APP_VECTORSTORE_NAME: "kdbai"
+  APP_VECTORSTORE_SEARCHTYPE: "dense"
+
+  # KDB.AI specific settings
+  KDBAI_DATABASE: "default"
+  KDBAI_INDEX_TYPE: "cagra"
+  KDBAI_API_KEY: ""
+
+  # GPU Configuration (enabled for cuVS GPU-accelerated index)
+  APP_VECTORSTORE_ENABLEGPUINDEX: "True"
+  APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
+
+# =============================================================================
+# Ingestor Server Configuration
+# =============================================================================
+ingestor-server:
+  image:
+    repository: portal.dl.kx.com/ingestor-server-kdbai
+    tag: "2.3.4"
+    pullPolicy: IfNotPresent
+  envVars:
+    # Vector Store - KDB.AI
+    APP_VECTORSTORE_URL: "http://kdbai:8082"
+    APP_VECTORSTORE_NAME: "kdbai"
+    APP_VECTORSTORE_SEARCHTYPE: "dense"
+
+    # KDB.AI specific settings
+    KDBAI_DATABASE: "default"
+    KDBAI_INDEX_TYPE: "cagra"
+    KDBAI_API_KEY: ""
+
+    # GPU Configuration (enabled for cuVS GPU-accelerated index)
+    APP_VECTORSTORE_ENABLEGPUINDEX: "True"
+    APP_VECTORSTORE_ENABLEGPUSEARCH: "True"

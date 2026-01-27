@@ -1,0 +1,189 @@
+{{- if and (eq .Values.mode "internal") .Values.kdbx.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kdb-x-mcp-server.fullname" . }}-kdbx
+  labels:
+    {{- include "kdb-x-mcp-server.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kdbx-database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "kdb-x-mcp-server.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: kdbx-database
+  template:
+    metadata:
+      labels:
+        {{- include "kdb-x-mcp-server.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: kdbx-database
+    spec:
+      {{- if or .Values.imagePullSecrets .Values.kdbx.imagePullSecret.create }}
+      imagePullSecrets:
+        {{- with .Values.imagePullSecrets }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.kdbx.imagePullSecret.create }}
+        - name: {{ .Values.kdbx.imagePullSecret.name }}
+        {{- end }}
+      {{- end }}
+      {{- if eq .Values.kdbx.installMode "runtime" }}
+      # Runtime mode: use init container to install KDB-X
+      initContainers:
+        - name: install-kdbx
+          image: "{{ .Values.kdbx.image.repository }}:{{ .Values.kdbx.image.tag }}"
+          imagePullPolicy: {{ .Values.kdbx.image.pullPolicy }}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              echo "Installing KDB-X dependencies..."
+              apt-get update && apt-get install -y --no-install-recommends curl ca-certificates libssl-dev unzip
+
+              echo "Downloading KDB-X installer..."
+              cd /tmp
+              curl -sLO --oauth2-bearer "${KDB_BEARER_TOKEN}" \
+                https://portal.dl.kx.com/assets/raw/kdb-x/install_kdb/~latest~/install_kdb.sh
+              chmod +x install_kdb.sh
+
+              echo "Installing KDB-X (non-interactive)..."
+              export TERM=xterm
+              export HOME=/opt/kx
+              ./install_kdb.sh --b64lic "${KDB_LICENSE_B64}" -y
+              rm install_kdb.sh
+
+              echo "Checking installation location..."
+              # The installer typically installs to $HOME/kdb or similar
+              if [ -d "/opt/kx/kdb" ]; then
+                echo "Found KDB-X at /opt/kx/kdb"
+                cp -r /opt/kx/kdb/* /opt/kx/ 2>/dev/null || true
+              elif [ -f "/opt/kx/q" ]; then
+                echo "KDB-X already at /opt/kx"
+              else
+                echo "Searching for q binary..."
+                find /opt -name "q" -type f 2>/dev/null || true
+                find /root -name "q" -type f 2>/dev/null || true
+              fi
+
+              echo "KDB-X installation complete!"
+              ls -la /opt/kx/
+          env:
+            - name: KDB_BEARER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kdb-x-mcp-server.fullname" . }}-kdbx-install
+                  key: bearer-token
+            - name: KDB_LICENSE_B64
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kdb-x-mcp-server.fullname" . }}-kdbx-install
+                  key: license-b64
+            - name: TERM
+              value: "xterm"
+          volumeMounts:
+            - name: kdbx-install
+              mountPath: /opt/kx
+          securityContext:
+            runAsUser: 0
+      {{- end }}
+      containers:
+        - name: kdbx
+          {{- if eq .Values.kdbx.installMode "runtime" }}
+          image: "{{ .Values.kdbx.image.repository }}:{{ .Values.kdbx.image.tag }}"
+          {{- else }}
+          # Prebuilt mode: use custom image with KDB-X already installed
+          image: "{{ .Values.kdbx.build.repository }}:{{ .Values.kdbx.build.tag }}"
+          {{- end }}
+          imagePullPolicy: {{ .Values.kdbx.image.pullPolicy }}
+          {{- if eq .Values.kdbx.installMode "runtime" }}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              echo "Starting KDB-X on port {{ .Values.kdbx.service.port }} with SQL interface and sample data..."
+              export PATH="/opt/kx/.kx/bin:$PATH"
+              export QHOME="/opt/kx/.kx"
+              export QLIC="/opt/kx/.kx"
+
+              # Create startup script that initializes SQL interface and creates sample data
+              cat > /tmp/startup.q << 'QEOF'
+              .s.init[]
+              syms:`AAPL`GOOG`MSFT`TSLA`AMZN`NVDA`META`RIVN`BYD`BA
+              nsyms:count syms
+              rows:50000
+              trade:([]time:2023.01.01+asc rows?730;sym:rows?syms;price:100+rows?150f;size:100*1+rows?1000)
+              quote:([]time:2023.01.01+asc rows?730;sym:rows?syms;bid:100+rows?150f;ask:100+rows?150f;bsize:100*1+rows?1000;asize:100*1+rows?1000)
+              days:730
+              daily:([]date:2023.01.01+til days;sym:days?syms;open:100+days?150f;high:120+days?150f;low:80+days?150f;close:100+days?150f;volume:1000000*1+days?100)
+              -1 "KDB-X initialized with sample data (2023-2024)"
+              -1 "Available tables: ",", " sv string tables[]
+              -1 "Symbols: ",", " sv string syms
+              -1 "Trade rows: ",string count trade
+              -1 "Quote rows: ",string count quote
+              -1 "Daily rows: ",string count daily
+              QEOF
+
+              # Start q with startup script and port
+              q /tmp/startup.q -p {{ .Values.kdbx.service.port }}
+          {{- end }}
+          ports:
+            - name: kdbx
+              containerPort: {{ .Values.kdbx.service.port }}
+              protocol: TCP
+          env:
+            - name: QHOME
+              value: "/opt/kx/.kx"
+            - name: QLIC
+              value: "/opt/kx/lic"
+          {{- with .Values.kdbx.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            {{- if eq .Values.kdbx.installMode "runtime" }}
+            - name: kdbx-install
+              mountPath: /opt/kx
+            {{- end }}
+            {{- if and .Values.kdbLicense.create .Values.kdbLicense.licenseB64 }}
+            - name: kdb-license
+              mountPath: /opt/kx/lic
+              readOnly: true
+            {{- else if .Values.kdbLicense.existingSecret }}
+            - name: kdb-license
+              mountPath: /opt/kx/lic
+              readOnly: true
+            {{- end }}
+      volumes:
+        {{- if eq .Values.kdbx.installMode "runtime" }}
+        - name: kdbx-install
+          emptyDir: {}
+        {{- end }}
+        {{- if and .Values.kdbLicense.create .Values.kdbLicense.licenseB64 }}
+        - name: kdb-license
+          secret:
+            secretName: {{ .Values.kdbLicense.name }}
+        {{- else if .Values.kdbLicense.existingSecret }}
+        - name: kdb-license
+          secret:
+            secretName: {{ .Values.kdbLicense.existingSecret }}
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kdb-x-mcp-server.fullname" . }}-kdbx
+  labels:
+    {{- include "kdb-x-mcp-server.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kdbx-database
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.kdbx.service.port }}
+      targetPort: kdbx
+      protocol: TCP
+      name: kdbx
+  selector:
+    {{- include "kdb-x-mcp-server.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: kdbx-database
+{{- end }}

@@ -1,0 +1,259 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 KX Systems, Inc. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# AIQ-KX Docker Compose - Reuse Existing RAG NIMs (No additional GPUs needed)
+#
+# =============================================================================
+# DEVELOPMENT/TESTING ONLY
+# =============================================================================
+# This configuration is intended for development and testing purposes.
+# For production deployments, use Kubernetes (Helm charts) with:
+#   - Horizontal pod autoscaling (HPA)
+#   - Load balancing and high availability
+#   - Proper resource limits and requests
+#   - Production-grade monitoring and alerting
+#   - See: deploy/helm/aiq-aira/ for production deployment
+# =============================================================================
+#
+# Use this if you already have NVIDIA RAG blueprint deployed with NIMs.
+# This config connects to existing LLM services instead of deploying new ones.
+#
+# Example GPU Assignment (8x RTX PRO 6000 Blackwell with KDB.AI RAG):
+#   GPU 0: LLM (49B) → nim-llm:8000
+#   GPU 1: Embedding + Reranker → nemoretriever-embedding-ms:8000
+#   GPU 2-5: Document processing NIMs
+#   GPU 6: KDB.AI cuVS → kdbai:8082
+#   GPU 7: VLM
+#
+# AIQ-KX adds: 0 additional GPUs (reuses all from RAG)
+#
+# Prerequisites:
+#   - RAG blueprint running with .env.kdbai-8gpu config
+#   - nvidia-rag network exists
+#
+# Usage:
+#   docker compose -f docker-compose-kx-reuse-nim.yaml up -d
+#
+# Access: http://localhost:3000
+
+services:
+  # KDB-X Database Server (required for MCP server to work)
+  # The MCP server connects to this via IPC instead of using embedded q
+  kdbx:
+    container_name: kdbx
+    image: python:3.12-slim-bookworm
+    expose:
+      - "5000"
+    environment:
+      # KX Portal bearer token (get from https://portal.kx.com)
+      KDB_BEARER_TOKEN: "${KDB_BEARER_TOKEN}"
+      # KDB-X license (base64 encoded kc.lic)
+      KDB_LICENSE_B64: "${KDB_LICENSE_B64:-}"
+      KDB_K4LICENSE_B64: "${KDB_K4LICENSE_B64:-}"
+      TERM: xterm
+    command:
+      - /bin/bash
+      - -c
+      - |
+        set -e
+        echo "=== Installing KDB-X dependencies ==="
+        apt-get update && apt-get install -y --no-install-recommends curl ca-certificates libssl-dev unzip
+
+        echo "=== Downloading KDB-X installer ==="
+        cd /tmp
+        curl -sLO --oauth2-bearer "$${KDB_BEARER_TOKEN}" \
+          https://portal.dl.kx.com/assets/raw/kdb-x/install_kdb/~latest~/install_kdb.sh
+        chmod +x install_kdb.sh
+
+        echo "=== Installing KDB-X ==="
+        export HOME=/opt/kx
+        mkdir -p /opt/kx
+
+        # Debug: Check installer was downloaded
+        ls -la install_kdb.sh
+        echo "License length: $${#KDB_LICENSE_B64}"
+
+        # Use commercial license if available, otherwise personal
+        # Note: -y flag must come BEFORE --b64lic for non-interactive mode
+        if [ -n "$${KDB_K4LICENSE_B64}" ]; then
+          echo "Using commercial license (k4)"
+          ./install_kdb.sh -y --b64lic "$${KDB_K4LICENSE_B64}" 2>&1 || echo "Installer exited with code $$?"
+        else
+          echo "Using personal license (kc)"
+          ./install_kdb.sh -y --b64lic "$${KDB_LICENSE_B64}" 2>&1 || echo "Installer exited with code $$?"
+        fi
+
+        # Debug: Check what was installed
+        echo "=== Checking installation ==="
+        ls -la /opt/kx/ 2>/dev/null || echo "/opt/kx not found"
+        ls -la /opt/kx/.kx/ 2>/dev/null || echo "/opt/kx/.kx not found"
+        find /opt/kx -name "q" -type f 2>/dev/null || echo "q binary not found anywhere"
+
+        rm -f install_kdb.sh
+
+        echo "=== Starting KDB-X with SQL interface ==="
+        export QHOME="/opt/kx/.kx"
+        export QLIC="/opt/kx/.kx"
+
+        # Debug: Check where q was installed
+        echo "Looking for q binary..."
+        ls -la /opt/kx/.kx/bin/ 2>/dev/null || echo "bin dir not found"
+
+        # Create startup script - initialize SQL interface for MCP server
+        echo '.s.init[]' > /tmp/startup.q
+        echo '-1 "KDB-X ready with SQL interface"' >> /tmp/startup.q
+
+        # Use full path to q binary
+        /opt/kx/.kx/bin/q /tmp/startup.q -p 5000
+    networks:
+      - nvidia-rag
+    # Note: Removed TCP healthcheck - it creates connections that pile up and block IPC
+    # KDB-X doesn't properly close telnet probe connections, causing connection exhaustion
+
+  # KDB-X MCP Server - connects to kdbx container via IPC
+  kdb-mcp-server:
+    container_name: kdb-mcp-server
+    image: docker.io/alattar43828/kdb-x-mcp-server:latest
+    # No external port needed - backend connects via internal network
+    expose:
+      - "8000"
+    environment:
+      KDBX_MCP_TRANSPORT: "streamable-http"
+      KDBX_MCP_HOST: "0.0.0.0"
+      KDBX_MCP_PORT: "8000"
+      KDBX_MCP_LOG_LEVEL: "INFO"
+      # Connect to kdbx container instead of localhost
+      KDBX_DB_HOST: "kdbx"
+      KDBX_DB_PORT: "5000"
+      # License required for PyKX initialization
+      KDB_LICENSE_B64: "${KDB_LICENSE_B64:-}"
+      # PyKX license location (same as K8s: /opt/kx/lic)
+      QLIC: "/opt/kx/lic"
+    depends_on:
+      kdbx:
+        condition: service_started
+    networks:
+      - nvidia-rag
+    # Override entrypoint to wait for kdbx to be ready and set up license
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        echo "=== Setting up PyKX license ==="
+        mkdir -p /opt/kx/lic
+        if [ -n "$${KDB_LICENSE_B64}" ]; then
+          echo "$${KDB_LICENSE_B64}" | base64 -d > /opt/kx/lic/kc.lic
+          echo "License written to /opt/kx/lic/kc.lic"
+          ls -la /opt/kx/lic/
+        else
+          echo "WARNING: KDB_LICENSE_B64 not set - PyKX may not work"
+        fi
+
+        echo "=== Waiting for KDB-X to be ready ==="
+        MAX_RETRIES=60
+        RETRY_INTERVAL=5
+        for i in $$(seq 1 $$MAX_RETRIES); do
+          if timeout 2 bash -c "</dev/tcp/kdbx/5000" 2>/dev/null; then
+            echo "KDB-X is ready on kdbx:5000 (attempt $$i)"
+            break
+          fi
+          echo "Waiting for kdbx:5000... (attempt $$i/$$MAX_RETRIES)"
+          sleep $$RETRY_INTERVAL
+        done
+        if ! timeout 2 bash -c "</dev/tcp/kdbx/5000" 2>/dev/null; then
+          echo "ERROR: KDB-X not ready after $$MAX_RETRIES attempts"
+          exit 1
+        fi
+        echo "=== Starting MCP Server ==="
+        exec /entrypoint.sh
+    # Healthcheck: Simple TCP check - MCP protocol doesn't have a standard health endpoint
+    # The server is healthy if it's accepting connections on port 8000
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/localhost/8000' 2>/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+  # AIQ-KX Backend - Connects to EXISTING RAG NIMs
+  aiq-kx-backend:
+    container_name: aiq-kx-backend
+    image: portal.dl.kx.com/aiq-kx-backend:1.0.2
+    ports:
+      - "3838:3838"
+    volumes:
+      # Mount configs with Docker-specific config (no unsupported NAT features)
+      - ../../configs:/app/configs:ro
+    command: ["uv", "run", "nat", "serve", "--config_file", "/app/configs/docker-config.yml", "--host", "0.0.0.0", "--port", "3838"]
+    environment:
+      # ===========================================
+      # Point to EXISTING NIM endpoints from RAG (.env.kdbai-8gpu)
+      # ===========================================
+      # LLM on GPU 0 (49B model fits in single 96GB RTX PRO 6000)
+      INSTRUCT_BASE_URL: "${INSTRUCT_BASE_URL:-http://nim-llm:8000/v1}"
+      NEMOTRON_BASE_URL: "${NEMOTRON_BASE_URL:-http://nim-llm:8000/v1}"
+
+      # Model names (must match what's deployed in RAG)
+      INSTRUCT_MODEL_NAME: "${INSTRUCT_MODEL_NAME:-nvidia/llama-3.3-nemotron-super-49b-v1.5}"
+      NEMOTRON_MODEL_NAME: "${NEMOTRON_MODEL_NAME:-nvidia/llama-3.3-nemotron-super-49b-v1.5}"
+
+      # KDB Configuration - Internal MCP server deployed by this compose
+      KDB_ENABLED: "true"
+      KDB_MCP_ENDPOINT: "http://kdb-mcp-server:8000/mcp"
+      KDB_MCP_INTERNAL: "true"  # Enables data loader (write operations)
+      KDB_TIMEOUT: "30"
+
+      # RAG Services (reuse existing from KDB.AI deployment)
+      RAG_SERVER_URL: "${RAG_SERVER_URL:-http://rag-server:8081/v1}"
+      RAG_INGEST_URL: "${RAG_INGEST_URL:-http://ingestor-server:8082/v1}"
+
+      # KDB.AI Vector Store (GPU 6)
+      APP_VECTORSTORE_NAME: "kdbai"
+      APP_VECTORSTORE_URL: "${KDBAI_ENDPOINT:-http://kdbai:8082}"
+
+      # Optional APIs
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+
+      # Settings
+      AIRA_APPLY_GUARDRAIL: "false"
+      AIRA_HOSTED_NIMS: "false"
+
+      # Redis (use container name, not localhost)
+      REDIS_HOST: "aiq-kx-redis"
+      REDIS_PORT: "6379"
+      REDIS_URL: "redis://aiq-kx-redis:6379"
+    depends_on:
+      - kdb-mcp-server
+      - redis
+    networks:
+      - nvidia-rag
+
+  # AIQ-KX Frontend
+  aiq-kx-frontend:
+    container_name: aiq-kx-frontend
+    image: portal.dl.kx.com/aiq-kx-frontend:1.0.2
+    ports:
+      - "3000:3000"
+    environment:
+      INFERENCE_ORIGIN: "http://aiq-kx-backend:3838"
+      VITE_API_BASE_URL: "http://aiq-kx-backend:3838"
+    depends_on:
+      - aiq-kx-backend
+    networks:
+      - nvidia-rag
+
+  # Redis for job tracking
+  redis:
+    container_name: aiq-kx-redis
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - nvidia-rag
+
+# Connect to existing RAG network
+networks:
+  nvidia-rag:
+    external: true
+    name: nvidia-rag

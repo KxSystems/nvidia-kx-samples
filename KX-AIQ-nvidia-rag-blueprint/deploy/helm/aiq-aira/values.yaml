@@ -1,0 +1,138 @@
+# ------------------------------------------------------------
+# The following values are for the AIQ AIRA backend service.
+# ------------------------------------------------------------
+
+replicaCount: 1
+
+# Global container registry settings
+# Override these for different environments (ECR, NVCR, etc.)
+global:
+  registry: ""  # Leave empty to use repository values as-is, or set to override (e.g., "105440091466.dkr.ecr.us-east-1.amazonaws.com")
+
+# KX Portal registry secret (for aiq-kx-backend and aiq-kx-frontend images)
+imagePullSecret:
+  name: "kx-portal-secret"
+  registry: "portal.dl.kx.com"
+  username: ""  # Set to your KX portal email
+  password: ""  # Set to your KX portal token
+  create: true
+
+# NGC registry secret (for NIM images from nvcr.io)
+ngcImagePullSecret:
+  name: "ngc-secret"
+  registry: "nvcr.io"
+  username: "$oauthtoken"
+  password: ""
+  create: true
+
+ngcApiSecret:
+  name: "ngc-api"
+  password: ""
+  create: true
+
+tavilyApiSecret:
+  name: "tavily-secret"
+  create: true
+  password: ""
+
+# KDB+ API Key Secret (optional, for authenticated KDB+ MCP servers)
+kdbApiSecret:
+  name: "kdb-secret"
+  create: false
+  password: ""
+
+# Redis for job tracking (KDB data loader)
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: 7-alpine
+    pullPolicy: IfNotPresent
+
+# The image repository and tag for the AIQ AIRA backend service.
+image:
+  repository: portal.dl.kx.com/aiq-kx-backend
+  tag: "1.0.2"
+  pullPolicy: Always
+
+# The service type and port for the main AIQ AIRA backend service
+service:
+  port: 3838
+
+backendEnvVars:
+  INSTRUCT_MODEL_NAME: "meta-llama/llama-3.3-70b-instruct"
+  INSTRUCT_MODEL_TEMP: "0.0"
+  NEMOTRON_MAX_TOKENS: "5000"
+  INSTRUCT_MAX_TOKENS: "20000"
+  INSTRUCT_BASE_URL: "http://instruct-llm:8000"
+  INSTRUCT_API_KEY: "not-needed"
+  NEMOTRON_MODEL_NAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+  NEMOTRON_MODEL_TEMP: "0.5"
+  NEMOTRON_BASE_URL: "http://nim-llm.rag.svc.cluster.local:8000"
+  AIRA_APPLY_GUARDRAIL: "false"
+  RAG_SERVER_URL: "http://rag-server.rag.svc.cluster.local:8081"
+  RAG_INGEST_URL: "http://ingestor-server.rag.svc.cluster.local:8082"
+  # KDB+ MCP Server Configuration
+  KDB_ENABLED: "false"
+  KDB_USE_NAT_CLIENT: "true"  # Use NAT's native MCP client (requires NAT 1.3.0+)
+  KDB_MCP_ENDPOINT: "https://kdbxmcp.kxailab.com/mcp"
+  KDB_MCP_INTERNAL: "false"  # Set to "true" only when MCP server is deployed by this blueprint
+  KDB_TIMEOUT: "30"
+  
+nim-llm:
+  enabled: true
+  service:
+    name: "instruct-llm"
+  image:
+      repository: nvcr.io/nim/meta/llama-3.3-70b-instruct
+      pullPolicy: IfNotPresent
+      tag: "1.13.1"
+  resources:
+    limits:
+      nvidia.com/gpu: 2
+    requests:
+      nvidia.com/gpu: 2
+  # Configure NIM Model Profile for optimal performance
+  env:
+    - name: NIM_MODEL_PROFILE
+      value: ""  # Empty for automatic selection, or specify tensorrt_llm profile
+  model:
+    ngcAPIKey: ""
+    name: "meta-llama/llama-3.3-70b-instruct"
+
+# -----------------------------------------------------------
+# The following values are for the AIQ AIRA frontend service.
+# ------------------------------------------------------------
+
+# The frontend application is a React web app. We recommend a NodePort so the frontend will be accessible at <your-node-ip>:3001
+frontend:
+  enabled: true
+  service:
+    type: NodePort
+    port: 3000
+    targetPort: 3000
+    nodePort: 30080
+  image:
+    repository: portal.dl.kx.com/aiq-kx-frontend
+    tag: "1.0.2"
+    pullPolicy: Always
+  replicaCount: 1
+
+# ------------------------------------------------------------
+# The following values are optional utility services
+# ------------------------------------------------------------
+
+# Enables the Phoenix tracing service
+phoenix:
+  enabled: true
+  image:
+    repository: arizephoenix/phoenix
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 200m
+      memory: 256Mi

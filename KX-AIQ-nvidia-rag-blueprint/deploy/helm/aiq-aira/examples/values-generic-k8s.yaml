@@ -1,0 +1,101 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 KX Systems, Inc. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# =============================================================================
+# Generic Kubernetes Deployment (AIQ-KX with KDB Integration)
+# =============================================================================
+#
+# Works on any Kubernetes cluster:
+#   - kubeadm, k3s, k3d, RKE, RKE2
+#   - minikube, kind, Docker Desktop
+#   - EKS, GKE, AKS, DigitalOcean
+#
+# Uses pre-built Docker Hub images with KDB integration.
+# No image building required.
+#
+# Prerequisites:
+#   - NVIDIA API Key: https://build.nvidia.com/
+#   - (Optional) Tavily API Key for web search
+#
+# Usage:
+#   helm upgrade --install aiq-kx ../. -n aiq --create-namespace \
+#     -f values-generic-k8s.yaml \
+#     --set ngcApiSecret.password="$NVIDIA_API_KEY"
+#
+# Access:
+#   kubectl -n aiq port-forward svc/aiq-kx-aira-frontend 3000:3000
+#   # Open http://localhost:3000
+#
+# =============================================================================
+
+# AIQ-KX images (KDB-enabled) hosted on Docker Hub
+image:
+  repository: portal.dl.kx.com/aiq-kx-backend
+  tag: "1.0.2"
+  pullPolicy: Always
+
+# Frontend configuration
+frontend:
+  enabled: true
+  image:
+    repository: portal.dl.kx.com/aiq-kx-frontend
+    tag: "1.0.2"
+    pullPolicy: Always
+  service:
+    # NodePort for on-premise access without LoadBalancer
+    type: NodePort
+    port: 3000
+    nodePort: 30080  # Access via http://<node-ip>:30080
+
+# Use hosted NVIDIA NIMs (no local GPU required)
+nim-llm:
+  enabled: false
+
+# Enable Redis for job tracking
+redis:
+  enabled: true
+
+# Backend configuration
+backendEnvVars:
+  # LLM Configuration - Hosted NIMs (no GPU needed)
+  INSTRUCT_BASE_URL: "https://integrate.api.nvidia.com/v1"
+  NEMOTRON_BASE_URL: "https://integrate.api.nvidia.com/v1"
+  INSTRUCT_MODEL_NAME: "meta/llama-3.3-70b-instruct"
+  NEMOTRON_MODEL_NAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+  INSTRUCT_MODEL_TEMP: "0.0"
+  NEMOTRON_MODEL_TEMP: "0.5"
+  INSTRUCT_MAX_TOKENS: "20000"
+  NEMOTRON_MAX_TOKENS: "5000"
+
+  # RAG Configuration (update if you have a RAG server)
+  # RAG_SERVER_URL: "http://rag-server:8081/v1"
+  # RAG_INGEST_URL: "http://ingestor-server:8082/v1"
+
+  # KDB-X Configuration - uses internal MCP server (deployed separately)
+  KDB_ENABLED: "true"
+  KDB_MCP_ENDPOINT: "http://kdb-mcp-kdb-x-mcp-server.aiq.svc.cluster.local:8000/mcp"
+  KDB_TIMEOUT: "30"
+
+  # Guardrails
+  AIRA_APPLY_GUARDRAIL: "false"
+
+# Resource limits (adjust based on your cluster capacity)
+resources:
+  limits:
+    cpu: "2"
+    memory: "4Gi"
+  requests:
+    cpu: "500m"
+    memory: "1Gi"

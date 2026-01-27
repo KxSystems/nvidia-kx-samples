@@ -1,0 +1,232 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 KX Systems, Inc. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# AIQ-KX Docker Compose - Full Local Deployment with Self-Hosted NIMs
+#
+# =============================================================================
+# DEVELOPMENT/TESTING ONLY
+# =============================================================================
+# This configuration is intended for development and testing purposes.
+# For production deployments, use Kubernetes (Helm charts) with:
+#   - Horizontal pod autoscaling (HPA)
+#   - Load balancing and high availability
+#   - Proper resource limits and requests
+#   - Production-grade monitoring and alerting
+#   - See: deploy/helm/aiq-aira/ for production deployment
+# =============================================================================
+#
+# Example GPU Allocation (8x NVIDIA RTX PRO 6000 Blackwell):
+#   - GPU 0,1: Llama 3.3 70B Instruct (report writing)
+#   - GPU 2:   Nemotron Super 49B (reasoning)
+#   - GPU 3-7: Available for RAG services or additional models
+#
+# Usage:
+#   export NGC_API_KEY="nvapi-xxx"
+#   docker compose -f docker-compose-kx-local.yaml up -d
+#
+# Access: http://localhost:3000
+
+services:
+  # =============================================================================
+  # LLM Services (Self-Hosted NIMs)
+  # =============================================================================
+
+  # Llama 3.3 70B Instruct - For report writing and Q&A
+  llm-instruct:
+    container_name: llm-instruct
+    image: nvcr.io/nim/meta/llama-3.3-70b-instruct:latest
+    runtime: nvidia
+    ports:
+      - "8051:8000"
+    environment:
+      NGC_API_KEY: ${NGC_API_KEY}
+    volumes:
+      - nim-cache:/opt/nim/.cache
+    shm_size: 32gb
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['0', '1']
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
+      interval: 30s
+      timeout: 20s
+      retries: 100
+      start_period: 300s
+    networks:
+      - aiq-kx-network
+
+  # Nemotron Super 49B - For reasoning and query planning
+  llm-nemotron:
+    container_name: llm-nemotron
+    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1:latest
+    runtime: nvidia
+    ports:
+      - "8052:8000"
+    environment:
+      NGC_API_KEY: ${NGC_API_KEY}
+    volumes:
+      - nim-cache:/opt/nim/.cache
+    shm_size: 32gb
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['2']
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
+      interval: 30s
+      timeout: 20s
+      retries: 100
+      start_period: 300s
+    networks:
+      - aiq-kx-network
+
+  # =============================================================================
+  # KDB-X MCP Server
+  # =============================================================================
+
+  kdb-mcp-server:
+    container_name: kdb-mcp-server
+    image: docker.io/alattar43828/kdb-x-mcp-server:latest
+    ports:
+      - "8000:8000"
+    environment:
+      KDBX_MCP_TRANSPORT: "streamable-http"
+      KDBX_MCP_HOST: "0.0.0.0"
+      KDBX_MCP_PORT: "8000"
+      KDBX_MCP_LOG_LEVEL: "INFO"
+      KDBX_DB_HOST: "${KDBX_DB_HOST:-localhost}"
+      KDBX_DB_PORT: "${KDBX_DB_PORT:-5000}"
+      KDBX_DB_TLS: "false"
+      # KX License (required) - Base64 encoded license file
+      # Personal license: export KDB_LICENSE_B64=$(cat kc.lic | base64)
+      # Commercial license: export KDB_K4LICENSE_B64=$(cat k4.lic | base64)
+      KDB_LICENSE_B64: "${KDB_LICENSE_B64:-}"
+      KDB_K4LICENSE_B64: "${KDB_K4LICENSE_B64:-}"
+      # PyKX license location (same as K8s: /opt/kx/lic)
+      QLIC: "/opt/kx/lic"
+    networks:
+      - aiq-kx-network
+    # Override entrypoint to set up license before starting
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        echo "=== Setting up PyKX license ==="
+        mkdir -p /opt/kx/lic
+        if [ -n "$${KDB_K4LICENSE_B64}" ]; then
+          echo "$${KDB_K4LICENSE_B64}" | base64 -d > /opt/kx/lic/k4.lic
+          echo "Commercial license written to /opt/kx/lic/k4.lic"
+        elif [ -n "$${KDB_LICENSE_B64}" ]; then
+          echo "$${KDB_LICENSE_B64}" | base64 -d > /opt/kx/lic/kc.lic
+          echo "Personal license written to /opt/kx/lic/kc.lic"
+        else
+          echo "WARNING: No license B64 set - PyKX may not work"
+        fi
+        ls -la /opt/kx/lic/
+        echo "=== Starting MCP Server ==="
+        exec /entrypoint.sh
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # =============================================================================
+  # AIQ-KX Application
+  # =============================================================================
+
+  # AIQ-KX Backend
+  aiq-kx-backend:
+    container_name: aiq-kx-backend
+    image: portal.dl.kx.com/aiq-kx-backend:1.0.2
+    ports:
+      - "3838:3838"
+    volumes:
+      - ../../configs:/app/configs:ro
+    command: ["uv", "run", "nat", "serve", "--config_file", "/app/configs/docker-config.yml", "--host", "0.0.0.0", "--port", "3838"]
+    environment:
+      # Use local LLMs
+      INSTRUCT_BASE_URL: "http://llm-instruct:8000/v1"
+      NEMOTRON_BASE_URL: "http://llm-nemotron:8000/v1"
+      INSTRUCT_MODEL_NAME: "meta/llama-3.3-70b-instruct"
+      NEMOTRON_MODEL_NAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+
+      # KDB Configuration - Internal MCP server deployed by this compose
+      KDB_ENABLED: "true"
+      KDB_MCP_ENDPOINT: "http://kdb-mcp-server:8000/mcp"
+      KDB_MCP_INTERNAL: "true"  # Enables data loader (write operations)
+      KDB_TIMEOUT: "30"
+
+      # Optional APIs
+      NVIDIA_API_KEY: ${NGC_API_KEY:-}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+
+      # RAG (optional)
+      # RAG_SERVER_URL: "http://rag-server:8081/v1"
+      # RAG_INGEST_URL: "http://ingestor-server:8082/v1"
+
+      # Settings
+      AIRA_APPLY_GUARDRAIL: "false"
+      AIRA_HOSTED_NIMS: "false"
+
+      # Redis
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      REDIS_URL: "redis://redis:6379"
+    depends_on:
+      llm-instruct:
+        condition: service_healthy
+      llm-nemotron:
+        condition: service_healthy
+      kdb-mcp-server:
+        condition: service_started
+      redis:
+        condition: service_started
+    networks:
+      - aiq-kx-network
+
+  # AIQ-KX Frontend
+  aiq-kx-frontend:
+    container_name: aiq-kx-frontend
+    image: portal.dl.kx.com/aiq-kx-frontend:1.0.2
+    ports:
+      - "3000:3000"
+    environment:
+      INFERENCE_ORIGIN: "http://aiq-kx-backend:3838"
+      VITE_API_BASE_URL: "http://aiq-kx-backend:3838"
+    depends_on:
+      - aiq-kx-backend
+    networks:
+      - aiq-kx-network
+
+  # Redis for job tracking
+  redis:
+    container_name: aiq-kx-redis
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - aiq-kx-network
+
+# =============================================================================
+# Volumes & Networks
+# =============================================================================
+
+volumes:
+  nim-cache:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  aiq-kx-network:
+    driver: bridge
