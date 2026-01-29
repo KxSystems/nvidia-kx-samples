@@ -12,7 +12,7 @@ Choose one or more data sources for your research. You can combine multiple sour
 - **RAG Collections** - Search through your uploaded document collections
 - **Web Search** - Search the internet for up-to-date information using Tavily
 
-![Select Data Sources](/docs/images/kx-aiq-screen-1.png)
+![Select Data Sources](../docs/images/kx-aiq-screen-1.png)
 
 ### Step 2: Define Report Topic and Structure
 
@@ -22,7 +22,7 @@ Enter your research topic and customize the report structure. You can specify:
 - **Report Structure** - Define sections, target audience, and tone
 - **Number of Queries** - How many research queries to generate
 
-![Report Topic and Structure](/docs/images/kx-aiq-screen-2.png)
+![Report Topic and Structure](../docs/images/kx-aiq-screen-2.png)
 
 ```
 # Example Report Topic
@@ -44,7 +44,7 @@ Tone: Professional, data-driven
 
 The AI-Q Blueprint uses the **Llama Nemotron Super** reasoning model to generate a research plan. You can watch the model's thinking process in real-time as it plans your queries.
 
-![AI Thinking Process](/docs/images/kx-aiq-screen-3.png)
+![AI Thinking Process](../docs/images/kx-aiq-screen-3.png)
 
 ### Step 4: Review and Execute Research Plan
 
@@ -56,7 +56,7 @@ Once reasoning is complete, review the generated research queries. Each query in
 
 You can add, edit, or remove queries before executing the plan.
 
-![Research Plan Complete](/docs/images/kx-aiq-screen-4.png)
+![Research Plan Complete](../docs/images/kx-aiq-screen-4.png)
 
 ```
 # Example Research Plan
@@ -83,7 +83,7 @@ Click **Execute Plan** to start generating the report. The Agent Activity panel 
 - **Improving** - Reflection and gap-filling
 - **Finalizing** - Final formatting and citation
 
-![Report Generation with Agent Activity](/docs/images/kx-aiq-screen-5.png)
+![Report Generation with Agent Activity](../docs/images/kx-aiq-screen-5.png)
 
 ### Step 6: Q&A with Your Report
 
@@ -94,7 +94,7 @@ After the report is generated, use the Q&A interface to:
 - Rewrite sections with different focus
 - Export or share the final report
 
-![Q&A Session](/docs/images/kx-aiq-screen-6.png)
+![Q&A Session](../docs/images/kx-aiq-screen-6.png)
 
 ## KDB-X Data Management
 
@@ -109,7 +109,7 @@ Access the Settings panel to load historical stock data into KDB-X:
 
 > **Note:** The data loader is for testing and demonstration purposes only. Data is sourced from Yahoo Finance with synthetic intraday generation.
 
-![KDB-X Data Loader](/docs/images/kx-aiq-screen-7.png)
+![KDB-X Data Loader](../docs/images/kx-aiq-screen-7.png)
 
 ### KDB Chat - Natural Language Queries
 
@@ -119,7 +119,7 @@ The **KDB Chat** tab allows you to query your financial data using natural langu
 - Query stock prices, trade volumes, and market data
 - The system translates your questions to q/SQL automatically
 
-![KDB Chat Interface](/docs/images/kx-aiq-screen-8.png)
+![KDB Chat Interface](../docs/images/kx-aiq-screen-8.png)
 
 ```
 # Example KDB Chat Queries
