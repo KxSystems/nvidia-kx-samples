@@ -1,71 +1,157 @@
 # Create Research Reports with AI-Q Blueprint User Interface
 
-The AI-Q Research Assistant builds off of the NVIDIA RAG Blueprint, allowing users to upload multi-modal PDFs and then create detailed research reports. 
+The AI-Q Research Assistant builds off of the NVIDIA RAG Blueprint, allowing users to upload multi-modal PDFs and then create detailed research reports. The **AIQ-KX** edition adds KDB-X financial data integration for time-series analysis.
 
-- First a user can add documents. Example datasets are included, one with 100+ PDFs containing earnings data for Meta, Alphabet, and Amazon and a second with PDFs containing research on Cystic Fibrosis. 
+## Getting Started
 
-  ![Screenshot showing document upload](/docs/images/aira_upload_screenshot.png)
+### Step 1: Select Data Sources
 
+Choose one or more data sources for your research. You can combine multiple sources for comprehensive results:
 
-- Enter a report topic and desired report structure
+- **KDB-X Database** - Query financial time-series data (stocks, trades, quotes)
+- **RAG Collections** - Search through your uploaded document collections
+- **Web Search** - Search the internet for up-to-date information using Tavily
 
-  ![Screenshot showing prompts](/docs/images/aira_prompt_screemshot.png)
+![Select Data Sources](/docs/images/kx-aiq-screen-1.png)
 
-  ```
-  # Example Prompt
-  You are a financial analyst who specializes in financial statement analysis. Write a financial report analyzing the 2023 financial performance of Amazon. Identify trends in revenue growth, net income, and total assets. Discuss how these trends affected Amazon's yearly financial performance for 2023. Your output should be organized into a brief introduction, as many sections as necessary to create a comprehensive report, and a conclusion. Format your answer in paragraphs. Use factual sources such as Amazon's quarterly meeting releases for 2023. Cross analyze the sources to draw original and sound conclusions and explain your reasoning for arriving at conclusions. Do not make any false or unverifiable claims. I want a factual report with cited sources.
-  ```
+### Step 2: Define Report Topic and Structure
 
-- Review and edit a research plan
+Enter your research topic and customize the report structure. You can specify:
 
-  ![Screenshot showing the research plan](/docs/images/aira_plan_screenshot.png)
+- **Report Topic** - The main subject of your research (e.g., "Compare the trade volume of NVIDIA in 2023 vs 2024")
+- **Report Structure** - Define sections, target audience, and tone
+- **Number of Queries** - How many research queries to generate
 
-  ``` 
-  # Example Research Plan
+![Report Topic and Structure](/docs/images/kx-aiq-screen-2.png)
 
-  Query: Amazon 2023 quarterly revenue growth trends compared to 2022
-  Section: Revenue Growth Analysis
-  Rationale: Identify year-over-year revenue patterns and seasonal fluctuations
+```
+# Example Report Topic
+Compare the trade volume of NVIDIA in 2023 vs 2024
 
-  Query: Factors affecting Amazon's net income margin in 2023 Q1-Q4
-  Section: Net Income Trend Drivers
-  Rationale: Analyze expense structures or cost increases impacting profitability
-  ```
+# Example Report Structure
+Sections:
+1. Executive Summary
+2. Background & Context
+3. Key Findings
+4. Analysis
+5. Conclusions & Recommendations
 
-- Perform deep research to create a report, sourcing data from the on-premise documents and the web
+Audience: Business executives and technical leaders
+Tone: Professional, data-driven
+```
 
-  ![Screenshot showing the report](/docs/images/aira_report_screenshot.png)
+### Step 3: Generate Research Plan
 
-  ``` 
-  # Example Report 
-  
-  ## Revenue Growth Analysis
-  Amazon's revenue growth accelerated throughout 2023, with a notable increase in the fourth quarter.
-  The company's net sales increased 12% to $574.8 billion in 2023, compared with $514.0 billion in 2022 (1).
-  A quarterly breakdown of the revenue growth reveals a steady increase in sales throughout the year. In Q1
-  2023, net sales increased 9% to $127.4 billion, compared with $116.4 billion in Q1 2022 (1). This growth was
-  followed by an 11% increase in Q2 2023, with net sales reaching $134.4 billion, compared with $121.2 billion
-  in Q2 2022 (1).
-  ...
+The AI-Q Blueprint uses the **Llama Nemotron Super** reasoning model to generate a research plan. You can watch the model's thinking process in real-time as it plans your queries.
 
-  ## Sources
-  
-  **Source** 2 
-  
-  **Query:** Factors affecting Amazon's net income margin in 2023 Q1-Q4
-  
-  **Answer:** **Amazon's Net Income Margin Factors (2023 Q1-Q4)**
+![AI Thinking Process](/docs/images/kx-aiq-screen-3.png)
 
-  1. **Revenue Growth**:
-    - **Increase in Net Sales**: Across all segments (North America, International, AWS) contributed to higher revenue.
-    - **Segment-wise Growth**:
-      - North America: 11% (Q1), 13% (Q4)
-      - International: 1% (Q1), 17% (Q4)
-      - AWS: 16% (Q1), 13% (Q4)
-  ...
-  **Citations:** AMZN-Q4-2023-Earnings-Release_chunk_1.pdf,,Q4-2022-Amazon-Earnings-Release_chunk_1.pdf,,,,Q1-2023-Amazon-Earnings-Release_chunk_1.pdf,,,
-  ```
+### Step 4: Review and Execute Research Plan
 
-- Edit the report or ask follow up questions
+Once reasoning is complete, review the generated research queries. Each query includes:
 
-During report generation, an example of test time computation is provided, as a reasoning LLM is used to reflect on report drafts, identify gaps, and perform further queries.
+- **Query** - The specific question to research
+- **Target Section** - Which report section this query supports
+- **Rationale** - Why this query is important
+
+You can add, edit, or remove queries before executing the plan.
+
+![Research Plan Complete](/docs/images/kx-aiq-screen-4.png)
+
+```
+# Example Research Plan
+
+Query 1: Retrieve NVIDIA's daily trade volume (in shares and USD value) for the full years 2023 and 2024
+Section: Background & Context
+Rationale: Provides raw data for comparison
+
+Query 2: Identify all material events, earnings reports, product launches, regulatory changes...
+Section: Key Findings
+Rationale: Context for volume fluctuations
+
+Query 3: Compare NVIDIA's trade volume volatility (standard deviation of daily volumes)...
+Section: Analysis
+Rationale: Deeper statistical analysis
+```
+
+### Step 5: Monitor Report Generation
+
+Click **Execute Plan** to start generating the report. The Agent Activity panel shows real-time progress:
+
+- **Searching KDB-X** - Querying financial time-series data
+- **Writing Report** - Generating report content
+- **Improving** - Reflection and gap-filling
+- **Finalizing** - Final formatting and citation
+
+![Report Generation with Agent Activity](/docs/images/kx-aiq-screen-5.png)
+
+### Step 6: Q&A with Your Report
+
+After the report is generated, use the Q&A interface to:
+
+- Ask follow-up questions about the report
+- Request summaries of specific sections
+- Rewrite sections with different focus
+- Export or share the final report
+
+![Q&A Session](/docs/images/kx-aiq-screen-6.png)
+
+## KDB-X Data Management
+
+### Loading Historical Data
+
+Access the Settings panel to load historical stock data into KDB-X:
+
+1. Click the **Settings** icon (gear) in the top navigation
+2. Navigate to the **KDB-X Data** tab
+3. Select stock symbols (AAPL, GOOG, MSFT, TSLA, AMZN, etc.)
+4. Click to load historical data
+
+> **Note:** The data loader is for testing and demonstration purposes only. Data is sourced from Yahoo Finance with synthetic intraday generation.
+
+![KDB-X Data Loader](/docs/images/kx-aiq-screen-7.png)
+
+### KDB Chat - Natural Language Queries
+
+The **KDB Chat** tab allows you to query your financial data using natural language:
+
+- Ask about available tables and their schemas
+- Query stock prices, trade volumes, and market data
+- The system translates your questions to q/SQL automatically
+
+![KDB Chat Interface](/docs/images/kx-aiq-screen-8.png)
+
+```
+# Example KDB Chat Queries
+
+User: What tables are available?
+System: There are 7 tables available in the database:
+1. daily
+2. fundamentals
+3. news
+4. quote
+5. t
+6. recommendations
+7. trade
+
+User: Show me NVIDIA's highest trading volume day in 2024
+System: [Executes SQL query and returns results]
+```
+
+## Features Summary
+
+| Feature | Description |
+|---------|-------------|
+| Multi-Source Research | Combine KDB-X, RAG, and Web Search |
+| Reasoning Transparency | Watch AI thinking in real-time |
+| Agent Activity | Track search operations with timing |
+| Interactive Q&A | Ask questions about generated reports |
+| Natural Language to SQL | Query KDB-X in plain English |
+| Batch Data Loading | Load historical stock data with progress |
+
+## Example Use Cases
+
+1. **Financial Analysis**: "Compare AAPL and MSFT stock performance in Q4 2024"
+2. **Market Research**: "Analyze trading volume patterns for tech stocks during earnings season"
+3. **Multi-Source Reports**: "Research NVIDIA's AI strategy combining financial data and news articles"
+4. **Historical Trends**: "Show year-over-year revenue growth for Amazon from SEC filings"
