@@ -21,9 +21,9 @@ This directory contains example Helm values files for deploying AIQ-KX (the KDB-
 
 ## Important: Image Hosting
 
-**AIQ-KX images are NOT on NVIDIA NGC (NVCR).** The KDB-enabled images must be:
-1. Hosted by you (build from this repository and push to your registry), OR
-2. Pulled from the official AIQ-KX registry (when available)
+**AIQ-KX images are NOT on NVIDIA NGC (NVCR).** The KDB-enabled images are available from:
+1. **KX Portal Registry** (recommended): `portal.dl.kx.com/aiq-kx-backend:1.0.2` and `portal.dl.kx.com/aiq-kx-frontend:1.0.2`
+2. Self-hosted: Build from this repository and push to your registry
 
 The default NVCR images (`nvcr.io/nvidia/blueprint/aira-*`) do NOT include KDB integration.
 
@@ -37,12 +37,11 @@ The default NVCR images (`nvcr.io/nvidia/blueprint/aira-*`) do NOT include KDB i
 
 ## Pre-built Images
 
-AIQ-KX images are available on Docker Hub:
+AIQ-KX images are available on the KX portal registry:
 
 ```
-docker.io/alattar43828/aiq-kx-backend:latest
-docker.io/alattar43828/aiq-kx-frontend:latest
-docker.io/alattar43828/kdb-x-mcp-server:latest
+portal.dl.kx.com/aiq-kx-backend:1.0.2
+portal.dl.kx.com/aiq-kx-frontend:1.0.2
 ```
 
 ### Building Your Own Images (Optional)
@@ -65,7 +64,7 @@ docker push your-registry/aiq-kx-frontend:latest
 
 ### Option 1: Generic Kubernetes (Recommended)
 
-Works on any Kubernetes cluster (kubeadm, k3s, minikube, etc.) using pre-built Docker Hub images:
+Works on any Kubernetes cluster (kubeadm, k3s, minikube, etc.) using pre-built images from the KX portal registry:
 
 ```bash
 # Deploy directly - no edits needed
@@ -128,6 +127,7 @@ These examples work on any CNCF-conformant Kubernetes cluster:
 
 | Registry | Example Host | Auth Method |
 |----------|--------------|-------------|
+| KX Portal | `portal.dl.kx.com` | KX Portal Token |
 | Docker Hub | `docker.io` | Access Token |
 | Harbor | `harbor.company.com` | Robot Account |
 | GitLab Registry | `registry.gitlab.com` | Deploy Token |

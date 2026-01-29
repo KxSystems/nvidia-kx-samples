@@ -47,8 +47,8 @@ AIQ-KX is the KDB-enabled edition with pre-built Docker images for rapid deploym
 
 | Component | Image | Description |
 |-----------|-------|-------------|
-| Backend | `portal.dl.kx.com/aiq-kx-backend:1.0.1` | FastAPI research assistant service |
-| Frontend | `portal.dl.kx.com/aiq-kx-frontend:1.0.1` | React web application |
+| Backend | `portal.dl.kx.com/aiq-kx-backend:1.0.2` | FastAPI research assistant service |
+| Frontend | `portal.dl.kx.com/aiq-kx-frontend:1.0.2` | React web application |
 
 > **Registry Authentication:** Images are hosted on `portal.dl.kx.com`. You need KX Portal credentials to pull them. Contact [KX Sales](https://kx.com/contact/) for access.
 
@@ -117,6 +117,7 @@ kubectl -n aiq port-forward svc/aiq-kx-aira-frontend 3000:3000
 | Generic Kubernetes | [`values-generic-k8s.yaml`](deploy/helm/aiq-aira/examples/values-generic-k8s.yaml) |
 | Hybrid Cloud + On-Prem | [`values-hybrid.yaml`](deploy/helm/aiq-aira/examples/values-hybrid.yaml) |
 | Private registry | [`values-private-registry.yaml`](deploy/helm/aiq-aira/examples/values-private-registry.yaml) |
+| Custom deployment | [`values-custom.yaml`](deploy/helm/aiq-aira/examples/values-custom.yaml) - Template with placeholders |
 
 For detailed deployment instructions, see the [AIQ-KX Deployment Guide](docs/aiq-kx-deployment-guide.md).
 

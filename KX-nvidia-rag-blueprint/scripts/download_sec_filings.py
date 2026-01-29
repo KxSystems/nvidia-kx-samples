@@ -22,6 +22,7 @@ HEADERS = {
 
 # Available companies with their CIK numbers (Central Index Key)
 ALL_COMPANIES = {
+    # Original 20
     "AAPL": "0000320193",   # Apple
     "MSFT": "0000789019",   # Microsoft
     "NVDA": "0001045810",   # NVIDIA
@@ -42,6 +43,27 @@ ALL_COMPANIES = {
     "INTC": "0000050863",   # Intel
     "AMD": "0000002488",    # AMD
     "CRM": "0001108524",    # Salesforce
+    # Next 20 (added)
+    "BRK": "0001067983",    # Berkshire Hathaway
+    "LLY": "0000059478",    # Eli Lilly
+    "MA": "0001141391",     # Mastercard
+    "AVGO": "0001730168",   # Broadcom
+    "COST": "0000909832",   # Costco
+    "KO": "0000021344",     # Coca-Cola
+    "PEP": "0000077476",    # PepsiCo
+    "MRK": "0000310158",    # Merck
+    "ABBV": "0001551152",   # AbbVie
+    "CVX": "0000093410",    # Chevron
+    "NFLX": "0001065280",   # Netflix
+    "ADBE": "0000796343",   # Adobe
+    "ORCL": "0001341439",   # Oracle
+    "CSCO": "0000858877",   # Cisco
+    "ACN": "0001467373",    # Accenture
+    "TMO": "0000097745",    # Thermo Fisher
+    "MCD": "0000063908",    # McDonald's
+    "ABT": "0000001800",    # Abbott
+    "NKE": "0000320187",    # Nike
+    "LIN": "0001707925",    # Linde
 }
 
 # Default companies if none specified

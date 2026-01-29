@@ -5,8 +5,12 @@
 # Build script for KDB-X Docker image
 # This script builds a prebuilt KDB-X image that can be used instead of runtime installation.
 #
+# SECURITY: This script uses Docker BuildKit secrets to pass credentials securely.
+# Credentials are NOT stored in image layers and cannot be extracted via `docker history`.
+# The resulting image can be safely pushed to any registry (public or private).
+#
 # Prerequisites:
-# - Docker installed and running
+# - Docker installed with BuildKit support (Docker 18.09+)
 # - KX Portal bearer token (from https://portal.kx.com)
 # - KDB-X license (base64 encoded)
 #
@@ -122,13 +126,19 @@ echo "Repository: $REPOSITORY"
 echo "Tag: $TAG"
 echo "Platform: $PLATFORM"
 echo "Dockerfile: $DOCKERFILE_PATH"
+echo "Using: Docker BuildKit secrets (credentials not stored in image)"
 echo "============================================"
 
-# Build the image
-docker build \
+# Export credentials for BuildKit secret mounting
+export KDB_BEARER_TOKEN="$BEARER_TOKEN"
+export KDB_B64_LICENSE="$LICENSE_B64"
+
+# Build the image using BuildKit secrets
+# Secrets are mounted temporarily during build and NOT stored in image layers
+DOCKER_BUILDKIT=1 docker build \
     --platform "$PLATFORM" \
-    --build-arg "KDB_BEARER_TOKEN=$BEARER_TOKEN" \
-    --build-arg "KDB_B64_LICENSE=$LICENSE_B64" \
+    --secret id=bearer_token,env=KDB_BEARER_TOKEN \
+    --secret id=license_b64,env=KDB_B64_LICENSE \
     -t "${REPOSITORY}:${TAG}" \
     -f "$DOCKERFILE_PATH" \
     "${SCRIPT_DIR}/.."
@@ -149,16 +159,24 @@ echo "============================================"
 echo "Next steps:"
 echo "============================================"
 echo ""
-echo "1. To use this prebuilt image in your Helm deployment, update values.yaml:"
+echo "Note: This image was built using Docker BuildKit secrets."
+echo "      Credentials are NOT stored in image layers and cannot be"
+echo "      extracted via 'docker history'. Safe to push to any registry."
+echo ""
+echo "1. Push to your registry:"
+echo ""
+echo "   docker push ${REPOSITORY}:${TAG}"
+echo ""
+echo "2. To use this prebuilt image in your Helm deployment, update values.yaml:"
 echo ""
 echo "   kdbx:"
 echo "     enabled: true"
 echo "     installMode: \"prebuilt\""
-echo "     build:"
+echo "     image:"
 echo "       repository: \"${REPOSITORY}\""
 echo "       tag: \"${TAG}\""
 echo ""
-echo "2. Deploy with Helm:"
+echo "3. Deploy with Helm:"
 echo ""
 echo "   helm upgrade --install kdb-mcp ./kdb-x-mcp-server -f your-values.yaml"
 echo ""

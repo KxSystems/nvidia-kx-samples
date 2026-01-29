@@ -39,7 +39,7 @@ To identify errors with collections or document upload, follow the steps below.
 
 For MIG support, currently the ingestion profile has been scaled down while deploying the chart with MIG slicing. This affects the ingestion performance during bulk ingestion, specifically large bulk ingestion jobs might fail.
 
-For additional known issues related to the RAG Blueprint, see the [CHANGELOG](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/CHANGELOG.md#all-known-issues).
+For additional known issues related to the RAG Blueprint, see the [CHANGELOG](https://github.com/KxSystems/nvidia-kx-samples/blob/main/CHANGELOG.md#all-known-issues).
 
 ## Errors with Report Plan Generation 
 

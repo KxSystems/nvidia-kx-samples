@@ -80,13 +80,11 @@ services:
     profiles: ["aira"]
 
   # KDB-X MCP Server for financial data queries
+  # Installs from GitHub at runtime - no pre-built image needed
   # Requires KDB license (kc.lic or k4.lic)
   kdb-mcp-server:
     container_name: kdb-mcp-server
-    image: ${KDB_MCP_IMAGE:-alattar43828/kdb-x-mcp-server:latest}
-    build:
-      context: ../helm/kdb-x-mcp-server
-      dockerfile: Dockerfile
+    image: ghcr.io/astral-sh/uv:python3.12-bookworm
     ports:
       - "8100:8000"
     expose:
@@ -96,26 +94,101 @@ services:
       KDB_LICENSE_B64: ${KDB_LICENSE_B64:-}
       KDB_K4LICENSE_B64: ${KDB_K4LICENSE_B64:-}
       # KDB-X server connection (external or kdbx container)
-      KDBX_HOST: ${KDBX_HOST:-kdbx-server}
-      KDBX_PORT: ${KDBX_PORT:-5000}
+      KDBX_DB_HOST: ${KDBX_DB_HOST:-kdbx-server}
+      KDBX_DB_PORT: ${KDBX_DB_PORT:-5000}
+      KDBX_MCP_TRANSPORT: "streamable-http"
+      KDBX_MCP_HOST: "0.0.0.0"
+      KDBX_MCP_PORT: "8000"
+      KDBX_MCP_LOG_LEVEL: "INFO"
+    volumes:
+      # Mount entrypoint script for patches
+      - ../helm/kdb-x-mcp-server/entrypoint.sh:/entrypoint.sh:ro
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        set -e
+        echo "=== Installing KDB-X MCP Server at runtime ==="
+
+        # Install git for cloning
+        apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates
+
+        # Clone the MCP server repository
+        echo "=== Cloning kdb-x-mcp-server from GitHub ==="
+        cd /app
+        git clone --depth 1 https://github.com/KxSystems/kdb-x-mcp-server.git .
+        rm -rf .git
+
+        # Install dependencies
+        echo "=== Installing dependencies with uv ==="
+        uv sync
+
+        # Upgrade PyKX to latest beta
+        echo "=== Upgrading PyKX ==="
+        uv pip install --upgrade "pykx>=4.0.0b4"
+
+        # Create license directory
+        mkdir -p /opt/kx/lic
+
+        # Activate virtualenv and run the entrypoint script (handles license setup and patches)
+        echo "=== Running entrypoint script ==="
+        cp /entrypoint.sh /tmp/entrypoint.sh
+        chmod +x /tmp/entrypoint.sh
+        export PATH="/app/.venv/bin:$PATH"
+        exec /tmp/entrypoint.sh
+    working_dir: /app
     networks:
       - nvidia-rag
     profiles: ["kdb"]
 
   # KDB-X database server (optional - can use external KDB-X)
+  # Installs KDB-X at runtime - requires KDB_BEARER_TOKEN and KDB_LICENSE_B64
   kdbx-server:
     container_name: kdbx-server
-    image: ${KDBX_IMAGE:-alattar43828/kdbx:latest}
-    build:
-      context: ../helm/kdb-x-mcp-server
-      dockerfile: Dockerfile.kdbx
+    image: python:3.12-slim-bookworm
     ports:
       - "5000:5000"
     expose:
       - "5000"
     environment:
+      KDB_BEARER_TOKEN: ${KDB_BEARER_TOKEN:?KDB_BEARER_TOKEN is required for KDB-X installation}
       KDB_LICENSE_B64: ${KDB_LICENSE_B64:-}
       KDB_K4LICENSE_B64: ${KDB_K4LICENSE_B64:-}
+      TERM: xterm
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        set -e
+        echo "=== Installing KDB-X at runtime ==="
+        apt-get update && apt-get install -y --no-install-recommends curl ca-certificates libssl-dev unzip
+
+        echo "=== Downloading KDB-X installer ==="
+        cd /tmp
+        curl -sLO --oauth2-bearer "$${KDB_BEARER_TOKEN}" \
+          https://portal.dl.kx.com/assets/raw/kdb-x/install_kdb/~latest~/install_kdb.sh
+        chmod +x install_kdb.sh
+
+        echo "=== Installing KDB-X ==="
+        export HOME=/opt/kx
+        mkdir -p /opt/kx
+
+        if [ -n "$${KDB_K4LICENSE_B64}" ]; then
+          echo "Using commercial license (k4)"
+          ./install_kdb.sh -y --b64lic "$${KDB_K4LICENSE_B64}" 2>&1
+        else
+          echo "Using personal license (kc)"
+          ./install_kdb.sh -y --b64lic "$${KDB_LICENSE_B64}" 2>&1
+        fi
+        rm -f install_kdb.sh
+
+        echo "=== Starting KDB-X with SQL interface on port 5000 ==="
+        export QHOME="/opt/kx/.kx"
+        export QLIC="/opt/kx/.kx"
+        # Create startup script to initialize SQL interface
+        echo '.s.init[]' > /tmp/startup.q
+        echo '-1 "KDB-X ready with SQL interface"' >> /tmp/startup.q
+        /opt/kx/.kx/bin/q /tmp/startup.q -p 5000
     networks:
       - nvidia-rag
     profiles: ["kdb"]

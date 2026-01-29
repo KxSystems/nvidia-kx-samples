@@ -20,13 +20,14 @@
 
 mode: "internal"
 
-# MCP Server Image (pre-built on Docker Hub)
+# MCP Server Image - uses UV image for runtime installation
+# The MCP server is cloned from GitHub and installed at container startup
 image:
-  repository: docker.io/alattar43828/kdb-x-mcp-server
-  tag: "latest"
-  pullPolicy: Always
+  repository: ghcr.io/astral-sh/uv
+  tag: "python3.12-bookworm"
+  pullPolicy: IfNotPresent
 
-# No imagePullSecret needed - image is public on Docker Hub
+# No imagePullSecret needed - image is public on ghcr.io
 
 # KDB-X Database Configuration
 kdbx:
