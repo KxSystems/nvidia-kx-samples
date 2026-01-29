@@ -47,7 +47,7 @@ The AI-Q Research Assistant uses APIs provided by the NVIDIA RAG blueprint and t
 
 ## NVIDIA RAG Endpoints - RAG Server 
 
-The NVIDIA RAG blueprint provides a rag server, typically running on port 8081. These endpoints are used by AI-Q Research Assistant code to send queries to RAG, parsing the response and citation for use in report generation. See the NVIDIA RAG blueprint [API schema](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/api_reference/openapi_schema_rag_server.json) for full details.
+The NVIDIA RAG blueprint provides a rag server, typically running on port 8081. These endpoints are used by AI-Q Research Assistant code to send queries to RAG, parsing the response and citation for use in report generation. See the NVIDIA RAG blueprint [API schema](https://github.com/KxSystems/nvidia-kx-samples/blob/main/docs/api_reference/openapi_schema_rag_server.json) for full details.
 
 1.  **Generate**
     *   **Method**: `POST`
@@ -63,7 +63,7 @@ The NVIDIA RAG blueprint provides a rag server, typically running on port 8081. 
 
 ## NVIDIA RAG Endpoints - Ingestor Server
 
-The NVIDIA RAG blueprint provides an ingestor service, typically running on port 8082. These endpoints are used by the demo frontend and the customizable frontend for creating collections, uploading files, and deleting files. See the NVIDIA RAG blueprint [API schema](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/api_reference/openapi_schema_ingestor_server.json) for full details.
+The NVIDIA RAG blueprint provides an ingestor service, typically running on port 8082. These endpoints are used by the demo frontend and the customizable frontend for creating collections, uploading files, and deleting files. See the NVIDIA RAG blueprint [API schema](https://github.com/KxSystems/nvidia-kx-samples/blob/main/docs/api_reference/openapi_schema_ingestor_server.json) for full details.
 
 1.  **List Collections**
     *   **Method**: `GET`

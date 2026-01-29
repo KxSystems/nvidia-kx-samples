@@ -151,19 +151,21 @@ helm upgrade --install kdb-mcp ./kdb-x-mcp-server \
 
 ### Internal Mode with Prebuilt KDB-X Image (Faster Startup)
 
-For faster container startup, build the KDB-X image once:
+For faster container startup, build the KDB-X image once. The build script uses **Docker BuildKit secrets** so credentials are NOT stored in image layers:
 
 ```bash
 # Set credentials
 export KDB_BEARER_TOKEN="your-kx-bearer-token"
 export KDB_B64_LICENSE="your-base64-license"
 
-# Build and push KDB-X image
+# Build and push KDB-X image (credentials not stored in image)
 ./scripts/build-kdbx-image.sh \
   --repository your-registry/kdb-x \
   --tag 1.3.0 \
   --push
 ```
+
+> **Security:** The build uses Docker BuildKit secrets. Credentials cannot be extracted via `docker history`. Safe to push to any registry.
 
 Then deploy:
 

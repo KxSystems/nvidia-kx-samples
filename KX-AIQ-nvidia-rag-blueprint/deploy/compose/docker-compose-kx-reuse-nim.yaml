@@ -111,9 +111,10 @@ services:
     # KDB-X doesn't properly close telnet probe connections, causing connection exhaustion
 
   # KDB-X MCP Server - connects to kdbx container via IPC
+  # Installs from GitHub at runtime - no pre-built image needed
   kdb-mcp-server:
     container_name: kdb-mcp-server
-    image: docker.io/alattar43828/kdb-x-mcp-server:latest
+    image: ghcr.io/astral-sh/uv:python3.12-bookworm
     # No external port needed - backend connects via internal network
     expose:
       - "8000"
@@ -127,27 +128,41 @@ services:
       KDBX_DB_PORT: "5000"
       # License required for PyKX initialization
       KDB_LICENSE_B64: "${KDB_LICENSE_B64:-}"
-      # PyKX license location (same as K8s: /opt/kx/lic)
-      QLIC: "/opt/kx/lic"
     depends_on:
       kdbx:
         condition: service_started
     networks:
       - nvidia-rag
-    # Override entrypoint to wait for kdbx to be ready and set up license
+    volumes:
+      # Mount entrypoint script for patches
+      - ../helm/kdb-x-mcp-server/entrypoint.sh:/entrypoint.sh:ro
+    working_dir: /app
     entrypoint:
       - /bin/bash
       - -c
       - |
-        echo "=== Setting up PyKX license ==="
+        set -e
+        echo "=== Installing KDB-X MCP Server at runtime ==="
+
+        # Install git for cloning
+        apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates
+
+        # Clone the MCP server repository
+        echo "=== Cloning kdb-x-mcp-server from GitHub ==="
+        cd /app
+        git clone --depth 1 https://github.com/KxSystems/kdb-x-mcp-server.git .
+        rm -rf .git
+
+        # Install dependencies
+        echo "=== Installing dependencies with uv ==="
+        uv sync
+
+        # Upgrade PyKX to latest beta
+        echo "=== Upgrading PyKX ==="
+        uv pip install --upgrade "pykx>=4.0.0b4"
+
+        # Create license directory
         mkdir -p /opt/kx/lic
-        if [ -n "$${KDB_LICENSE_B64}" ]; then
-          echo "$${KDB_LICENSE_B64}" | base64 -d > /opt/kx/lic/kc.lic
-          echo "License written to /opt/kx/lic/kc.lic"
-          ls -la /opt/kx/lic/
-        else
-          echo "WARNING: KDB_LICENSE_B64 not set - PyKX may not work"
-        fi
 
         echo "=== Waiting for KDB-X to be ready ==="
         MAX_RETRIES=60
@@ -164,16 +179,20 @@ services:
           echo "ERROR: KDB-X not ready after $$MAX_RETRIES attempts"
           exit 1
         fi
-        echo "=== Starting MCP Server ==="
-        exec /entrypoint.sh
+
+        # Run the entrypoint script (handles license setup and patches)
+        echo "=== Running entrypoint script ==="
+        cp /entrypoint.sh /tmp/entrypoint.sh
+        chmod +x /tmp/entrypoint.sh
+        export PATH="/app/.venv/bin:$PATH"
+        exec /tmp/entrypoint.sh
     # Healthcheck: Simple TCP check - MCP protocol doesn't have a standard health endpoint
-    # The server is healthy if it's accepting connections on port 8000
     healthcheck:
       test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/localhost/8000' 2>/dev/null"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 120s
+      start_period: 180s
 
   # AIQ-KX Backend - Connects to EXISTING RAG NIMs
   aiq-kx-backend:

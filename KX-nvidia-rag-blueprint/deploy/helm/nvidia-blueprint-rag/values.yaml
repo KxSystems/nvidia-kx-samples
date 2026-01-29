@@ -115,6 +115,8 @@ envVars:
   KDBAI_INDEX_TYPE: "cagra"
   # KDB.AI API key (optional for self-hosted deployments)
   KDBAI_API_KEY: ""
+  # CAGRA batch insert mode (false = normal batching, fixed in cuVS 1.8.2+)
+  KDBAI_CAGRA_SINGLE_BATCH: "false"
 
   # vectorstore collection name to store embeddings
   COLLECTION_NAME: "multimodal_data"
@@ -291,6 +293,7 @@ ingestor-server:
     KDBAI_DATABASE: "default"
     KDBAI_INDEX_TYPE: "cagra"
     KDBAI_API_KEY: ""
+    KDBAI_CAGRA_SINGLE_BATCH: "false"
 
     # === MinIO Configurations ===
     MINIO_ENDPOINT: "rag-minio:9000"

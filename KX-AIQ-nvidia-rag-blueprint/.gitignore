@@ -18,6 +18,7 @@ deploy/helm/kdb-x-mcp-server/my-*.yaml
 # AIQ-AIRA custom values files with credentials
 deploy/helm/aiq-aira/my-*.yaml
 deploy/helm/aiq-aira/kdb-values.yaml
+deploy/helm/aiq-aira/aiq-values.yaml
 
 # Any file with "secret" or "credential" in the name
 *secret*.yaml

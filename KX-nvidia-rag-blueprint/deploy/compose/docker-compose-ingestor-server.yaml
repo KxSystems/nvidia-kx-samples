@@ -37,6 +37,7 @@ services:
       KDBAI_API_KEY: ${KDBAI_API_KEY:-}
       KDBAI_DATABASE: ${KDBAI_DATABASE:-default}
       KDBAI_INDEX_TYPE: ${KDBAI_INDEX_TYPE:-cagra}
+      KDBAI_CAGRA_SINGLE_BATCH: ${KDBAI_CAGRA_SINGLE_BATCH:-false}
       # Type of vectordb search to be used
       APP_VECTORSTORE_SEARCHTYPE: ${APP_VECTORSTORE_SEARCHTYPE:-"dense"} # Can be dense or hybrid
       # Boolean to enable GPU index

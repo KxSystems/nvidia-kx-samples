@@ -404,6 +404,42 @@ This section covers deploying AIQ-KX using Docker Compose on a single server.
 - NVIDIA Container Toolkit (for GPU support)
 - Existing NVIDIA RAG blueprint (optional, for NIM reuse)
 
+### Runtime Installation vs Pre-built Images
+
+The Docker Compose configurations use **runtime installation** by default:
+
+- **KDB-X Database**: Uses `python:3.12-slim-bookworm` and installs KDB-X at startup
+- **KDB-X MCP Server**: Uses `ghcr.io/astral-sh/uv:python3.12-bookworm` and clones from GitHub at startup
+
+First startup takes 2-3 minutes for KDB-X and 1-2 minutes for MCP server. Credentials are passed via environment variables (`KDB_BEARER_TOKEN`, `KDB_LICENSE_B64`).
+
+**Alternative: Build and Push Pre-built Images**
+
+If you prefer faster startup times with pre-built images, use the provided build script which uses Docker BuildKit secrets to securely handle credentials (credentials are NOT stored in image layers):
+
+```bash
+# Set credentials as environment variables
+export KDB_BEARER_TOKEN="your-bearer-token"
+export KDB_B64_LICENSE="$(cat kc.lic | base64 | tr -d '\n')"
+
+# Build KDB-X image using BuildKit secrets
+cd deploy/helm/kdb-x-mcp-server
+./scripts/build-kdbx-image.sh \
+  --repository your-registry/kdbx \
+  --tag latest \
+  --push
+```
+
+The image is built securely - credentials cannot be extracted via `docker history`.
+
+Then update the compose file to use your image:
+```yaml
+kdbx:
+  image: your-registry/kdbx:latest
+  command: ["/opt/kx/start.sh"]
+  # Remove the entrypoint that installs at runtime
+```
+
 ### Setting Up Persistent Environment Variables
 
 **Important:** Environment variables must be set every time you SSH into the server. To make them persistent, add them to your shell profile.

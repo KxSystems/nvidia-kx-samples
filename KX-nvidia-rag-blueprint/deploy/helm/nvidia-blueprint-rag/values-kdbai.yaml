@@ -118,6 +118,7 @@ envVars:
   KDBAI_DATABASE: "default"
   KDBAI_INDEX_TYPE: "cagra"
   KDBAI_API_KEY: ""
+  KDBAI_CAGRA_SINGLE_BATCH: "false"
 
   # GPU Configuration (enabled for cuVS GPU-accelerated index)
   APP_VECTORSTORE_ENABLEGPUINDEX: "True"
@@ -141,6 +142,7 @@ ingestor-server:
     KDBAI_DATABASE: "default"
     KDBAI_INDEX_TYPE: "cagra"
     KDBAI_API_KEY: ""
+    KDBAI_CAGRA_SINGLE_BATCH: "false"
 
     # GPU Configuration (enabled for cuVS GPU-accelerated index)
     APP_VECTORSTORE_ENABLEGPUINDEX: "True"

@@ -23,9 +23,10 @@
 
 services:
   # KDB-X MCP Server
+  # Installs from GitHub at runtime - no pre-built image needed
   kdb-mcp-server:
     container_name: kdb-mcp-server
-    image: docker.io/alattar43828/kdb-x-mcp-server:latest
+    image: ghcr.io/astral-sh/uv:python3.12-bookworm
     ports:
       - "8000:8000"
     environment:
@@ -37,13 +38,53 @@ services:
       KDBX_DB_HOST: "${KDBX_DB_HOST:-kdbx-database}"
       KDBX_DB_PORT: "${KDBX_DB_PORT:-5000}"
       KDBX_DB_TLS: "false"
+      # License required for PyKX initialization
+      KDB_LICENSE_B64: "${KDB_LICENSE_B64:-}"
     networks:
       - aiq-kx-network
+    volumes:
+      # Mount entrypoint script for patches
+      - ../helm/kdb-x-mcp-server/entrypoint.sh:/entrypoint.sh:ro
+    working_dir: /app
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        set -e
+        echo "=== Installing KDB-X MCP Server at runtime ==="
+
+        # Install git for cloning
+        apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates
+
+        # Clone the MCP server repository
+        echo "=== Cloning kdb-x-mcp-server from GitHub ==="
+        cd /app
+        git clone --depth 1 https://github.com/KxSystems/kdb-x-mcp-server.git .
+        rm -rf .git
+
+        # Install dependencies
+        echo "=== Installing dependencies with uv ==="
+        uv sync
+
+        # Upgrade PyKX to latest beta
+        echo "=== Upgrading PyKX ==="
+        uv pip install --upgrade "pykx>=4.0.0b4"
+
+        # Create license directory
+        mkdir -p /opt/kx/lic
+
+        # Run the entrypoint script (handles license setup and patches)
+        echo "=== Running entrypoint script ==="
+        cp /entrypoint.sh /tmp/entrypoint.sh
+        chmod +x /tmp/entrypoint.sh
+        export PATH="/app/.venv/bin:$PATH"
+        exec /tmp/entrypoint.sh
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/localhost/8000' 2>/dev/null"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 180s
 
   # AIQ-KX Backend
   aiq-kx-backend:

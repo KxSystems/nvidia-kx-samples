@@ -92,3 +92,8 @@ cover/
 
 # Claude Code project file
 CLAUDE.md
+
+# Downloaded SEC filings (regeneratable)
+scripts/sec_filings/
+scripts/sec_filings_clean/
+scripts/sec_filings_new/
