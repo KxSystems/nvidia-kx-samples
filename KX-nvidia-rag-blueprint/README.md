@@ -168,6 +168,41 @@ The following is a step-by-step explanation of the workflow from the end-user pe
 
 
 
+## Minimum System Requirements
+
+### Hardware Requirements
+
+The blueprint offers two primary modes of deployment. By default, it deploys the referenced NIM microservices locally. Each method lists its minimum required hardware. This will change if the deployment turns on optional configuration settings.
+
+**Docker**
+- 2x RTX PRO 6000
+- 2x H100
+- 3x B200
+- 3x A100 SXM
+
+**Kubernetes**
+- 8x RTX PRO 6000
+- 8x H100-80GB
+- 9x B200
+- 9x A100-80GB SXM
+- 4x H100 (with [Multi-Instance GPU](docs/mig-deployment.md) / [DRA with NIM Operator](docs/deploy-nim-operator.md))
+
+> [!TIP]
+> The blueprint allows for use of [NVIDIA cloud-hosted endpoints](#llm-hosting-options), in which case the GPU requirements are significantly reduced — only GPUs for the ingestion NIMs and vector database are needed.
+
+For detailed per-component requirements, see [Minimum System Requirements](docs/support-matrix.md).
+
+### OS Requirements
+
+- Ubuntu 22.04 OS
+
+### Deployment Options
+
+- Docker
+- Kubernetes
+
+
+
 ## Get Started With NVIDIA RAG Blueprint
 
 The recommended way to get started is to deploy the NVIDIA RAG Blueprint
@@ -181,6 +216,73 @@ For details, refer to the [KDB.AI Deployment Guide](docs/change-vectordb-kdbai.m
 | **Docker Compose (Recommended)** | KDB.AI | Self-hosted NIM | [Guide](docs/change-vectordb-kdbai.md#docker-compose-deployment) |
 | **Amazon EKS** | KDB.AI | NVIDIA API Endpoints | [Guide](docs/change-vectordb-kdbai.md#amazon-eks-deployment) |
 | Kubernetes/Helm | KDB.AI | Self-hosted NIM | [Guide](docs/change-vectordb-kdbai.md#helmkubernetes-deployment) |
+
+### LLM Hosting Options
+
+The RAG Blueprint supports two options for LLM inference. Choose based on your infrastructure and requirements:
+
+<details>
+<summary><b>Option 1: Cloud-Hosted (NVIDIA API Endpoints)</b> – No local GPU required for LLM</summary>
+
+Use NVIDIA's cloud-hosted API endpoints for LLM inference. This is ideal when you want to minimize local GPU requirements or get started quickly.
+
+**Requirements:**
+- NVIDIA NGC API key ([get one free](https://ngc.nvidia.com/))
+- Internet connectivity to `integrate.api.nvidia.com`
+
+**Configuration:**
+```bash
+# Set your NGC API key
+export NGC_API_KEY="nvapi-your-key-here"
+export NVIDIA_API_KEY="${NGC_API_KEY}"
+
+# Configure LLM endpoint (in your .env or values file)
+APP_LLM_SERVERURL="https://integrate.api.nvidia.com/v1"
+APP_LLM_MODELNAME="nvidia/llama-3.3-nemotron-super-49b-v1"
+```
+
+**Pros:** No GPU required for LLM, faster setup, always up-to-date models
+**Cons:** Requires internet, API usage costs, data leaves your infrastructure
+
+</details>
+
+<details>
+<summary><b>Option 2: Self-Hosted (Local NIM Containers)</b> – Full control, air-gapped capable</summary>
+
+Deploy the LLM as a local NIM container for complete control over your infrastructure. This is ideal for air-gapped environments, data privacy requirements, or high-throughput production workloads.
+
+**Requirements:**
+- **GPU (for full self-hosted stack):** One of the following configurations:
+  - 2x H100
+  - 3x B200
+  - 3x A100 SXM
+  - 2x RTX PRO 6000
+  - See [Minimum System Requirements](docs/support-matrix.md) for full details
+- **LLM-specific requirements:** Refer to the [NVIDIA NIM LLM Support Matrix](https://docs.nvidia.com/nim/large-language-models/latest/supported-models.html#llama-3-3-nemotron-super-49b-v1-5)
+- **Storage:** ~50GB for model weights (cached in `~/.cache/nim`)
+- NVIDIA NGC API key (for downloading NIM containers)
+- nvidia-container-toolkit installed
+
+**Configuration:**
+```bash
+# Set your NGC API key
+export NGC_API_KEY="nvapi-your-key-here"
+
+# Configure LLM endpoint (points to local container)
+APP_LLM_SERVERURL="http://nemollm-inference:8000/v1"
+APP_LLM_MODELNAME="nvidia/llama-3.3-nemotron-super-49b-v1"
+
+# GPU assignment for LLM (example: GPUs 0 and 1)
+LLM_MS_GPU_ID=0,1
+```
+
+**Pros:** Data stays local, no per-query costs, works air-gapped, predictable latency
+**Cons:** Significant GPU investment, model management overhead
+
+</details>
+
+> [!TIP]
+> **Not sure which to choose?** Start with cloud-hosted endpoints to evaluate the blueprint, then migrate to self-hosted when you need production-grade privacy, throughput, or cost optimization.
 
 ### Alternative Vector Databases
 
