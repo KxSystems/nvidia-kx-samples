@@ -375,6 +375,9 @@ This section covers deploying the full RAG stack on a server with 8 NVIDIA GPUs 
 
 ### GPU Assignment
 
+> [!NOTE]
+> **Example Configuration**: The GPU assignments below are an example based on fitting all services onto a specific 8-GPU server (RTX PRO 6000 Blackwell with 96GB each). This is not a prescriptive requirement. You should adjust the GPU assignments based on your available hardware, VRAM capacity, and workload requirements. See [Customizing GPU Assignments](#customizing-gpu-assignments) for how to modify these settings.
+
 The deployment automatically assigns GPUs to different services:
 
 | GPU | Service | Memory Usage |
