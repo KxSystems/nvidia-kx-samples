@@ -98,7 +98,7 @@ Configure the LLM to use GPUs that aren't occupied by other services:
 ```bash
 # Check which GPUs are free in nvidia-smi output
 # Then set LLM to use free GPUs (e.g., GPUs 1 and 2)
-export LLM_MS_GPU_ID=1,2
+export LLM_MS_GPU_ID=0,1
 
 # Restart the LLM container
 docker stop nim-llm && docker rm nim-llm
