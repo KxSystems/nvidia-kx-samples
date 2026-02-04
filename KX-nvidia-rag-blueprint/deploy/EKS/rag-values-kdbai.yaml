@@ -38,9 +38,6 @@
 #        --docker-password=<bearer-token-from-kx> \
 #        -n <your-namespace>
 #
-#      DEV REGISTRY (if using dev images):
-#        --docker-server=ext-dev-registry.kxi-dev.kx.com
-#
 #   4. Create the KDB.AI license secret:
 #      kubectl create secret generic kdbai-license-secret \
 #        --from-literal=KDB_LICENSE_B64=<your-base64-encoded-license> \
@@ -116,13 +113,11 @@ kdbai:
     deviceId: "0"
 
   # GPU image pull secret for cuVS registry
-  # PUBLIC PREVIEW uses portal.dl.kx.com - same as CPU images, reuse kdbai-registry-secret
-  # DEV REGISTRY (if needed): use "kdbai-cuvs-registry-secret" for ext-dev-registry.kxi-dev.kx.com
+  # cuVS images use portal.dl.kx.com - same as CPU images, reuse kdbai-registry-secret
   gpuImagePullSecret:
     name: "kdbai-registry-secret"
 
   # GPU-enabled KDB.AI cuVS image (used when gpu.enabled=true)
-  # DEV REGISTRY (if needed): ext-dev-registry.kxi-dev.kx.com/kdbai-db-cuvs:1.8.2
   gpuImage:
     registry: portal.dl.kx.com
     repository: kdbai-db-cuvs

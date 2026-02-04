@@ -70,6 +70,81 @@ nvidia-container-cli: device error: {n}: unknown device: unknown
 
 
 
+## NIM LLM fails with "KV cache memory" error
+
+If the NIM LLM container fails to start with an error like:
+
+```
+ValueError: To serve at least one request with the models's max seq len (131072),
+(12.25 GiB KV cache is needed, which is larger than the available KV cache memory (9.21 GiB).
+```
+
+This typically means **other services are using the same GPU** as the LLM, leaving insufficient memory.
+
+### Diagnose the issue
+
+Check GPU usage:
+
+```bash
+nvidia-smi
+```
+
+If you see other processes (like `tritonserver` for ingestion NIMs) on the same GPU the LLM is trying to use, that's the conflict.
+
+### Solution 1: Assign LLM to different GPUs
+
+Configure the LLM to use GPUs that aren't occupied by other services:
+
+```bash
+# Check which GPUs are free in nvidia-smi output
+# Then set LLM to use free GPUs (e.g., GPUs 1 and 2)
+export LLM_MS_GPU_ID=1,2
+
+# Restart the LLM container
+docker stop nim-llm && docker rm nim-llm
+USERID=$(id -u) docker compose -f deploy/compose/nims.yaml up -d nim-llm
+```
+
+### Solution 2: Properly isolate GPU assignments
+
+For multi-GPU deployments, assign each service to specific GPUs in your `.env` file:
+
+```bash
+# Example GPU assignment for 8-GPU system
+# GPU 0,1: LLM (49B model needs 2 GPUs for tensor parallelism)
+export LLM_MS_GPU_ID=0,1
+export LLM_GPU_COUNT=2
+
+# GPU 2: Embedding + Reranker (can share, ~12GB total)
+export EMBEDDING_MS_GPU_ID=2
+export RANKING_MS_GPU_ID=2
+
+# GPU 3-5: Ingestion NIMs (separate GPUs for parallel processing)
+export YOLOX_MS_GPU_ID=3          # Page Elements
+export YOLOX_GRAPHICS_MS_GPU_ID=4  # Graphic Elements
+export YOLOX_TABLE_MS_GPU_ID=5     # Table Structure
+export OCR_MS_GPU_ID=5             # PaddleOCR (can share with table-structure)
+
+# GPU 6: Vector Database
+export VECTORSTORE_GPU_DEVICE_ID=6
+```
+
+### Solution 3: Reduce LLM context length
+
+If GPU isolation isn't possible, reduce the maximum context length:
+
+```bash
+export NIM_MAX_MODEL_LEN=32768  # Reduce from default 131072
+
+docker stop nim-llm && docker rm nim-llm
+USERID=$(id -u) docker compose -f deploy/compose/nims.yaml up -d nim-llm
+```
+
+> [!TIP]
+> For RAG workloads, a context length of 32768 tokens is typically sufficient and uses significantly less GPU memory.
+
+
+
 ## DNS resolution failed for <service_name:port>
 This category of errors in either `rag-server` or `ingestor-server` container logs indicates:
 The server is trying to reach a self-hosted on-premises deployed service at `service_name:port` but it is unreachable. You can ensure that the service is up using `docker ps`.

@@ -71,7 +71,7 @@ services:
       interval: 30s
       timeout: 20s
       retries: 3
-    profiles: ["milvus", "elasticsearch", "minio"]
+    profiles: ["milvus", "elasticsearch", "minio", "kdbai"]
 
   elasticsearch:
     container_name: elasticsearch
@@ -209,7 +209,6 @@ services:
   #   - KDBAI_REGISTRY_TOKEN: Bearer token from KX
   #   - KDB_LICENSE_B64: Base64-encoded license
   #   - KDBAI_GPU_IMAGE: cuVS Docker image (default: portal.dl.kx.com/kdbai-db-cuvs:1.8.2)
-  #   - DEV REGISTRY (if needed): ext-dev-registry.kxi-dev.kx.com/kdbai-db-cuvs:1.8.2
   #
   # To use GPU-accelerated KDB.AI:
   #   export APP_VECTORSTORE_ENABLEGPUINDEX=True
@@ -227,11 +226,10 @@ services:
       KDBAI_REGISTRY_TOKEN: ${KDBAI_REGISTRY_TOKEN:?KDBAI_REGISTRY_TOKEN is required}
     command: >
       sh -c '
-        echo "Authenticating with KX Docker registries for cuVS image..."
+        echo "Authenticating with KX Docker registry for cuVS image..."
         echo "$${KDBAI_REGISTRY_TOKEN}" | docker login portal.dl.kx.com -u "$${KDBAI_REGISTRY_EMAIL}" --password-stdin
-        echo "$${KDBAI_REGISTRY_TOKEN}" | docker login ext-dev-registry.kxi-dev.kx.com -u "$${KDBAI_REGISTRY_EMAIL}" --password-stdin
         if [ $$? -eq 0 ]; then
-          echo "Successfully authenticated with KX registries"
+          echo "Successfully authenticated with portal.dl.kx.com"
         else
           echo "Failed to authenticate with KX Docker registry"
           exit 1
@@ -251,7 +249,6 @@ services:
 
   kdbai-gpu:
     container_name: kdbai-server-gpu
-    # DEV REGISTRY (if needed): ext-dev-registry.kxi-dev.kx.com/kdbai-db-cuvs:1.8.2
     image: ${KDBAI_GPU_IMAGE:-portal.dl.kx.com/kdbai-db-cuvs:1.8.2}
     depends_on:
       kdbai-gpu-registry-login:

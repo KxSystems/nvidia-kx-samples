@@ -21,6 +21,9 @@ The following are the core services that you install:
 
 Verify that you meet the prerequisites specified in [prerequisites](./deploy-helm.md#prerequisites).
 
+> [!NOTE]
+> This deployment uses **KDB.AI with NVIDIA cuVS** for GPU-accelerated vector search using the CAGRA index by default. For KDB.AI setup instructions, see [KDB.AI Deployment Guide](change-vectordb-kdbai.md).
+
 
 ## Deploy the RAG Helm chart from the repository
 
@@ -85,7 +88,8 @@ If you are working directly with the source Helm chart, and you want to customiz
 ## Related Topics
 
 - [NVIDIA RAG Blueprint Documentation](readme.md)
-- [Best Practices for Common Settings](accuracy_perf.md).
+- [KDB.AI Deployment Guide](change-vectordb-kdbai.md) - Full KDB.AI configuration and troubleshooting
+- [Best Practices for Common Settings](accuracy_perf.md)
 - [RAG Pipeline Debugging Guide](debugging.md)
 - [Troubleshoot](troubleshooting.md)
 - [Notebooks](notebooks.md)

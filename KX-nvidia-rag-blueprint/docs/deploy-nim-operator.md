@@ -16,6 +16,11 @@ For other deployment options, refer to [Deployment Options](readme.md#deployment
 
 3. Ensure you meet [the hardware requirements](./support-matrix.md).
 
+4. **(KDB.AI Vector Database)** Obtain a KDB.AI license and Docker registry credentials from [KX](https://kx.com). For detailed setup instructions, see [KDB.AI Deployment Guide](change-vectordb-kdbai.md).
+
+> [!NOTE]
+> This deployment uses **KDB.AI with NVIDIA cuVS** for GPU-accelerated vector search using the CAGRA index by default.
+
 4. Verify that you have the NGC CLI available on your client computer. You can download the CLI from <https://ngc.nvidia.com/setup/installers/cli>.
 
 5. Verify that you have Kubernetes v1.33 installed and running on Ubuntu 22.04. For more information, see [Kubernetes documentation](https://kubernetes.io/docs/setup/) and [NVIDIA Cloud Native Stack repository](https://github.com/NVIDIA/cloud-native-stack/).
@@ -195,7 +200,8 @@ For Helm deployments, to port-forward the the [RAG UI](user-interface.md) servic
 ## Related Topics
 
 - [NVIDIA RAG Blueprint Documentation](readme.md)
+- [KDB.AI Deployment Guide](change-vectordb-kdbai.md) - Full KDB.AI configuration and troubleshooting
 - [RAG Pipeline Debugging Guide](debugging.md)
 - [Troubleshoot](troubleshooting.md)
-- [Best Practices for Common Settings](accuracy_perf.md).
+- [Best Practices for Common Settings](accuracy_perf.md)
 - [Notebooks](notebooks.md)

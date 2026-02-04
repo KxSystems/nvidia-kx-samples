@@ -50,7 +50,7 @@ services:
   # ===========================================================================
   kdbai:
     container_name: kdbai
-    image: ext-dev-registry.kxi-dev.kx.com/kdbai-db:1.8.1-rc.2-cuvs
+    image: ${KDBAI_GPU_IMAGE:-portal.dl.kx.com/kdbai-db-cuvs:1.8.2}
     ports:
       - "8081:8081"  # REST API
       - "8082:8082"  # Client API (used by RAG)

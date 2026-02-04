@@ -1,7 +1,18 @@
 #!/bin/bash
 # ==========================
 # KDB.AI RAG Deployment Script
-# 8x RTX PRO 6000 Blackwell (96GB each)
+# ==========================
+#
+# EXAMPLE CONFIGURATION: 8x RTX PRO 6000 Blackwell (96GB each)
+#
+# NOTE: This script is an example showing how to configure GPU assignments
+# for a specific hardware setup. You should customize the GPU IDs and
+# assignments in .env.kdbai-8gpu.local based on YOUR actual hardware:
+#   - Number of GPUs available
+#   - GPU memory per device
+#   - Which services to run on which GPUs
+#
+# See .env.kdbai-8gpu for the GPU assignment template.
 # ==========================
 
 set -e

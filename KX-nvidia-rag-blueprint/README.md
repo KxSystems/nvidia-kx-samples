@@ -206,16 +206,16 @@ For detailed per-component requirements, see [Minimum System Requirements](docs/
 ## Get Started With NVIDIA RAG Blueprint
 
 The recommended way to get started is to deploy the NVIDIA RAG Blueprint
-with Docker Compose using [KDB.AI](https://kdb.ai/) as the vector database.
-For details, refer to the [KDB.AI Deployment Guide](docs/change-vectordb-kdbai.md).
+with Docker Compose using [KDB.AI with NVIDIA cuVS](https://kdb.ai/) as the GPU-accelerated vector database.
 
 ### Deployment Options
 
 | Deployment | Vector Database | LLM | Documentation |
 |------------|-----------------|-----|---------------|
-| **Docker Compose (Recommended)** | KDB.AI | Self-hosted NIM | [Guide](docs/change-vectordb-kdbai.md#docker-compose-deployment) |
-| **Amazon EKS** | KDB.AI | NVIDIA API Endpoints | [Guide](docs/change-vectordb-kdbai.md#amazon-eks-deployment) |
-| Kubernetes/Helm | KDB.AI | Self-hosted NIM | [Guide](docs/change-vectordb-kdbai.md#helmkubernetes-deployment) |
+| **Docker Compose (Recommended)** | KDB.AI with cuVS | Self-hosted NIM | [Guide](docs/deploy-docker-self-hosted.md) |
+| Docker Compose | KDB.AI with cuVS | NVIDIA Cloud Endpoints | [Guide](docs/deploy-docker-nvidia-hosted.md) |
+| Kubernetes/Helm | KDB.AI with cuVS | Self-hosted NIM | [Guide](docs/deploy-helm.md) |
+| Kubernetes with NIM Operator | KDB.AI with cuVS | Self-hosted NIM | [Guide](docs/deploy-nim-operator.md) |
 
 ### LLM Hosting Options
 
@@ -286,9 +286,8 @@ LLM_MS_GPU_ID=0,1
 
 ### Alternative Vector Databases
 
-To use a different vector database, see:
-- [Milvus Deployment Guide](docs/deploy-docker-self-hosted.md) – GPU-accelerated with NVIDIA cuVS
-- [Elasticsearch Guide](docs/change-vectordb-es.md) – Hybrid search with BM25 and vector similarity
+KDB.AI with cuVS is the default. To use a different vector database, see:
+- [Elasticsearch](docs/change-vectordb.md) – Hybrid search with BM25 and vector similarity
 
 Refer to the [full documentation](docs/readme.md) to learn about the following:
 

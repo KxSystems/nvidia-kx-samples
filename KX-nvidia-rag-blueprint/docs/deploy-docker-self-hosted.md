@@ -31,9 +31,61 @@ For other deployment options, refer to [Deployment Options](readme.md#deployment
    echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
    ```
 
-5. Containers that are enabled with GPU acceleration, such as Milvus and NVIDIA NIMS, deployed on-prem. To configure Docker for GPU-accelerated containers, install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
+5. Containers that are enabled with GPU acceleration, such as KDB.AI with cuVS and NVIDIA NIMs, are deployed on-prem. To configure Docker for GPU-accelerated containers, install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
 
 6. Ensure you meet [the hardware requirements](./support-matrix.md).
+
+7. **(KDB.AI - Default Vector Database)** Obtain a KDB.AI license and Docker registry credentials from [KX](https://kx.com). A 90-day free trial is available. Set the following environment variables:
+
+   ```bash
+   export KDBAI_REGISTRY_EMAIL="your-email@example.com"
+   export KDBAI_REGISTRY_TOKEN="your-bearer-token-from-kx-email"
+   export KDB_LICENSE_B64="your-base64-license-from-kx-email"
+   ```
+
+   Then authenticate with the KX Docker registry:
+
+   ```bash
+   echo "${KDBAI_REGISTRY_TOKEN}" | docker login portal.dl.kx.com -u "${KDBAI_REGISTRY_EMAIL}" --password-stdin
+   ```
+
+> [!NOTE]
+> This deployment uses **KDB.AI with NVIDIA cuVS** for GPU-accelerated vector search using the CAGRA index. This provides optimal performance for production workloads.
+
+
+## Clone the Repository
+
+Clone the NVIDIA RAG Blueprint repository and navigate to the project directory. All subsequent commands assume you are running from the repository root directory.
+
+
+## Deployment Architecture
+
+The RAG Blueprint consists of multiple services deployed via separate Docker Compose files. All NIM (NVIDIA Inference Microservice) containers are pulled from the **NVIDIA NGC Container Registry** (`nvcr.io`), while KDB.AI is pulled from the **KX Registry** (`portal.dl.kx.com`).
+
+### Docker Compose Files
+
+| File | Components | Source Registry |
+|------|------------|-----------------|
+| `nims.yaml` | LLM, Embedding, Reranking, Document Extraction NIMs | `nvcr.io` |
+| `vectordb.yaml` | KDB.AI with cuVS (GPU-accelerated vector database) | `portal.dl.kx.com` |
+| `docker-compose-ingestor-server.yaml` | Ingestor Server, NV-Ingest, Redis, MinIO | `nvcr.io` |
+| `docker-compose-rag-server.yaml` | RAG Server, Frontend UI | `nvcr.io` |
+
+### Deployment Order
+
+Services must be started in this order due to dependencies:
+
+```
+1. NIMs (nims.yaml)           → LLM, Embedding, Reranking models
+         ↓
+2. Vector DB (vectordb.yaml)  → KDB.AI with cuVS
+         ↓
+3. Ingestor (ingestor)        → Document processing pipeline
+         ↓
+4. RAG Server (rag-server)    → Query processing and response generation
+```
+
+The NIMs must be running first because both the Ingestor and RAG Server depend on them for embedding generation, reranking, and LLM inference.
 
 
 ## Start services using self-hosted on-premises models
@@ -87,11 +139,20 @@ Use the following procedure to start all containers needed for this blueprint.
    export NIM_MODEL_PROFILE="......" # Populate your profile name as per hardware
    ```
 
+   Optionally, configure the maximum context length. The default (131072 tokens) requires significant GPU memory. For RAG workloads, 32768 is usually sufficient:
+
+   ```bash
+   export NIM_MAX_MODEL_LEN=32768  # Reduce context length to save GPU memory
+   ```
+
 
 6. Start all required NIMs by running the following code.
 
     > [!WARNING]
     > Do not attempt this step unless you have completed the previous steps.
+
+    > [!IMPORTANT]
+    > **GPU Memory Conflicts:** By default, multiple services may try to use the same GPU (typically GPU 0), causing memory conflicts. If the LLM fails to start with a "KV cache memory" error, you need to assign services to different GPUs. See the [Advanced Deployment Considerations](#advanced-deployment-considerations) section or [Troubleshooting](troubleshooting.md#nim-llm-fails-with-kv-cache-memory-error) for GPU assignment examples.
 
    ```bash
    USERID=$(id -u) docker compose -f deploy/compose/nims.yaml up -d
@@ -123,10 +184,20 @@ Use the following procedure to start all containers needed for this blueprint.
      ```
 
 
-8. Start the vector db containers from the repo root.
+8. Prepare the KDB.AI data directory and start the vector database containers.
 
    ```bash
-   docker compose -f deploy/compose/vectordb.yaml up -d
+   # Create data directory with proper permissions
+   mkdir -p deploy/compose/volumes/kdbai && chmod 0777 deploy/compose/volumes/kdbai
+
+   # Start KDB.AI with GPU acceleration (cuVS/CAGRA)
+   docker compose -f deploy/compose/vectordb.yaml --profile kdbai up -d
+   ```
+
+   Wait for KDB.AI to be ready:
+
+   ```bash
+   curl http://localhost:8083/api/v2/ready
    ```
 
 
@@ -139,7 +210,7 @@ Use the following procedure to start all containers needed for this blueprint.
    You can check the status of the ingestor-server and running the following code.
 
    ```bash
-   curl -X 'GET' 'http://workstation_ip:8082/v1/health?check_dependencies=true' -H 'accept: application/json'
+   curl -X 'GET' 'http://localhost:8082/v1/health?check_dependencies=true' -H 'accept: application/json'
    ```
 
     You should see output similar to the following.
@@ -192,7 +263,7 @@ Use the following procedure to start all containers needed for this blueprint.
     You can check the status of the rag-server by running the following code.
 
     ```bash
-    curl -X 'GET' 'http://workstation_ip:8081/v1/health?check_dependencies=true' -H 'accept: application/json'
+    curl -X 'GET' 'http://localhost:8081/v1/health?check_dependencies=true' -H 'accept: application/json'
     ```
 
     You should see output similar to the following.
@@ -242,9 +313,8 @@ Use the following procedure to start all containers needed for this blueprint.
     compose-redis-1                         Up 5 minutes
     rag-frontend                            Up 9 minutes
     rag-server                              Up 9 minutes
-    milvus-standalone                       Up 36 minutes
-    milvus-minio                            Up 35 minutes (healthy)
-    milvus-etcd                             Up 35 minutes (healthy)
+    kdbai-server                            Up 36 minutes
+    compose-minio-1                         Up 35 minutes (healthy)
     nemoretriever-ranking-ms                Up 38 minutes (healthy)
     compose-page-elements-1                 Up 38 minutes
     compose-paddle-1                        Up 38 minutes
@@ -278,7 +348,7 @@ After the RAG Blueprint is deployed, you can use the Ingestion API Usage noteboo
     docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down
     docker compose -f deploy/compose/nims.yaml down
     docker compose -f deploy/compose/docker-compose-rag-server.yaml down
-    docker compose -f deploy/compose/vectordb.yaml down
+    docker compose -f deploy/compose/vectordb.yaml --profile kdbai down
     ```
 
 
@@ -312,10 +382,18 @@ After the first time you deploy the RAG Blueprint successfully, you can consider
    docker compose -f deploy/compose/docker-compose-*-server.yaml up -d --build
    ```
 
-- By default, GPU accelerated Milvus DB is deployed. You can choose the GPU ID to allocate by using the below env variable.
+- By default, GPU-accelerated **KDB.AI with cuVS** is deployed using the CAGRA index for optimal vector search performance. You can choose the GPU ID to allocate by using the below env variable.
 
    ```bash
    VECTORSTORE_GPU_DEVICE_ID=0
+   ```
+
+- To disable GPU acceleration and use CPU-only KDB.AI with HNSW index:
+
+   ```bash
+   export APP_VECTORSTORE_ENABLEGPUINDEX=False
+   export APP_VECTORSTORE_ENABLEGPUSEARCH=False
+   export KDBAI_INDEX_TYPE="hnsw"
    ```
 
 - For improved accuracy, consider enabling reasoning mode. For details, refer to [Enable thinking](./enable-nemotron-thinking.md).
@@ -352,6 +430,7 @@ After the first time you deploy the RAG Blueprint successfully, you can consider
 ## Related Topics
 
 - [NVIDIA RAG Blueprint Documentation](readme.md)
+- [KDB.AI Deployment Guide](change-vectordb-kdbai.md) - Full KDB.AI configuration and troubleshooting
 - [Best Practices for Common Settings](accuracy_perf.md)
 - [RAG Pipeline Debugging Guide](debugging.md)
 - [Troubleshoot](troubleshooting.md)

@@ -23,6 +23,11 @@ The following are the core services that you install:
 
 2. Verify that you meet the [hardware requirements](support-matrix.md).
 
+3. **(KDB.AI Vector Database)** Obtain a KDB.AI license and Docker registry credentials from [KX](https://kx.com). A 90-day free trial is available. For detailed setup instructions, see [KDB.AI Deployment Guide](change-vectordb-kdbai.md).
+
+> [!NOTE]
+> This deployment uses **KDB.AI with NVIDIA cuVS** for GPU-accelerated vector search using the CAGRA index by default.
+
 3. Verify that you have the NGC CLI available on your client computer. You can download the CLI from <https://ngc.nvidia.com/setup/installers/cli>.
 
 4. Verify that you have Kubernetes v1.33 installed and running on Ubuntu 22.04. For more information, see [Kubernetes documentation](https://kubernetes.io/docs/setup/) and [NVIDIA Cloud Native Stack repository](https://github.com/NVIDIA/cloud-native-stack/).
@@ -87,10 +92,9 @@ To verify a deployment, use the following procedure.
     ```sh
     NAME                                                        READY   STATUS    RESTARTS      AGE
     ingestor-server-7bcff75fbb-s655f                            1/1     Running   0             23m
+    kdbai-6f8d9b7c4d-x2k9m                                      1/1     Running   0             23m
     nv-ingest-paddle-0                                          1/1     Running   0             23m
-    rag-etcd-0                                                  1/1     Running   0             23m
     rag-frontend-5d6c6dc4bd-5xpcw                               1/1     Running   0             23m
-    rag-milvus-standalone-5f5699dfb6-dzlhr                      1/1     Running   3 (23m ago)   23m
     rag-minio-f88fb7fd4-29fxk                                   1/1     Running   0             23m
     rag-nemoretriever-graphic-elements-v1-b6d465575-rl66q       1/1     Running   0             23m
     rag-nemoretriever-page-elements-v2-596679ff54-z2kkf         1/1     Running   0             23m
@@ -124,9 +128,10 @@ To verify a deployment, use the following procedure.
     ```sh
     NAME                                TYPE            EXTERNAL-IP   PORT(S)                                                   AGE
     ingestor-server                     ClusterIP      <none>        8082/TCP                                                  26m
+    kdbai                               ClusterIP      <none>        8081/TCP,8082/TCP                                         26m
     kubernetes                          ClusterIP      <none>        443/TCP                                                   4d20h
-    nemoretriever-embedding-ms                   ClusterIP      <none>        8000/TCP                                                  26m
-    nemoretriever-ranking-ms                     ClusterIP      <none>        8000/TCP                                                  26m
+    nemoretriever-embedding-ms          ClusterIP      <none>        8000/TCP                                                  26m
+    nemoretriever-ranking-ms            ClusterIP      <none>        8000/TCP                                                  26m
     nemoretriever-graphic-elements-v1   ClusterIP      <none>        8000/TCP,8001/TCP                                         26m
     nemoretriever-page-elements-v2      ClusterIP      <none>        8000/TCP,8001/TCP                                         26m
     nemoretriever-table-structure-v1    ClusterIP      <none>        8000/TCP,8001/TCP                                         26m
@@ -134,10 +139,7 @@ To verify a deployment, use the following procedure.
     nim-llm-sts                         ClusterIP      <none>        8000/TCP                                                  26m
     nv-ingest-paddle                    ClusterIP      <none>        8000/TCP,8001/TCP                                         26m
     nv-ingest-paddle-sts                ClusterIP      <none>        8000/TCP,8001/TCP                                         26m
-    rag-etcd                            ClusterIP      <none>        2379/TCP,2380/TCP                                         26m
-    rag-etcd-headless                   ClusterIP      <none>        2379/TCP,2380/TCP                                         26m
     rag-frontend                        NodePort       <none>        3000:31645/TCP                                            26m
-    rag-milvus                          ClusterIP      <none>        19530/TCP,9091/TCP                                        26m
     rag-minio                           ClusterIP      <none>        9000/TCP                                                  26m
     rag-nv-ingest                       ClusterIP      <none>        7670/TCP                                                  26m
     rag-opentelemetry-collector         ClusterIP      <none>        6831/UDP,14250/TCP,14268/TCP,4317/TCP,4318/TCP,9411/TCP   26m
@@ -212,7 +214,8 @@ For troubleshooting issues with Helm deployment, refer to [Troubleshooting](trou
 ## Related Topics
 
 - [NVIDIA RAG Blueprint Documentation](readme.md)
-- [Best Practices for Common Settings](accuracy_perf.md).
+- [KDB.AI Deployment Guide](change-vectordb-kdbai.md) - Full KDB.AI configuration and troubleshooting
+- [Best Practices for Common Settings](accuracy_perf.md)
 - [RAG Pipeline Debugging Guide](debugging.md)
 - [Troubleshoot](troubleshooting.md)
 - [Notebooks](notebooks.md)
