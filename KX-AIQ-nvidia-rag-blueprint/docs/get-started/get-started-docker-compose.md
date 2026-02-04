@@ -95,7 +95,7 @@ docker compose -f rag/deploy/compose/nims.yaml up -d
 For A100/B200 system, run the following commands
 
 ```bash
-export LLM_MS_GPU_ID=1,2
+export LLM_MS_GPU_ID=0,1
 
 docker compose -f rag/deploy/compose/nims.yaml up -d
 ```
