@@ -100,8 +100,7 @@ kdbai:
 # In vectordb.yaml - kdbai-gpu profile
 kdbai-gpu:
   container_name: kdbai-server-gpu
-  # cuVS image from KX portal (public preview)
-  # DEV REGISTRY (if needed): ext-dev-registry.kxi-dev.kx.com/kdbai-db-cuvs:1.8.2
+  # cuVS image from KX portal
   image: ${KDBAI_GPU_IMAGE:-portal.dl.kx.com/kdbai-db-cuvs:1.8.2}
   ports:
     - "8083:8081"
@@ -143,9 +142,6 @@ Before first run, authenticate with KX Docker registry:
 ```bash
 # KDB.AI images (CPU and cuVS GPU) - portal.dl.kx.com
 echo "$KDBAI_REGISTRY_TOKEN" | docker login portal.dl.kx.com -u "$KDBAI_REGISTRY_EMAIL" --password-stdin
-
-# DEV REGISTRY (if needed for unreleased images):
-# echo "$KDBAI_REGISTRY_TOKEN" | docker login ext-dev-registry.kxi-dev.kx.com -u "$KDBAI_REGISTRY_EMAIL" --password-stdin
 ```
 
 ## Helm Deployment (Kubernetes/EKS)

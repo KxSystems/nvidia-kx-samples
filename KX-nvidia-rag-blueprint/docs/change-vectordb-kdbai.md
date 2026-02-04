@@ -10,10 +10,10 @@ This guide provides step-by-step instructions for deploying the [NVIDIA RAG Blue
 
 ## Key Features
 
-- **High-Performance Vector Search** - Built on kdb+ technology for fast similarity search
-- **GPU Acceleration** - Optional NVIDIA cuVS integration for GPU-accelerated indexing (CAGRA)
+- **GPU-Accelerated Vector Search** - NVIDIA cuVS integration with CAGRA index for optimal performance (default)
+- **High-Performance Architecture** - Built on kdb+ technology for fast similarity search
 - **Full RAG Pipeline Support** - NV-Ingest document ingestion, LangChain retrieval, metadata management
-- **Multiple Index Types** - HNSW, Flat, IVF, IVFPQ for different scale and accuracy requirements
+- **Multiple Index Types** - CAGRA (GPU), HNSW, Flat, IVF, IVFPQ for different scale and accuracy requirements
 - **Enterprise Ready** - Production-grade reliability with persistent storage
 
 > [!TIP]
@@ -44,8 +44,8 @@ This guide provides step-by-step instructions for deploying the [NVIDIA RAG Blue
 - [Lessons Learned](#lessons-learned-from-deployment) - Real-world deployment insights
 - [Known Issues](#known-issues-and-solutions) - Issues with solutions
 
-**Advanced**
-- [GPU Acceleration](#gpu-accelerated-kdbai-with-cuvs) - NVIDIA cuVS support
+**GPU Acceleration (Default)**
+- [GPU-Accelerated KDB.AI with cuVS](#gpu-accelerated-kdbai-with-cuvs-default) - Default NVIDIA cuVS configuration
 
 ---
 
@@ -63,17 +63,22 @@ export KDB_LICENSE_B64="your-base64-license-from-kx-email"
 export APP_VECTORSTORE_NAME="kdbai"
 export APP_VECTORSTORE_URL="http://kdbai:8082"
 
-# 3. Create data directory with proper permissions
+# 3. Enable GPU acceleration with cuVS/CAGRA (default)
+export APP_VECTORSTORE_ENABLEGPUINDEX=True
+export APP_VECTORSTORE_ENABLEGPUSEARCH=True
+export KDBAI_INDEX_TYPE="cagra"
+
+# 4. Create data directory with proper permissions
 mkdir -p deploy/compose/volumes/kdbai && chmod 0777 deploy/compose/volumes/kdbai
 
-# 4. Start KDB.AI
+# 5. Start KDB.AI with GPU acceleration
 cd deploy/compose
 docker compose -f vectordb.yaml --profile kdbai up -d
 
-# 5. Verify it's running
+# 6. Verify it's running
 curl http://localhost:8083/api/v2/ready
 
-# 6. Restart RAG services to use KDB.AI
+# 7. Start RAG and Ingestor services
 docker compose -f docker-compose-rag-server.yaml up -d
 docker compose -f docker-compose-ingestor-server.yaml up -d
 ```
@@ -105,11 +110,11 @@ KDB.AI supports multiple index types for different use cases:
 
 | Index Type | Description | Best For |
 |------------|-------------|----------|
-| `hnsw` | Hierarchical Navigable Small World | Most use cases (recommended) |
+| `cagra` | GPU-accelerated via NVIDIA cuVS | **Default - optimal performance with GPU** |
+| `hnsw` | Hierarchical Navigable Small World | CPU-only deployments |
 | `flat` | Exact brute-force search | Small datasets (<10K vectors) |
 | `ivf` | Inverted File Index | Large datasets (>100K vectors) |
 | `ivfpq` | IVF with Product Quantization | Very large datasets, memory constrained |
-| `cagra` | GPU-accelerated (cuVS) | High-throughput with NVIDIA GPU |
 
 ### Search Modes
 
@@ -303,8 +308,10 @@ export APP_VECTORSTORE_NAME="kdbai"
 export APP_VECTORSTORE_URL="http://kdbai:8082"
 export APP_VECTORSTORE_SEARCHTYPE="dense"
 
-# Optional: Index type
-export KDBAI_INDEX_TYPE="hnsw"
+# GPU Acceleration with cuVS/CAGRA (default)
+export APP_VECTORSTORE_ENABLEGPUINDEX=True
+export APP_VECTORSTORE_ENABLEGPUSEARCH=True
+export KDBAI_INDEX_TYPE="cagra"
 export KDBAI_DATABASE="default"
 ```
 
@@ -340,7 +347,7 @@ docker ps | grep kdbai
 curl http://localhost:8083/api/v2/ready
 ```
 
-### Step 5: Relaunch the RAG and Ingestion Services
+### Step 5: Start the RAG and Ingestion Services
 
 ```bash
 docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
@@ -600,8 +607,7 @@ helm upgrade --install rag deploy/helm/nvidia-blueprint-rag \
 > Always specify the `--namespace` flag. Without it, Helm deploys to the `default` namespace which is not recommended for production workloads.
 
 The `values-kdbai.yaml` file configures:
-- KDB.AI enabled with HNSW index
-- Milvus disabled
+- KDB.AI enabled with GPU-accelerated CAGRA index (cuVS)
 - RAG server and ingestor server pointing to KDB.AI endpoint
 
 ### Option B: Manual Configuration
@@ -646,29 +652,26 @@ kdbai:
     enabled: true
     size: 50Gi
 
-# Update RAG server to use KDB.AI
+# Update RAG server to use KDB.AI with GPU acceleration
 envVars:
   APP_VECTORSTORE_URL: "http://kdbai:8082"
   APP_VECTORSTORE_NAME: "kdbai"
   KDBAI_DATABASE: "default"
-  KDBAI_INDEX_TYPE: "hnsw"
+  KDBAI_INDEX_TYPE: "cagra"
   KDBAI_API_KEY: ""
+  APP_VECTORSTORE_ENABLEGPUINDEX: "True"
+  APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
 
-# Update ingestor server to use KDB.AI
+# Update ingestor server to use KDB.AI with GPU acceleration
 ingestor-server:
   envVars:
     APP_VECTORSTORE_URL: "http://kdbai:8082"
     APP_VECTORSTORE_NAME: "kdbai"
     KDBAI_DATABASE: "default"
-    KDBAI_INDEX_TYPE: "hnsw"
+    KDBAI_INDEX_TYPE: "cagra"
     KDBAI_API_KEY: ""
-
-# Disable Milvus since we're using KDB.AI
-nv-ingest:
-  enabled: true
-  milvusDeployed: false
-  milvus:
-    enabled: false
+    APP_VECTORSTORE_ENABLEGPUINDEX: "True"
+    APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
 ```
 
 Then deploy:
@@ -710,29 +713,23 @@ If you prefer to deploy KDB.AI separately or use an external instance:
      APP_VECTORSTORE_URL: "http://<kdbai-host>:8082"
      APP_VECTORSTORE_NAME: "kdbai"
      KDBAI_DATABASE: "default"
-     KDBAI_INDEX_TYPE: "hnsw"
+     KDBAI_INDEX_TYPE: "cagra"
      KDBAI_API_KEY: "<your-api-key-if-required>"
+     APP_VECTORSTORE_ENABLEGPUINDEX: "True"
+     APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
 
    ingestor-server:
      envVars:
        APP_VECTORSTORE_URL: "http://<kdbai-host>:8082"
        APP_VECTORSTORE_NAME: "kdbai"
        KDBAI_DATABASE: "default"
-       KDBAI_INDEX_TYPE: "hnsw"
+       KDBAI_INDEX_TYPE: "cagra"
        KDBAI_API_KEY: "<your-api-key-if-required>"
+       APP_VECTORSTORE_ENABLEGPUINDEX: "True"
+       APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
    ```
 
-3. Disable Milvus deployment:
-
-   ```yaml
-   nv-ingest:
-     enabled: true
-     milvusDeployed: false
-     milvus:
-       enabled: false
-   ```
-
-4. Apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
+3. Apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
 
 
 ## Environment Variables Reference
@@ -744,12 +741,15 @@ If you prefer to deploy KDB.AI separately or use an external instance:
 | `KDB_LICENSE_B64` | Base64-encoded KDB.AI license | - | Yes |
 | `KDBAI_THREADS` | Number of threads for KDB.AI | `8` | No |
 | `KDBAI_DATABASE` | Database name | `default` | No |
-| `KDBAI_INDEX_TYPE` | Index type (`flat`, `hnsw`, `ivf`, `ivfpq`) | `hnsw` | No |
+| `KDBAI_INDEX_TYPE` | Index type (`cagra`, `hnsw`, `flat`, `ivf`, `ivfpq`) | `cagra` | No |
 | `KDBAI_INSERT_BATCH_SIZE` | Batch size for document ingestion | `200` | No |
 | `KDBAI_DEBUG` | Enable verbose debug logging for KDB.AI operations | `false` | No |
 | `APP_VECTORSTORE_URL` | KDB.AI client endpoint | - | Yes |
 | `APP_VECTORSTORE_NAME` | Must be `kdbai` | - | Yes |
 | `APP_VECTORSTORE_SEARCHTYPE` | Search type (`dense` or `hybrid`) | `dense` | No |
+| `APP_VECTORSTORE_ENABLEGPUINDEX` | Enable GPU-accelerated indexing (CAGRA) | `True` | No |
+| `APP_VECTORSTORE_ENABLEGPUSEARCH` | Enable GPU-accelerated search | `True` | No |
+| `KDBAI_GPU_DEVICE_ID` | GPU device ID to use for cuVS | `0` | No |
 
 
 ## Verify Your Deployment
@@ -821,12 +821,21 @@ Choose the appropriate index type based on your use case:
 
 | Index Type | Best For | Trade-offs |
 |------------|----------|------------|
+| `cagra` | **Default** - GPU-accelerated, high throughput | Requires NVIDIA GPU |
+| `hnsw` | CPU-only deployments, balanced performance | Good accuracy/speed trade-off |
 | `flat` | Small datasets (<10K vectors), exact results | Slow for large datasets |
-| `hnsw` | Most use cases, balanced performance | Good accuracy/speed trade-off |
 | `ivf` | Large datasets (>100K vectors) | Requires training, approximate results |
 | `ivfpq` | Very large datasets, memory constrained | Lower accuracy, high compression |
 
 To change the index type, update the `KDBAI_INDEX_TYPE` environment variable and recreate your collections.
+
+For CPU-only deployments without GPU, disable GPU acceleration:
+
+```bash
+export APP_VECTORSTORE_ENABLEGPUINDEX=False
+export APP_VECTORSTORE_ENABLEGPUSEARCH=False
+export KDBAI_INDEX_TYPE="hnsw"
+```
 
 
 ## Troubleshooting
@@ -1082,27 +1091,38 @@ kubectl exec deployment/rag-server -n rag -- env | grep NVIDIA_API_KEY
 
 ---
 
-### GPU/cuVS Features Disabled by Default
+### GPU/cuVS Features Enabled by Default
 
-**Current State:** GPU acceleration (cuVS/CAGRA) is preserved for future work but **disabled by default** in the EKS values file.
+**Current State:** GPU acceleration (cuVS/CAGRA) is **enabled by default** for optimal performance.
 
-The following settings should be `"False"` for standard deployments:
+The following settings are the default for GPU-accelerated deployments:
+```yaml
+envVars:
+  APP_VECTORSTORE_ENABLEGPUINDEX: "True"
+  APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
+  KDBAI_INDEX_TYPE: "cagra"
+
+kdbai:
+  gpu:
+    enabled: true
+```
+
+**Requirements:** The cuVS integration requires:
+- NVIDIA GPU with CUDA support (compute capability 7.0+)
+- nvidia-container-toolkit installed
+- GPU nodes with NVIDIA drivers
+
+**For CPU-only deployments:** If you don't have a GPU available, disable GPU acceleration:
 ```yaml
 envVars:
   APP_VECTORSTORE_ENABLEGPUINDEX: "False"
   APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
+  KDBAI_INDEX_TYPE: "hnsw"
 
 kdbai:
   gpu:
     enabled: false
 ```
-
-**Why:** The cuVS integration requires:
-- Special KDB.AI cuVS image from a separate registry
-- GPU nodes with NVIDIA drivers
-- Additional registry secrets
-
-For production deployments, use the standard KDB.AI image with HNSW index, which provides excellent performance without GPU requirements.
 
 ---
 
@@ -1419,13 +1439,12 @@ The [`deploy/EKS/rag-values-kdbai.yaml`](../deploy/EKS/rag-values-kdbai.yaml) fi
 
 | Component | Configuration |
 |-----------|---------------|
-| **KDB.AI** | Enabled with HNSW index, 16Gi memory limit |
+| **KDB.AI** | Enabled with GPU-accelerated CAGRA index (cuVS), 16Gi memory limit |
 | **MinIO** | Standalone deployment (`rag-minio:9000`) for object storage |
 | **LLM** | Cloud-hosted via `integrate.api.nvidia.com` |
-| **Milvus** | Disabled (`milvusDeployed: false`) |
-| **Vector Store** | Points to `http://kdbai:8082` |
+| **Vector Store** | Points to `http://kdbai:8082` with GPU acceleration enabled |
 
-This configuration uses cloud-hosted NVIDIA AI endpoints for LLM inference, reducing GPU requirements on your EKS cluster while using KDB.AI for vector storage.
+This configuration uses cloud-hosted NVIDIA AI endpoints for LLM inference while leveraging GPU-accelerated KDB.AI with cuVS/CAGRA for optimal vector search performance.
 
 ### Volume Scheduling for Dynamic Node Scaling
 
@@ -1449,9 +1468,9 @@ Without this configuration, you may encounter volume affinity errors when nodes 
 > MinIO is deployed as a standalone service for object storage. It is required for storing multimodal content such as images extracted from documents during ingestion.
 
 
-## GPU-Accelerated KDB.AI with cuVS
+## GPU-Accelerated KDB.AI with cuVS (Default)
 
-KDB.AI supports GPU-accelerated vector indexing and search using NVIDIA cuVS when deployed with a cuVS-enabled Docker image. When GPU mode is enabled, the blueprint automatically uses the **CAGRA** (CUDA Approximate Graph-based Nearest Neighbor) index from NVIDIA cuVS for fast GPU-accelerated vector search.
+KDB.AI uses GPU-accelerated vector indexing and search via NVIDIA cuVS by default. The blueprint automatically uses the **CAGRA** (CUDA Approximate Graph-based Nearest Neighbor) index from NVIDIA cuVS for fast GPU-accelerated vector search.
 
 ### GPU Index Type: CAGRA
 
@@ -1471,24 +1490,23 @@ When `APP_VECTORSTORE_ENABLEGPUINDEX=True` is set:
 2. **nvidia-container-toolkit** - Docker GPU support installed
 3. **cuVS Docker Image** - Access to the KDB.AI cuVS image from KX
 
-### Docker Compose GPU Deployment
+### Docker Compose GPU Deployment (Default)
+
+GPU acceleration is enabled by default. The standard deployment commands use cuVS/CAGRA:
 
 ```bash
-# Set GPU environment variables
+# These are already set by default in deploy/compose/.env
 export APP_VECTORSTORE_ENABLEGPUINDEX=True
 export APP_VECTORSTORE_ENABLEGPUSEARCH=True
-export KDBAI_GPU_IMAGE="ext-dev-registry.kxi-dev.kx.com/kdbai-db:1.8.1-rc.2-cuvs"
+export KDBAI_INDEX_TYPE="cagra"
 
-# Login to cuVS registry (uses same KX credentials as standard registry)
-docker login ext-dev-registry.kxi-dev.kx.com -u $KDBAI_REGISTRY_EMAIL -p $KDBAI_REGISTRY_TOKEN
-
-# Start GPU-enabled KDB.AI
-docker compose -f deploy/compose/vectordb.yaml --profile kdbai-gpu up -d
+# Start KDB.AI with GPU acceleration (default)
+docker compose -f deploy/compose/vectordb.yaml --profile kdbai up -d
 ```
 
-### Kubernetes/Helm GPU Deployment
+### Kubernetes/Helm GPU Deployment (Default)
 
-Update your values file to enable GPU:
+GPU acceleration is enabled by default in the values files. The standard Helm deployment uses cuVS/CAGRA:
 
 ```yaml
 kdbai:
@@ -1496,29 +1514,14 @@ kdbai:
   gpu:
     enabled: true
     deviceId: "0"
-  gpuImage:
-    registry: ext-dev-registry.kxi-dev.kx.com
-    repository: kdbai-db
-    tag: "1.8.1-rc.2-cuvs"
-  gpuImagePullSecret:
-    name: "kdbai-cuvs-registry-secret"  # Create this secret for cuVS registry
 
 envVars:
   APP_VECTORSTORE_ENABLEGPUINDEX: "True"
   APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
+  KDBAI_INDEX_TYPE: "cagra"
 ```
 
-Create the cuVS registry secret (uses same KX credentials as standard KDB.AI registry):
-
-```bash
-kubectl create secret docker-registry kdbai-cuvs-registry-secret \
-  --docker-server=ext-dev-registry.kxi-dev.kx.com \
-  --docker-username=<your-kx-email> \
-  --docker-password=<bearer-token-from-kx> \
-  -n <your-namespace>
-```
-
-Then deploy:
+Deploy with the standard command:
 
 ```bash
 helm upgrade --install nvidia-rag deploy/helm/nvidia-blueprint-rag \
@@ -1526,17 +1529,33 @@ helm upgrade --install nvidia-rag deploy/helm/nvidia-blueprint-rag \
   -f deploy/helm/nvidia-blueprint-rag/values-kdbai.yaml
 ```
 
+### CPU-Only Deployment (Optional)
+
+For deployments without GPU, disable GPU acceleration:
+
+```yaml
+kdbai:
+  enabled: true
+  gpu:
+    enabled: false
+
+envVars:
+  APP_VECTORSTORE_ENABLEGPUINDEX: "False"
+  APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
+  KDBAI_INDEX_TYPE: "hnsw"
+```
+
 ### GPU Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `APP_VECTORSTORE_ENABLEGPUINDEX` | Enable GPU-accelerated indexing (uses CAGRA) | `False` |
-| `APP_VECTORSTORE_ENABLEGPUSEARCH` | Enable GPU-accelerated search | `False` |
+| `APP_VECTORSTORE_ENABLEGPUINDEX` | Enable GPU-accelerated indexing (uses CAGRA) | `True` |
+| `APP_VECTORSTORE_ENABLEGPUSEARCH` | Enable GPU-accelerated search | `True` |
+| `KDBAI_INDEX_TYPE` | Index type for vector search | `cagra` |
 | `KDBAI_GPU_DEVICE_ID` | GPU device ID to use | `0` |
-| `KDBAI_GPU_IMAGE` | cuVS-enabled Docker image | (see values file) |
 
 > [!NOTE]
-> When GPU indexing is enabled, the blueprint automatically uses the `cagra` index type from NVIDIA cuVS for GPU-accelerated vector search. CPU index types (`hnsw`, `flat`) are mapped to `cagra` automatically.
+> GPU acceleration with CAGRA is enabled by default. The blueprint automatically uses the `cagra` index type from NVIDIA cuVS for GPU-accelerated vector search.
 
 
 ## Related Topics

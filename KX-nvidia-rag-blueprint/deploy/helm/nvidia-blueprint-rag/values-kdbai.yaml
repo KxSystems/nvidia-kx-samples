@@ -65,13 +65,11 @@ kdbai:
     deviceId: "0"
 
   # GPU image pull secret for cuVS registry (when using GPU mode)
-  # Public preview cuVS images are on portal.dl.kx.com - same as CPU images
-  # DEV REGISTRY (if needed): --docker-server=ext-dev-registry.kxi-dev.kx.com
+  # cuVS images are on portal.dl.kx.com - same as CPU images
   gpuImagePullSecret:
     name: "kdbai-registry-secret"
 
   # GPU-enabled KDB.AI cuVS image (used when gpu.enabled=true)
-  # DEV REGISTRY (if needed): ext-dev-registry.kxi-dev.kx.com/kdbai-db-cuvs:1.8.2
   gpuImage:
     registry: portal.dl.kx.com
     repository: kdbai-db-cuvs

@@ -13,6 +13,10 @@ services:
     - "8000"
     environment:
       NGC_API_KEY: ${NGC_API_KEY}
+      # Model profile selection (run list-model-profiles to see options)
+      NIM_MODEL_PROFILE: ${NIM_MODEL_PROFILE:-}
+      # Maximum context length (reduce if running out of GPU memory)
+      NIM_MAX_MODEL_LEN: ${NIM_MAX_MODEL_LEN:-32768}
       # Performance tuning for faster inference
       NIM_MAX_BATCH_SIZE: ${NIM_MAX_BATCH_SIZE:-32}
       NIM_KV_CACHE_FREE_GPU_MEM_FRACTION: ${NIM_KV_CACHE_FREE_GPU_MEM_FRACTION:-0.90}

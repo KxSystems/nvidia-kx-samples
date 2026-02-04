@@ -72,9 +72,8 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
 
 - Vector Database and Retrieval
 
-    - [Change the Vector Database](change-vectordb.md)
+    - [KDB.AI with cuVS](change-vectordb-kdbai.md) - GPU-accelerated vector search
     - [Hybrid Search](hybrid_search.md)
-    - [Milvus Configuration](milvus-configuration.md)
     - [Query Decomposition](query_decomposition.md)
 
 
