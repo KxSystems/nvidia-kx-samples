@@ -16,9 +16,9 @@
 # =============================================================================
 #
 # Example GPU Allocation (8x NVIDIA RTX PRO 6000 Blackwell):
-#   - GPU 0,1: Llama 3.3 70B Instruct (report writing)
-#   - GPU 2:   Nemotron Super 49B (reasoning)
-#   - GPU 3-7: Available for RAG services or additional models
+#   - GPU 0,1: Llama 3.3 70B Instruct (report writing, tp=2, bf16 ~140GB)
+#   - GPU 2,3: Nemotron Super 49B (reasoning, tp=2, bf16 ~98GB)
+#   - GPU 4-7: Available for RAG services or additional models
 #
 # Usage:
 #   export NGC_API_KEY="nvapi-xxx"
@@ -35,13 +35,13 @@ services:
   llm-instruct:
     container_name: llm-instruct
     image: nvcr.io/nim/meta/llama-3.3-70b-instruct:latest
-    runtime: nvidia
     ports:
       - "8051:8000"
     environment:
       NGC_API_KEY: ${NGC_API_KEY}
+      NIM_MAX_MODEL_LEN: ${NIM_MAX_MODEL_LEN:-32768}
     volumes:
-      - nim-cache:/opt/nim/.cache
+      - nim-cache-instruct:/opt/nim/.cache
     shm_size: 32gb
     deploy:
       resources:
@@ -60,23 +60,33 @@ services:
       - aiq-kx-network
 
   # Nemotron Super 49B - For reasoning and query planning
+  # Requires 2 GPUs for tensor parallelism (bf16 ~98GB, single GPU has 96GB)
   llm-nemotron:
     container_name: llm-nemotron
-    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1:latest
-    runtime: nvidia
+    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.13.1
     ports:
       - "8052:8000"
     environment:
       NGC_API_KEY: ${NGC_API_KEY}
+      NIM_MODEL_PROFILE: ${NIM_MODEL_PROFILE:-}
+      NIM_MAX_MODEL_LEN: ${NIM_MAX_MODEL_LEN:-32768}
+      NIM_MAX_BATCH_SIZE: ${NIM_MAX_BATCH_SIZE:-32}
+      NIM_KV_CACHE_FREE_GPU_MEM_FRACTION: ${NIM_KV_CACHE_FREE_GPU_MEM_FRACTION:-0.90}
+      NIM_ENABLE_CHUNKED_PREFILL: ${NIM_ENABLE_CHUNKED_PREFILL:-1}
+      NIM_MAX_CONCURRENT_REQUESTS: ${NIM_MAX_CONCURRENT_REQUESTS:-64}
     volumes:
-      - nim-cache:/opt/nim/.cache
+      - nim-cache-nemotron:/opt/nim/.cache
     shm_size: 32gb
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              device_ids: ['2']
+              device_ids: ['2', '3']
               capabilities: [gpu]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
@@ -240,7 +250,9 @@ services:
 # =============================================================================
 
 volumes:
-  nim-cache:
+  nim-cache-instruct:
+    driver: local
+  nim-cache-nemotron:
     driver: local
   redis-data:
     driver: local
