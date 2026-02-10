@@ -5,7 +5,7 @@ This guide describes how to deploy the AI-Q Research Assistant using Docker.
 ## Prerequisites 
 
 
-1. This blueprint depends on the [NVIDIA RAG blueprint](https://github.com/KxSystems/nvidia-kx-samples/tree/main). The deployment guide includes instructions for deploying RAG using docker compose, but please consult the latest RAG documentation as well. The RAG blueprint requires NVIDIA NIM microservices that are either running on-premise or hosted by NVIDIA, including the Nemo Retriever microservices and LLM, by default Llama 3.3 Nemotron Super 49B. For a self-contained local deployment, 2xH100, 3xA100, 3xB200 or 2xRTX PRO 6000 GPUs are required.
+1. This blueprint depends on the [NVIDIA RAG blueprint](https://github.com/KxSystems/nvidia-kx-samples/tree/main/KX-nvidia-rag-blueprint). The deployment guide includes instructions for deploying RAG using docker compose, but please consult the latest RAG documentation as well. The RAG blueprint requires NVIDIA NIM microservices that are either running on-premise or hosted by NVIDIA, including the Nemo Retriever microservices and LLM, by default Llama 3.3 Nemotron Super 49B. For a self-contained local deployment, 2xH100, 3xA100, 3xB200 or 2xRTX PRO 6000 GPUs are required.
 
 2. In addition to the LLM used by RAG, Llama 3.3 Nemotron Super 49B (llama-3_3-nemotron-super-49b-v1_5), the AI-Q Research Assistant also requires access to the Llama 3.3 Instruct 70B (llama-3.3-70b-instruct) model. Deploying this model requires an additional 2xB200, 2xH100 GPUs, 4xA100 GPUs or 2xRTX PRO 6000 GPUs.
 
@@ -43,8 +43,8 @@ This section demonstrates how to deploy AI-Q Research Assistant.
 Clone the aiq-research-assistant and set it as the working directory:
 
 ```bash
-git clone https://github.com/NVIDIA-AI-Blueprints/aiq-research-assistant.git
-cd aiq-research-assistant
+git clone https://github.com/KxSystems/nvidia-kx-samples.git
+cd nvidia-kx-samples/KX-AIQ-nvidia-rag-blueprint
 ```
 
 ### Setup Environment Variables
@@ -73,23 +73,23 @@ export MODEL_DIRECTORY=~/.cache/model-cache
 
 ### Deploy RAG
 
-Before deploying the AI-Q Research Assistant, deploy RAG by following [these instructions](https://github.com/KxSystems/nvidia-kx-samples/blob/main/docs/deploy-docker-self-hosted.md).
+Before deploying the AI-Q Research Assistant, deploy RAG by following [these instructions](https://github.com/KxSystems/nvidia-kx-samples/blob/main/KX-nvidia-rag-blueprint/docs/deploy-docker-self-hosted.md).
 
 ```bash
 git clone https://github.com/KxSystems/nvidia-kx-samples.git
 ```
 
-Open the file `rag/deploy/compose/.env` and confirm that all of the values in the section `# ==== Endpoints for using cloud NIMs ===` are commented out. Then source this file:
+Open the file `KX-nvidia-rag-blueprint/deploy/compose/.env` and confirm that all of the values in the section `# ==== Endpoints for using cloud NIMs ===` are commented out. Then source this file:
 
 
 ```bash
-source rag/deploy/compose/.env
+source KX-nvidia-rag-blueprint/deploy/compose/.env
 ```
 
 Deploy the RAG NVIDIA NIM microservices, including the LLM. *This step can take up to 45 minutes*.
 
 ```bash
-docker compose -f rag/deploy/compose/nims.yaml up -d
+docker compose -f KX-nvidia-rag-blueprint/deploy/compose/nims.yaml up -d
 ```
 
 For A100/B200 system, run the following commands
@@ -97,7 +97,7 @@ For A100/B200 system, run the following commands
 ```bash
 export LLM_MS_GPU_ID=0,1
 
-docker compose -f rag/deploy/compose/nims.yaml up -d
+docker compose -f KX-nvidia-rag-blueprint/deploy/compose/nims.yaml up -d
 ```
 
 TIP: You can watch the status with `watch -n 2 'docker ps --format "table {{.Names}}\t{{.Status}}"'`. 
@@ -121,7 +121,7 @@ Deploy the Vector DB:
 ```bash
 export VECTORSTORE_GPU_DEVICE_ID=0
 
-docker compose -f rag/deploy/compose/vectordb.yaml up -d
+docker compose -f KX-nvidia-rag-blueprint/deploy/compose/vectordb.yaml up -d
 ```
 
 To confirm that the deployment was successful, run `docker ps --format "table {{.Names}}\t{{.Status}}"`. In addition to the previously running containers, you should see: 
@@ -135,7 +135,7 @@ milvus-etcd                      Up 2 minutes (healthy)
 Deploy the ingestion server:
 
 ```bash
-docker compose -f rag/deploy/compose/docker-compose-ingestor-server.yaml up -d
+docker compose -f KX-nvidia-rag-blueprint/deploy/compose/docker-compose-ingestor-server.yaml up -d
 ```
 
 To confirm that the deployment was successful, run `docker ps --format "table {{.Names}}\t{{.Status}}"`. In addition to the previously running containers, you should see: 
@@ -149,7 +149,7 @@ ingestor-server                  Up 3 minutes
 Deploy the RAG server:
 
 ```bash
-docker compose -f rag/deploy/compose/docker-compose-rag-server.yaml up -d
+docker compose -f KX-nvidia-rag-blueprint/deploy/compose/docker-compose-rag-server.yaml up -d
 ```
 
 To confirm that the deployment was successful, run `docker ps --format "table {{.Names}}\t{{.Status}}"`. In addition to the previously running containers, you should see: 
@@ -310,15 +310,15 @@ docker compose -f deploy/compose/docker-compose.yaml --profile aira-instruct-llm
 
 3. Stop the RAG services:
 ```bash
-docker compose -f rag/deploy/compose/docker-compose-rag-server.yaml down
-docker compose -f rag/deploy/compose/docker-compose-ingestor-server.yaml down
-docker compose -f rag/deploy/compose/vectordb.yaml down
-docker compose -f rag/deploy/compose/nims.yaml down
+docker compose -f KX-nvidia-rag-blueprint/deploy/compose/docker-compose-rag-server.yaml down
+docker compose -f KX-nvidia-rag-blueprint/deploy/compose/docker-compose-ingestor-server.yaml down
+docker compose -f KX-nvidia-rag-blueprint/deploy/compose/vectordb.yaml down
+docker compose -f KX-nvidia-rag-blueprint/deploy/compose/nims.yaml down
 ```
 
 4. Remove the cache directories used by the RAG vector database and minio service:
 ```bash
-rm -rf rag/deploy/compose/volumes/minio
+rm -rf KX-nvidia-rag-blueprint/deploy/compose/volumes/minio
 ```
 
 Tip: If you retain these directories, the collections you created will remain the next time you start the services.
@@ -335,7 +335,7 @@ docker ps
 
 > If you already have RAG deployed, skip to the next step.
 
-To deploy using hosted NVIDIA NIM microservices, follow the instructions for [deploying the RAG blueprint using hosted models](https://github.com/KxSystems/nvidia-kx-samples/blob/main/docs/deploy-docker-nvidia-hosted.md). 
+To deploy using hosted NVIDIA NIM microservices, follow the instructions for [deploying the RAG blueprint using hosted models](https://github.com/KxSystems/nvidia-kx-samples/blob/main/KX-nvidia-rag-blueprint/docs/deploy-docker-nvidia-hosted.md). 
 
 ### Update AI-Q Research Assistant Configuration 
 

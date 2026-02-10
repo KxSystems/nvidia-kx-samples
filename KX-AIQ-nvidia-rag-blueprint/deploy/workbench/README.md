@@ -33,11 +33,11 @@ The main research agent is written in LangGraph and managed using NVIDIA NeMo Ag
 
 Ensure you meet the prerequisites for this Blueprint ([details](../../README.md)).
 
-Before you begin, run the  [RAG Blueprint](https://github.com/KxSystems/nvidia-kx-samples/tree/main). This deep researcher will wrap around your RAG pipeline.
+Before you begin, run the  [RAG Blueprint](https://github.com/KxSystems/nvidia-kx-samples/tree/main/KX-nvidia-rag-blueprint). This deep researcher will wrap around your RAG pipeline.
 
 1. Open NVIDIA AI Workbench. Select a **Location** to work in.
 
-1. **Clone** the project using the repository URL: https://github.com/NVIDIA-AI-Blueprints/aiq-research-assistant.
+1. **Clone** the project using the repository URL: https://github.com/KxSystems/nvidia-kx-samples.
 
 1. On the **Project Dashboard**, resolve the yellow unconfigured secrets warning:
 
