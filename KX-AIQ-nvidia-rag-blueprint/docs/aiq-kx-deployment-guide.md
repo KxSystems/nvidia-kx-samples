@@ -512,8 +512,8 @@ If you already have the NVIDIA RAG blueprint running with NIMs:
 
 ```bash
 # Clone the repository
-git clone https://github.com/NVIDIA-AI-Blueprints/aiq-research-assistant.git
-cd aiq-research-assistant
+git clone https://github.com/KxSystems/nvidia-kx-samples.git
+cd nvidia-kx-samples/KX-AIQ-nvidia-rag-blueprint
 
 # Verify the nvidia-rag network exists
 docker network ls | grep nvidia-rag
@@ -601,8 +601,8 @@ If you already have a KDB-X MCP server running, use this quick start:
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/NVIDIA-AI-Blueprints/aiq-research-assistant.git
-cd aiq-research-assistant
+git clone https://github.com/KxSystems/nvidia-kx-samples.git
+cd nvidia-kx-samples/KX-AIQ-nvidia-rag-blueprint
 
 # 2. Set required environment variables
 export NVIDIA_API_KEY="nvapi-xxx"
@@ -757,8 +757,8 @@ ECR_PASSWORD=$(aws ecr get-login-password --region us-east-1)
 
 ```bash
 # Clone the repository
-git clone https://github.com/NVIDIA-AI-Blueprints/aiq-research-assistant.git
-cd aiq-research-assistant
+git clone https://github.com/KxSystems/nvidia-kx-samples.git
+cd nvidia-kx-samples/KX-AIQ-nvidia-rag-blueprint
 
 # Verify cluster access
 kubectl cluster-info
@@ -1542,6 +1542,6 @@ docker compose --env-file .env -f deploy/compose/docker-compose-kx-reuse-nim.yam
 
 ## Support
 
-- **GitHub Issues**: [NVIDIA-AI-Blueprints/aiq-research-assistant](https://github.com/NVIDIA-AI-Blueprints/aiq-research-assistant/issues)
+- **GitHub Issues**: [KxSystems/nvidia-kx-samples](https://github.com/KxSystems/nvidia-kx-samples/issues)
 - **NVIDIA Developer Forums**: [forums.developer.nvidia.com](https://forums.developer.nvidia.com)
 - **KX Documentation**: [code.kx.com](https://code.kx.com)
