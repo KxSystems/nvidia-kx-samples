@@ -63,7 +63,8 @@ Deploy on a single server with Docker Compose. Ideal for development or when reu
 export NVIDIA_API_KEY="nvapi-xxx"
 export NGC_API_KEY="$NVIDIA_API_KEY"
 export KDB_BEARER_TOKEN="your-kx-portal-token"      # From https://portal.kx.com
-export KDB_LICENSE_B64="$(cat kc.lic | base64)"     # Your KDB license
+export KDB_LICENSE_B64="$(cat kc.lic | base64)"     # Your KDB-X license, or you can direcly put the base64 text xport KDB_LICENSE_B64="LrblOocu..."
+# note that kdb-x lic can be different than kdb.ai
 
 # 2. Clone and deploy
 git clone https://github.com/KxSystems/nvidia-kx-samples.git
