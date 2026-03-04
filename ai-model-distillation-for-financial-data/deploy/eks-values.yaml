@@ -1,0 +1,124 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 KX Systems, Inc. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# EKS-specific Helm values override for Data Flywheel Blueprint
+# Usage: helm upgrade --install data-flywheel deploy/helm/data-flywheel/ -f deploy/eks-values.yaml
+# Note: Image repository/tag are injected by deploy-eks.sh via --set (from .env)
+
+# --- KDB-X ---
+kdbx:
+  persistence:
+    storageClass: "kdbx-storage"
+    size: "50Gi"
+  service:
+    type: ClusterIP
+
+# --- Redis ---
+redis:
+  service:
+    type: ClusterIP
+
+# --- Data Flywheel Server ---
+foundationalFlywheelServer:
+  config:
+    nmp_config:
+      nemo_base_url: "http://ingress-nginx-controller.ingress-nginx:80"
+      nim_base_url: "http://nemo-nim-proxy:8000"
+      datastore_base_url: "http://nemo-data-store:3000"
+
+    llm_judge_config:
+      deployment_type: "remote"
+      url: "https://integrate.api.nvidia.com/v1/chat/completions"
+      model_name: "meta/llama-3.3-70b-instruct"
+
+    # Override data split — default eval_size=100 leaves too few records
+    # for training when total dataset is small (~104 records)
+    data_split_config:
+      eval_size: 20
+      val_ratio: 0.1
+
+    # Market data enrichment — adds OHLCV + order book context via KDB-X aj
+    enrichment_config:
+      enabled: true
+      sym_extraction: "regex"
+      sym_regex: "\\b([A-Z]{1,5})\\b"
+      default_sym: "AAPL"
+
+    # Vectorised backtesting via KDB-X as-of joins
+    backtest_config:
+      enabled: true
+      cost_bps: 5.0
+      min_signals: 10
+
+    # NeMo Customizer requires batch_size >= 8 for SFT
+    training_config:
+      batch_size: 8
+
+  deployments:
+    api:
+      service:
+        type: LoadBalancer
+        annotations:
+          service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+          service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+          service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+
+    mlflow:
+      service:
+        type: ClusterIP
+
+    flower:
+      service:
+        type: ClusterIP
+
+# --- NeMo Microservices (25.12.0) ---
+nemo-microservices-helm-chart:
+  # Disable sub-charts we don't use
+  tags:
+    studio: false
+    intake: false
+    data-designer: false
+    safe-synthesizer: false
+    auditor: false
+
+  customizer:
+    modelsStorage:
+      storageClassName: kdbx-storage
+    customizerConfig:
+      training:
+        pvc:
+          storageClass: "kdbx-storage-1f"
+
+  # Evaluator: patch _custom_json_serializer to handle datetime objects
+  # (upstream bug — serializer only handles Pydantic models, not datetime)
+  evaluator:
+    volumes:
+      - name: evaluator-datetime-patch
+        configMap:
+          name: evaluator-datetime-patch
+    volumeMounts:
+      - name: evaluator-datetime-patch
+        mountPath: /app/.venv/lib/python3.11/site-packages/evaluator/jobs/custom.py
+        subPath: custom.py
+
+  # NeMo Core: ensure database migrations run on deploy
+  core:
+    databaseMigrations:
+      enabled: true
+
+  deployment-management:
+    deployments:
+      defaultStorageClass: kdbx-storage
+      nimPvcSize: "25Gi"

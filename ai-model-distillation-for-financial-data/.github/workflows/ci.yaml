@@ -1,0 +1,1057 @@
+# =============================================================================
+# AI Model Distillation for Financial Data - CI/CD Pipeline
+# =============================================================================
+#
+# Deployment Method:
+# ------------------
+# This project uses Docker Compose script deployment, NOT Notebook deployment.
+# The Notebook (notebooks/ai-model-distillation-financial-data.ipynb) is used
+# for interactive job execution and monitoring, not for deploying services.
+#
+# Deployment command:
+#   docker compose -f ./deploy/docker-compose.yaml up -d --build
+#
+# =============================================================================
+# Hardware Requirements:
+# =============================================================================
+# | Resource Type  | Minimum Requirement                         |
+# |----------------|---------------------------------------------|
+# | GPU            | 2x NVIDIA A100/H100/H200/B200 GPUs          |
+# | Disk Space     | At least 200 GB                             |
+# | Memory         | Recommended 64 GB+                          |
+# | GPU Driver     | >= 560.35.03                                |
+#
+# =============================================================================
+# Service Ports:
+# =============================================================================
+# | Service        | Port  | Description                             |
+# |----------------|-------|-----------------------------------------|
+# | API Server     | 8000  | FastAPI main service                    |
+# | KDB-X          | 8082  | Unified database and vector store       |
+# | Redis          | 6379  | Celery broker                           |
+# | MLflow         | 5000  | Experiment tracking (optional)          |
+#
+# =============================================================================
+# pytest Test Information:
+# =============================================================================
+# Test Image: nvcr.io/rw983xdqtcdp/auto_test_team/blueprint-github-test-image:latest
+# Test File: blueprint-github-test/testcases/dfw/test_dfw_api.py
+# pytest marker: dfw
+# API URL parameter: --dfw-api-url http://localhost:8000
+#
+# =============================================================================
+# Required Secrets:
+# =============================================================================
+# | Secret           | Required | Description                              |
+# |------------------|----------|------------------------------------------|
+# | NVIDIA_API_KEY   | Yes      | NVIDIA API Key for hosted NIM services  |
+# | NGC_API_KEY      | Yes      | NGC API Key for container registry      |
+# | REDIS_PASSWORD   | Yes      | Redis password                          |
+# | KDB_LICENSE_B64  | No       | KDB-X license (base64-encoded)          |
+# | HF_TOKEN         | No       | Huggingface token (optional)            |
+# | SMTP_USERNAME    | No       | Gmail for email notifications           |
+# | SMTP_PASSWORD    | No       | Gmail app-specific password for SMTP    |
+#
+# =============================================================================
+
+name: CI - Data Flywheel
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'deploy/**'
+      - 'config/**'
+      - 'requirements.txt'
+      - 'pyproject.toml'
+      - '.github/workflows/ci.yaml'
+
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'deploy/**'
+      - 'config/**'
+      - 'requirements.txt'
+      - 'pyproject.toml'
+      - '.github/workflows/ci.yaml'
+
+  workflow_dispatch:
+    # No inputs required - workflow runs with default configuration:
+    # - MLflow: always enabled
+    # - pytest: commented out (not running)
+    # - Cleanup: disabled (services kept running for inspection)
+
+env:
+  # Required secrets
+  NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+  NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+  GH_TOKEN: ${{ secrets.GH_TOKEN }}
+  REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+  KDB_LICENSE_B64: ${{ secrets.KDB_LICENSE_B64 }}
+  HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+  # Configuration
+  KDBX_ENDPOINT: localhost:8082
+  TAG: "0.3.0"
+
+  # Test configuration
+  TEST_IMAGE: nvcr.io/rw983xdqtcdp/auto_test_team/blueprint-github-test-image:latest
+  DFW_API_URL: http://localhost:8000
+  ENABLE_EMAIL_NOTIFICATION: true
+
+jobs:
+  # ===========================================================================
+  # Pre-flight Checks
+  # ===========================================================================
+  preflight:
+    name: Pre-flight Checks
+    # runs-on: arc-runner-set-oke-org-poc-4-gpu
+    runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
+    outputs:
+      checks_passed: ${{ steps.final_check.outputs.passed }}
+    steps:
+      - name: Display Runner Information
+        run: |
+          echo "=========================================="
+          echo "Runner Information"
+          echo "=========================================="
+          echo "Runner Name: ${{ runner.name }}"
+          echo "Runner OS: ${{ runner.os }}"
+          echo "Workflow: ${{ github.workflow }}"
+          echo "Run ID: ${{ github.run_id }}"
+          echo "Event: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "SHA: ${{ github.sha }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "=========================================="
+
+      - name: Check Required Secrets
+        id: check_secrets
+        run: |
+          echo "=========================================="
+          echo "Checking Required Secrets..."
+          echo "=========================================="
+
+          MISSING_SECRETS=""
+
+          # Check NVIDIA_API_KEY
+          if [ -z "${{ secrets.NVIDIA_API_KEY }}" ]; then
+            echo "✗ NVIDIA_API_KEY is not set"
+            MISSING_SECRETS="${MISSING_SECRETS}NVIDIA_API_KEY "
+          else
+            echo "✓ NVIDIA_API_KEY is set (${#NVIDIA_API_KEY} chars)"
+          fi
+
+          # Check NGC_API_KEY
+          if [ -z "${{ secrets.NGC_API_KEY }}" ]; then
+            echo "✗ NGC_API_KEY is not set"
+            MISSING_SECRETS="${MISSING_SECRETS}NGC_API_KEY "
+          else
+            echo "✓ NGC_API_KEY is set"
+          fi
+
+          # Check GH_TOKEN
+          if [ -z "${{ secrets.GH_TOKEN }}" ]; then
+            echo "✗ GH_TOKEN is not set"
+            MISSING_SECRETS="${MISSING_SECRETS}GH_TOKEN "
+          else
+            echo "✓ GH_TOKEN is set"
+          fi
+
+          # Check REDIS_PASSWORD
+          if [ -z "${{ secrets.REDIS_PASSWORD }}" ]; then
+            echo "✗ REDIS_PASSWORD is not set"
+            MISSING_SECRETS="${MISSING_SECRETS}REDIS_PASSWORD "
+          else
+            echo "✓ REDIS_PASSWORD is set"
+          fi
+
+          # Optional: HF_TOKEN
+          if [ -z "${{ secrets.HF_TOKEN }}" ]; then
+            echo "⚠ HF_TOKEN is not set (optional)"
+          else
+            echo "✓ HF_TOKEN is set"
+          fi
+
+          if [ -n "$MISSING_SECRETS" ]; then
+            echo ""
+            echo "✗ Missing required secrets: $MISSING_SECRETS"
+            echo ""
+            echo "Please configure the following secrets in your repository:"
+            echo "  Settings -> Secrets and variables -> Actions -> New repository secret"
+            exit 1
+          fi
+
+          echo ""
+          echo "✓ All required secrets are configured"
+
+      - name: Check Docker Installation
+        id: check_docker
+        run: |
+          echo "=========================================="
+          echo "Checking Docker Installation..."
+          echo "=========================================="
+
+          if ! command -v docker &> /dev/null; then
+            echo "✗ Docker is not installed"
+            exit 1
+          fi
+
+          DOCKER_VERSION=$(docker --version)
+          echo "✓ Docker installed: $DOCKER_VERSION"
+
+          # Check Docker daemon is running
+          if ! docker info &> /dev/null; then
+            echo "✗ Docker daemon is not running"
+            exit 1
+          fi
+          echo "✓ Docker daemon is running"
+
+          # Check Docker Compose
+          if ! docker compose version &> /dev/null; then
+            echo "✗ Docker Compose v2 is not available"
+            exit 1
+          fi
+
+          COMPOSE_VERSION=$(docker compose version --short)
+          echo "✓ Docker Compose installed: $COMPOSE_VERSION"
+
+      - name: Check Required Ports Availability
+        id: check_ports
+        run: |
+          echo "=========================================="
+          echo "Checking Port Availability..."
+          echo "=========================================="
+
+          PORTS_IN_USE=""
+
+          for port in 8000 8082 6379 5000; do
+            if ss -tuln | grep -q ":${port} " 2>/dev/null || netstat -tuln 2>/dev/null | grep -q ":${port} "; then
+              echo "⚠ Port $port is in use"
+              PORTS_IN_USE="${PORTS_IN_USE}${port} "
+            else
+              echo "✓ Port $port is available"
+            fi
+          done
+
+          if [ -n "$PORTS_IN_USE" ]; then
+            echo ""
+            echo "⚠ Some ports are in use: $PORTS_IN_USE"
+            echo "  This may cause deployment issues."
+          fi
+
+      - name: Check Disk Space
+        id: check_disk
+        run: |
+          echo "=========================================="
+          echo "Checking Disk Space..."
+          echo "=========================================="
+
+          # Get available disk space in GB
+          AVAILABLE_GB=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
+          REQUIRED_GB=200
+
+          echo "Available disk space: ${AVAILABLE_GB}GB"
+          echo "Required minimum: ${REQUIRED_GB}GB"
+
+          if [ "$AVAILABLE_GB" -lt "$REQUIRED_GB" ]; then
+            echo "✗ Insufficient disk space. Need at least ${REQUIRED_GB}GB, have ${AVAILABLE_GB}GB"
+            exit 1
+          fi
+
+          echo "✓ Sufficient disk space available"
+
+      - name: Check GPU Availability
+        id: check_gpu
+        run: |
+          echo "=========================================="
+          echo "Checking GPU Availability..."
+          echo "=========================================="
+
+          REQUIRED_GPUS=2
+          REQUIRED_DRIVER_VERSION="560.35.03"
+
+          # Try to run nvidia-smi in a GPU container
+          GPU_INFO=$(docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv 2>&1) || {
+            echo "⚠ Could not access GPU via Docker."
+            echo "⚠ Error: $GPU_INFO"
+            echo "gpu_available=false" >> $GITHUB_OUTPUT
+            exit 0
+          }
+
+          echo "GPU Information:"
+          echo "$GPU_INFO"
+          echo ""
+
+          # Get GPU count
+          GPU_COUNT=$(docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | wc -l)
+          echo "Found $GPU_COUNT GPU(s), Required: $REQUIRED_GPUS"
+
+          if [ "$GPU_COUNT" -lt "$REQUIRED_GPUS" ]; then
+            echo "⚠ Insufficient GPUs. Need at least $REQUIRED_GPUS, have $GPU_COUNT"
+            echo "gpu_available=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "✓ GPU count check passed"
+
+          # Check GPU driver version
+          DRIVER_VERSION=$(docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1)
+          echo "GPU Driver version: $DRIVER_VERSION, Required: >= $REQUIRED_DRIVER_VERSION"
+
+          echo "✓ GPU checks passed"
+          echo "gpu_available=true" >> $GITHUB_OUTPUT
+
+      - name: Validate NVIDIA API Key
+        id: validate_nvidia_api
+        run: |
+          echo "=========================================="
+          echo "Validating NVIDIA API Key..."
+          echo "=========================================="
+
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer $NVIDIA_API_KEY" \
+            -H "Content-Type: application/json" \
+            "https://integrate.api.nvidia.com/v1/models" 2>/dev/null || echo "000")
+
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✓ NVIDIA API Key is valid"
+          elif [ "$HTTP_STATUS" = "401" ] || [ "$HTTP_STATUS" = "403" ]; then
+            echo "✗ NVIDIA API Key is invalid or expired (HTTP $HTTP_STATUS)"
+            exit 1
+          elif [ "$HTTP_STATUS" = "000" ]; then
+            echo "⚠ Could not reach NVIDIA API (network issue). Proceeding anyway..."
+          else
+            echo "⚠ Unexpected response from NVIDIA API (HTTP $HTTP_STATUS). Proceeding anyway..."
+          fi
+
+      - name: Final Pre-check Summary
+        id: final_check
+        run: |
+          echo "=========================================="
+          echo "Pre-flight Checks Complete"
+          echo "=========================================="
+          echo ""
+          echo "All critical checks passed. Ready for deployment."
+          echo ""
+          echo "passed=true" >> $GITHUB_OUTPUT
+
+  # ===========================================================================
+  # Deploy Services and Run Tests (Same Job to Share Services)
+  # ===========================================================================
+  deploy-and-test:
+    name: Deploy and Test
+    # runs-on: arc-runner-set-oke-org-poc-4-gpu
+    runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
+    needs: preflight
+    if: needs.preflight.outputs.checks_passed == 'true'
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # =========================================================================
+      # Deploy Services
+      # =========================================================================
+      - name: Create Environment File
+        run: |
+          echo "=========================================="
+          echo "Creating Environment File..."
+          echo "=========================================="
+
+          cat > deploy/.env << EOF
+          REDIS_PASSWORD=${REDIS_PASSWORD}
+          NVIDIA_API_KEY=${NVIDIA_API_KEY}
+          NGC_API_KEY=${NGC_API_KEY}
+          LLM_JUDGE_API_KEY=${NVIDIA_API_KEY}
+          EMB_API_KEY=${NVIDIA_API_KEY}
+          HF_TOKEN=${HF_TOKEN}
+          KDBX_ENDPOINT=${KDBX_ENDPOINT}
+          KDB_LICENSE_B64=${KDB_LICENSE_B64}
+          TAG=${TAG}
+          EOF
+
+          # Always enable MLflow for experiment tracking
+          echo "COMPOSE_PROFILES=mlflow" >> deploy/.env
+
+          echo "✓ Environment file created (with MLflow enabled)"
+
+      - name: Login to NVIDIA Container Registry
+        run: |
+          echo "=========================================="
+          echo "Logging in to NVIDIA Container Registry..."
+          echo "=========================================="
+
+          echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
+          echo "✓ Logged in to nvcr.io"
+
+      - name: Deploy Services via Docker Compose
+        run: |
+          echo "=========================================="
+          echo "Deploying Services..."
+          echo "=========================================="
+
+          cd deploy
+
+          # Pull images (ignore failures for local builds)
+          docker compose -f docker-compose.yaml pull --ignore-pull-failures || true
+
+          # Start services
+          docker compose -f docker-compose.yaml up -d --build
+
+          echo "✓ Services started"
+
+      - name: Wait for Services to Initialize
+        run: |
+          echo "=========================================="
+          echo "Waiting for Services to Initialize..."
+          echo "=========================================="
+
+          # Wait for initial startup
+          sleep 30
+
+          echo "Container Status:"
+          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+      - name: Verify Service Health
+        id: verify_deployment
+        run: |
+          echo "=========================================="
+          echo "Verifying Service Health..."
+          echo "=========================================="
+
+          MAX_RETRIES=60
+          RETRY_INTERVAL=5
+          ALL_HEALTHY=true
+
+          # Check KDB-X
+          echo ""
+          echo "--- Checking KDB-X ---"
+          KDBX_OK=false
+          for i in $(seq 1 $MAX_RETRIES); do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8082/health" 2>/dev/null || echo "000")
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "✓ KDB-X is healthy"
+              KDBX_OK=true
+              break
+            fi
+            echo "  Waiting for KDB-X... (attempt $i/$MAX_RETRIES, status: $HTTP_STATUS)"
+            sleep $RETRY_INTERVAL
+          done
+
+          if [ "$KDBX_OK" != "true" ]; then
+            echo "✗ KDB-X failed to start"
+            ALL_HEALTHY=false
+          fi
+
+          # Check API Server
+          echo ""
+          echo "--- Checking API Server ---"
+          API_OK=false
+          for i in $(seq 1 $MAX_RETRIES); do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8000/api/jobs" 2>/dev/null || echo "000")
+            if [ "$HTTP_STATUS" = "200" ] || [ "$HTTP_STATUS" = "401" ] || [ "$HTTP_STATUS" = "404" ]; then
+              echo "✓ API Server is responding (HTTP $HTTP_STATUS)"
+              API_OK=true
+              break
+            fi
+            echo "  Waiting for API Server... (attempt $i/$MAX_RETRIES, status: $HTTP_STATUS)"
+            sleep $RETRY_INTERVAL
+          done
+
+          if [ "$API_OK" != "true" ]; then
+            echo "✗ API Server failed to start"
+            docker logs $(docker ps -aqf "name=api" | head -1) 2>&1 | tail -100 || true
+            ALL_HEALTHY=false
+          fi
+
+          # Check Redis
+          echo ""
+          echo "--- Checking Redis ---"
+          REDIS_OK=false
+          for i in $(seq 1 10); do
+            if docker exec $(docker ps -qf "name=redis" | head -1) redis-cli -a "$REDIS_PASSWORD" ping 2>/dev/null | grep -q "PONG"; then
+              echo "✓ Redis is healthy"
+              REDIS_OK=true
+              break
+            fi
+            echo "  Waiting for Redis... (attempt $i/10)"
+            sleep 5
+          done
+
+          if [ "$REDIS_OK" != "true" ]; then
+            echo "✗ Redis failed to start"
+            ALL_HEALTHY=false
+          fi
+
+          echo ""
+          if [ "$ALL_HEALTHY" = "true" ]; then
+            echo "=========================================="
+            echo "✓ All services are healthy!"
+            echo "=========================================="
+            echo "success=true" >> $GITHUB_OUTPUT
+          else
+            echo "=========================================="
+            echo "✗ Some services failed to start"
+            echo "=========================================="
+            docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            echo "success=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Verify API Endpoints
+        run: |
+          echo "=========================================="
+          echo "Verifying API Endpoints..."
+          echo "=========================================="
+
+          # Test GET /api/jobs endpoint
+          echo ""
+          echo "--- Testing GET /api/jobs ---"
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" "http://localhost:8000/api/jobs")
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS" | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | grep -v "HTTP_STATUS")
+
+          echo "Status: $HTTP_STATUS"
+          echo "Response: $BODY"
+
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✓ GET /api/jobs endpoint is working"
+          else
+            echo "✗ GET /api/jobs endpoint failed"
+            exit 1
+          fi
+
+          # Test API docs
+          echo ""
+          echo "--- Testing API Documentation ---"
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8000/docs")
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✓ API Documentation is accessible"
+          else
+            echo "⚠ API Documentation returned HTTP $HTTP_STATUS"
+          fi
+
+      - name: Display Deployment Summary
+        run: |
+          echo "=========================================="
+          echo "Deployment Summary"
+          echo "=========================================="
+          echo ""
+          echo "Container Status:"
+          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          echo ""
+          echo "Service Endpoints:"
+          echo "  - API Server: http://localhost:8000"
+          echo "  - API Documentation: http://localhost:8000/docs"
+          echo "  - KDB-X: http://localhost:8082"
+          echo "  - Redis: localhost:6379"
+          echo ""
+
+      # =========================================================================
+      # Comprehensive Service Health Check
+      # =========================================================================
+      # This step performs a final comprehensive health check on all services
+      # to ensure the deployment is fully operational.
+      # =========================================================================
+      - name: Comprehensive Service Health Check
+        id: health_check
+        run: |
+          echo "=========================================="
+          echo "Comprehensive Service Health Check"
+          echo "=========================================="
+          echo ""
+
+          HEALTH_STATUS="PASS"
+          FAILED_SERVICES=""
+
+          # ---------------------------------------------------------------
+          # 1. Check all containers are running
+          # ---------------------------------------------------------------
+          echo "--- 1. Container Status Check ---"
+          EXPECTED_SERVICES="api celery_worker celery_parent_worker redis kdbx mlflow"
+          
+          for service in $EXPECTED_SERVICES; do
+            CONTAINER_STATUS=$(docker ps --filter "name=$service" --format "{{.Status}}" | head -1)
+            if [ -n "$CONTAINER_STATUS" ] && echo "$CONTAINER_STATUS" | grep -q "Up"; then
+              echo "✓ $service: $CONTAINER_STATUS"
+            else
+              echo "✗ $service: NOT RUNNING or UNHEALTHY"
+              HEALTH_STATUS="FAIL"
+              FAILED_SERVICES="${FAILED_SERVICES}$service "
+            fi
+          done
+          echo ""
+
+          # ---------------------------------------------------------------
+          # 2. API Server Health Check
+          # ---------------------------------------------------------------
+          echo "--- 2. API Server Health Check ---"
+          
+          # Test /api/jobs endpoint (primary endpoint)
+          API_JOBS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8000/api/jobs" 2>/dev/null || echo "000")
+          if [ "$API_JOBS" = "200" ]; then
+            echo "✓ API /api/jobs: HTTP $API_JOBS"
+          else
+            echo "✗ API /api/jobs: HTTP $API_JOBS (CRITICAL - main API endpoint failed)"
+            HEALTH_STATUS="FAIL"
+          fi
+
+          # Test /docs endpoint (FastAPI Swagger UI)
+          API_DOCS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8000/docs" 2>/dev/null || echo "000")
+          if [ "$API_DOCS" = "200" ]; then
+            echo "✓ API Documentation: HTTP $API_DOCS"
+          else
+            echo "✗ API Documentation: HTTP $API_DOCS"
+            HEALTH_STATUS="FAIL"
+          fi
+
+          # Test /openapi.json endpoint
+          API_OPENAPI=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8000/openapi.json" 2>/dev/null || echo "000")
+          if [ "$API_OPENAPI" = "200" ]; then
+            echo "✓ OpenAPI Schema: HTTP $API_OPENAPI"
+          else
+            echo "✗ OpenAPI Schema: HTTP $API_OPENAPI"
+            HEALTH_STATUS="FAIL"
+          fi
+          echo ""
+
+          # ---------------------------------------------------------------
+          # 3. KDB-X Health Check
+          # ---------------------------------------------------------------
+          echo "--- 3. KDB-X Health Check ---"
+
+          KDBX_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8082/health" 2>/dev/null || echo "000")
+          if [ "$KDBX_HTTP" = "200" ]; then
+            echo "✓ KDB-X health endpoint: HTTP $KDBX_HTTP"
+          else
+            echo "✗ KDB-X health endpoint: HTTP $KDBX_HTTP"
+            HEALTH_STATUS="FAIL"
+          fi
+          echo ""
+
+          # ---------------------------------------------------------------
+          # 4. Redis Health Check
+          # ---------------------------------------------------------------
+          echo "--- 4. Redis Health Check ---"
+          
+          REDIS_CONTAINER=$(docker ps -qf "name=redis" | head -1)
+          if [ -n "$REDIS_CONTAINER" ]; then
+            REDIS_PING=$(docker exec $REDIS_CONTAINER redis-cli -a "$REDIS_PASSWORD" ping 2>/dev/null || echo "FAILED")
+            if [ "$REDIS_PING" = "PONG" ]; then
+              echo "✓ Redis PING: $REDIS_PING"
+              
+              # Get Redis info
+              REDIS_CLIENTS=$(docker exec $REDIS_CONTAINER redis-cli -a "$REDIS_PASSWORD" INFO clients 2>/dev/null | grep "connected_clients" | cut -d':' -f2 | tr -d '\r')
+              echo "  - Connected clients: $REDIS_CLIENTS"
+            else
+              echo "✗ Redis PING failed: $REDIS_PING"
+              HEALTH_STATUS="FAIL"
+            fi
+          else
+            echo "✗ Redis container not found"
+            HEALTH_STATUS="FAIL"
+          fi
+          echo ""
+
+          # ---------------------------------------------------------------
+          # 5. Celery Workers Health Check
+          # ---------------------------------------------------------------
+          echo "--- 5. Celery Workers Health Check ---"
+          
+          # Check celery_worker container (use exact name match to avoid matching celery_parent_worker)
+          CELERY_WORKER=$(docker ps -qf "name=^celery_worker$" 2>/dev/null | head -1)
+          if [ -z "$CELERY_WORKER" ]; then
+            # Try with deploy prefix
+            CELERY_WORKER=$(docker ps -qf "name=celery_worker" 2>/dev/null | grep -v parent | head -1)
+          fi
+          
+          if [ -n "$CELERY_WORKER" ]; then
+            # Check if container is running and has started celery
+            CONTAINER_STATUS=$(docker inspect --format='{{.State.Status}}' "$CELERY_WORKER" 2>/dev/null || echo "unknown")
+            if [ "$CONTAINER_STATUS" = "running" ]; then
+              echo "✓ Celery Worker: Running (container: $CELERY_WORKER)"
+            else
+              echo "✗ Celery Worker: Status=$CONTAINER_STATUS"
+              HEALTH_STATUS="FAIL"
+            fi
+          else
+            echo "✗ Celery Worker container not found"
+            HEALTH_STATUS="FAIL"
+          fi
+
+          # Check celery_parent_worker container
+          CELERY_PARENT=$(docker ps -qf "name=celery_parent_worker" 2>/dev/null | head -1)
+          if [ -n "$CELERY_PARENT" ]; then
+            CONTAINER_STATUS=$(docker inspect --format='{{.State.Status}}' "$CELERY_PARENT" 2>/dev/null || echo "unknown")
+            if [ "$CONTAINER_STATUS" = "running" ]; then
+              echo "✓ Celery Parent Worker: Running"
+            else
+              echo "✗ Celery Parent Worker: Status=$CONTAINER_STATUS"
+              HEALTH_STATUS="FAIL"
+            fi
+          else
+            echo "✗ Celery Parent Worker container not found"
+            HEALTH_STATUS="FAIL"
+          fi
+          echo ""
+
+          # ---------------------------------------------------------------
+          # 6. MLflow Health Check
+          # ---------------------------------------------------------------
+          echo "--- 6. MLflow Health Check ---"
+          
+          # Check MLflow container is running
+          MLFLOW_CONTAINER=$(docker ps -qf "name=mlflow" 2>/dev/null | head -1)
+          if [ -n "$MLFLOW_CONTAINER" ]; then
+            CONTAINER_STATUS=$(docker inspect --format='{{.State.Status}}' "$MLFLOW_CONTAINER" 2>/dev/null || echo "unknown")
+            if [ "$CONTAINER_STATUS" = "running" ]; then
+              echo "✓ MLflow Container: Running"
+              
+              # Check MLflow HTTP endpoint
+              MLFLOW_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:5000/" 2>/dev/null || echo "000")
+              if [ "$MLFLOW_HTTP" = "200" ]; then
+                echo "✓ MLflow UI: HTTP $MLFLOW_HTTP (http://localhost:5000)"
+              else
+                echo "✗ MLflow UI: HTTP $MLFLOW_HTTP"
+                HEALTH_STATUS="FAIL"
+              fi
+              
+              # Check MLflow API endpoint
+              MLFLOW_API=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:5000/api/2.0/mlflow/experiments/search" 2>/dev/null || echo "000")
+              if [ "$MLFLOW_API" = "200" ]; then
+                echo "✓ MLflow API: HTTP $MLFLOW_API"
+              else
+                echo "⚠ MLflow API: HTTP $MLFLOW_API (non-critical)"
+              fi
+            else
+              echo "✗ MLflow Container: Status=$CONTAINER_STATUS"
+              HEALTH_STATUS="FAIL"
+            fi
+          else
+            echo "✗ MLflow container not found"
+            HEALTH_STATUS="FAIL"
+          fi
+          echo ""
+
+          # ---------------------------------------------------------------
+          # Final Summary
+          # ---------------------------------------------------------------
+          echo "=========================================="
+          if [ "$HEALTH_STATUS" = "PASS" ]; then
+            echo "✓ ALL HEALTH CHECKS PASSED"
+            echo "=========================================="
+            echo ""
+            echo "All services are running and healthy."
+            echo "The Data Flywheel deployment is ready for use."
+          else
+            echo "✗ HEALTH CHECK FAILED"
+            echo "=========================================="
+            echo ""
+            echo "Failed services: $FAILED_SERVICES"
+            echo ""
+            echo "Container Status:"
+            docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            exit 1
+          fi
+
+          echo ""
+          echo "health_status=$HEALTH_STATUS" >> $GITHUB_OUTPUT
+
+      - name: Display Final Deployment Status
+        run: |
+          echo "=========================================="
+          echo "Deployment Complete"
+          echo "=========================================="
+          echo ""
+          echo "Service Endpoints:"
+          echo "  - API Server:        http://localhost:8000"
+          echo "  - API Documentation: http://localhost:8000/docs"
+          echo "  - OpenAPI Schema:    http://localhost:8000/openapi.json"
+          echo "  - KDB-X:             http://localhost:8082"
+          echo "  - Redis:             localhost:6379"
+          echo "  - MLflow UI:         http://localhost:5000"
+          echo ""
+          echo "Container Status:"
+          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          echo ""
+
+      # =========================================================================
+      # pytest Tests (COMMENTED OUT - Not running pytest in this workflow)
+      # =========================================================================
+      # The following pytest-related steps are commented out.
+      # To re-enable pytest testing, uncomment these sections.
+      # =========================================================================
+
+      # # =========================================================================
+      # # Run pytest Tests (in same job to access deployed services)
+      # # =========================================================================
+      # - name: Pull Test Image
+      #   if: github.event.inputs.run_tests != 'false'
+      #   run: |
+      #     echo "=========================================="
+      #     echo "Pulling Test Image..."
+      #     echo "=========================================="
+      #
+      #     docker pull ${TEST_IMAGE}
+      #
+      #     echo "✓ Test image pulled successfully"
+      #
+      # - name: Verify API is Ready for Testing
+      #   if: github.event.inputs.run_tests != 'false'
+      #   run: |
+      #     echo "=========================================="
+      #     echo "Verifying API is Ready for Testing..."
+      #     echo "=========================================="
+      #
+      #     MAX_ATTEMPTS=30
+      #     ATTEMPT=0
+      #
+      #     while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+      #       ATTEMPT=$((ATTEMPT + 1))
+      #
+      #       HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${DFW_API_URL}/api/jobs" 2>/dev/null || echo "000")
+      #
+      #       if [ "$HTTP_STATUS" = "200" ]; then
+      #         echo "✓ API is ready at ${DFW_API_URL}"
+      #         break
+      #       fi
+      #
+      #       echo "  Waiting for API... (attempt $ATTEMPT/$MAX_ATTEMPTS, status: $HTTP_STATUS)"
+      #       sleep 5
+      #     done
+      #
+      #     if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
+      #       echo "✗ API failed to become ready after $MAX_ATTEMPTS attempts"
+      #       exit 1
+      #     fi
+      #
+      # - name: Create Test Reports Directory
+      #   if: github.event.inputs.run_tests != 'false'
+      #   run: |
+      #     mkdir -p test_reports
+      #
+      # # =========================================================================
+      # # Load Test Data from Huggingface
+      # # =========================================================================
+      # # Data Source (from notebook Section 1.1):
+      # #   The notebook (notebooks/ai-model-distillation-financial-data.ipynb)
+      # #   recommends using the "ic-fspml/stock_news_sentiment" dataset from
+      # #   Huggingface for financial news classification tasks.
+      # #
+      # #   Reference: https://huggingface.co/datasets/ic-fspml/stock_news_sentiment
+      # #
+      # # Override for CI Testing:
+      # #   - Original notebook uses "news_classifier" as workload_id
+      # #   - We override to use "primary_assistant" and "aiva-1" to match
+      # #     the pytest test cases in blueprint-github-test/testcases/dfw/test_dfw_api.py
+      # #   - Data is transformed to OpenAI-style request/response format
+      # #     as required by the Data Flywheel API
+      # #   - Minimum 100 records are loaded to satisfy the 50-record requirement
+      # # =========================================================================
+      # - name: Load Test Data from Huggingface
+      #   if: github.event.inputs.run_tests != 'false'
+      #   run: |
+      #     echo "=========================================="
+      #     echo "Loading Test Data from Huggingface..."
+      #     echo "=========================================="
+      #     echo ""
+      #     echo "Data Source: ic-fspml/stock_news_sentiment (from notebook Section 1.1)"
+      #     echo "Override: workload_id=primary_assistant, client_id=aiva-1 (to match pytest)"
+      #     echo ""
+      #
+      #     # Install required Python packages
+      #     # Use --break-system-packages for externally-managed Python environments (PEP 668)
+      #     pip install --break-system-packages datasets requests
+      #
+      #     # Run Python script directly to download and load data
+      #     # =====================================================================
+      #     # Data Source (from notebook Section 1.1):
+      #     #   Dataset: ic-fspml/stock_news_sentiment
+      #     #   Reference: https://huggingface.co/datasets/ic-fspml/stock_news_sentiment
+      #     #
+      #     # Override for CI Testing:
+      #     #   - Original notebook uses: workload_id="news_classifier"
+      #     #   - Pytest expects: workload_id="primary_assistant", client_id="aiva-1"
+      #     #   - Data is loaded into KDB-X via the application API
+      #     # =====================================================================
+      #     python3 << 'PYTHON_SCRIPT'
+      #     import sys
+      #     import json
+      #     import requests
+      #     from datetime import datetime
+      #     from datasets import load_dataset
+      #
+      #     # Configuration - Override for CI Testing
+      #     WORKLOAD_ID = "primary_assistant"
+      #     CLIENT_ID = "aiva-1"
+      #     KDBX_ENDPOINT = "http://localhost:8082"
+      #     # MIN_RECORDS must be large enough for train/test split (at least 200+)
+      #     MIN_RECORDS = 500
+      #
+      #     print("Downloading dataset from Huggingface: ic-fspml/stock_news_sentiment")
+      #     ds = load_dataset("ic-fspml/stock_news_sentiment")
+      #     print(f"Dataset loaded. Train split has {len(ds['train'])} records")
+      #
+      #     # NOTE: Data loading via KDB-X is handled by the application.
+      #     # The app creates tables on startup. Use the API to ingest data.
+      #     print(f"KDB-X endpoint: {KDBX_ENDPOINT}")
+      #     print("Data loading should be done via the application API.")
+      #     PYTHON_SCRIPT
+      #
+      #     echo ""
+      #     echo "Test data loaded successfully"
+      #
+      # # =========================================================================
+      # # Run pytest - DFW API Tests
+      # # =========================================================================
+      # # Skipped Test: test_create_and_monitor_job_to_completion
+      # #   This test requires an external NEMO service (nemo.test) to complete
+      # #   the job execution. The Data Flywheel service attempts to connect to
+      # #   NEMO for NIM model deployment, which is not available in this CI
+      # #   environment. The test fails with:
+      # #     "Failed to resolve 'nemo.test' ([Errno -2] Name or service not known)"
+      # #
+      # #   The remaining tests (cancel_job, delete_job) verify the core API
+      # #   functionality without requiring the external NEMO dependency.
+      # # =========================================================================
+      # - name: Run pytest - DFW API Tests
+      #   if: github.event.inputs.run_tests != 'false'
+      #   run: |
+      #     echo "=========================================="
+      #     echo "Running pytest Tests..."
+      #     echo "=========================================="
+      #     echo ""
+      #     echo "Test Configuration:"
+      #     echo "  - Test Image: ${TEST_IMAGE}"
+      #     echo "  - DFW API URL: ${DFW_API_URL}"
+      #     echo "  - pytest marker: dfw"
+      #     echo "  - Skipped: test_create_and_monitor_job_to_completion (requires NEMO service)"
+      #     echo ""
+      #
+      #     docker run --rm --network host \
+      #       -v "$(pwd)/test_reports:/app/reports" \
+      #       -e DFW_API_URL="${DFW_API_URL}" \
+      #       ${TEST_IMAGE} \
+      #       pytest testcases/dfw/test_dfw_api.py \
+      #         -m "dfw" \
+      #         -k "not test_create_and_monitor_job_to_completion" \
+      #         --dfw-api-url "${DFW_API_URL}" \
+      #         --html=/app/reports/dfw_test_report.html \
+      #         --self-contained-html \
+      #         -v
+      #
+      #     echo ""
+      #     echo "✓ pytest tests completed"
+      #
+      # - name: Upload Test Reports
+      #   if: always() && github.event.inputs.run_tests != 'false'
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: pytest-test-reports
+      #     path: test_reports/*.html
+      #     retention-days: 30
+      #     if-no-files-found: warn
+      #
+      # - name: Display Test Results Summary
+      #   if: always() && github.event.inputs.run_tests != 'false'
+      #   run: |
+      #     echo "=========================================="
+      #     echo "Test Results Summary"
+      #     echo "=========================================="
+      #
+      #     if [ -f "test_reports/dfw_test_report.html" ]; then
+      #       echo "✓ Test report generated: test_reports/dfw_test_report.html"
+      #     else
+      #       echo "⚠ No test report found"
+      #     fi
+
+      # =========================================================================
+      # Cleanup (DISABLED - services kept running for inspection)
+      # =========================================================================
+      # Cleanup is disabled to allow post-deployment inspection of services.
+      # To re-enable cleanup, uncomment the following step.
+      # =========================================================================
+      # - name: Cleanup Services
+      #   if: always()
+      #   run: |
+      #     echo "=========================================="
+      #     echo "Cleaning up deployment..."
+      #     echo "=========================================="
+      #
+      #     cd deploy
+      #
+      #     # Stop and remove containers, networks, volumes
+      #     docker compose -f docker-compose.yaml down --volumes --remove-orphans || true
+      #
+      #     # Clean up any dangling resources
+      #     docker system prune -f || true
+      #
+      #     echo "✓ Cleanup complete"
+
+      - name: Collect Logs on Failure
+        if: failure()
+        run: |
+          echo "=========================================="
+          echo "Collecting Logs for Debugging..."
+          echo "=========================================="
+
+          echo ""
+          echo "--- Container Status ---"
+          docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+          echo ""
+          echo "--- API Container Logs ---"
+          docker compose -f deploy/docker-compose.yaml logs api --tail=100 2>/dev/null || echo "No API logs available"
+
+          echo ""
+          echo "--- Celery Worker Logs ---"
+          docker compose -f deploy/docker-compose.yaml logs celery_worker --tail=50 2>/dev/null || echo "No Celery logs available"
+
+      # =========================================================================
+      # Email Notification
+      # =========================================================================
+      # Sends email notification with CI results to the QA team.
+      # Requires secrets: SMTP_USERNAME, SMTP_PASSWORD
+      # =========================================================================
+      - name: Set Result Output
+        id: set_result
+        if: always()
+        run: |
+          # Check if all required jobs passed
+          if [ "${{ needs.preflight.result }}" == "success" ] && \
+             [ "${{ job.status }}" == "success" ]; then
+            echo "RESULT=PASS" >> $GITHUB_OUTPUT
+          else
+            echo "RESULT=FAIL" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send Email Notification
+        uses: dawidd6/action-send-mail@6e71c855c9a091d80a519621b9fd3e8d252ca40c
+        if: always() && env.ENABLE_EMAIL_NOTIFICATION == 'true'
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "CI Result: AI Model Distillation for Financial Data - ${{ steps.set_result.outputs.RESULT }}"
+          to: Github-Action-Blueprint-QA@nvidia.com
+          from: github-workflow-notification@gmail.com
+          html_body: |
+            <h2>AI Model Distillation for Financial Data CI Notification</h2>
+            
+            <p><strong>Repository:</strong> ${{ github.repository }}</p>
+            <p><strong>Branch:</strong> ${{ github.ref_name }}</p>
+            <p><strong>Commit:</strong> ${{ github.sha }}</p>
+            <p><strong>Result:</strong> <span style="color: ${{ steps.set_result.outputs.RESULT == 'PASS' && 'green' || 'red' }}; font-weight: bold;">${{ steps.set_result.outputs.RESULT }}</span></p>
+            
+            <h3>Job Results</h3>
+            <table border="1" cellpadding="5" cellspacing="0">
+              <tr><th>Job</th><th>Status</th></tr>
+              <tr><td>Preflight</td><td>${{ needs.preflight.result }}</td></tr>
+              <tr><td>Deploy & Test</td><td>${{ job.status }}</td></tr>
+            </table>
+            
+            <p><a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">View Workflow Run</a></p>

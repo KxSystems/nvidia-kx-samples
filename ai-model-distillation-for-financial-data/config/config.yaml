@@ -1,0 +1,119 @@
+nmp_config:
+  nemo_base_url: "http://nemo.test"
+  nim_base_url: "http://nim.test"
+  datastore_base_url: "http://data-store.test"
+
+
+  # All resources created in NeMo Microservices Platform (NMP) will be namespaced to this value
+  nmp_namespace: "mdfd"
+
+# Logging configuration
+logging_config:
+  level: "INFO"  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+# MLflow configuration
+# Note: MLflow is controlled by COMPOSE_PROFILES environment variable
+# Set COMPOSE_PROFILES=mlflow to enable both the MLflow service and configuration
+mlflow_config:
+  # enabled: automatically set based on COMPOSE_PROFILES environment variable
+  tracking_uri: "http://0.0.0.0:5000"
+  experiment_name_prefix: "findistil"
+  artifact_location: "./mlruns"
+
+nims:
+  - model_name: "meta/llama-3.2-1b-instruct"
+    model_type: "llm"
+    context_length: 8192
+    gpus: 1
+    pvc_size: 25Gi
+    tag: "1.8.3"
+    customization_enabled: true
+    customizer_configs:
+      target: "meta/llama-3.2-1b-instruct@2.0"
+      gpus: 1
+      max_seq_length: 8192
+
+  - model_name: "meta/llama-3.2-3b-instruct"
+    model_type: "llm"
+    context_length: 8192
+    gpus: 1
+    pvc_size: 25Gi
+    tag: "1.8.3"
+    customization_enabled: true
+    customizer_configs:
+      target: "meta/llama-3.2-3b-instruct@2.0"
+      gpus: 1
+      max_seq_length: 8192
+
+  - model_name: "meta/llama-3.1-8b-instruct"
+    model_type: "llm"
+    context_length: 8192
+    pvc_size: 25Gi
+    tag: "1.8.3"
+    gpus: 1
+    customization_enabled: true
+    customizer_configs:
+      target: "meta/llama-3.1-8b-instruct@2.0"
+      gpus: 1
+      max_seq_length: 8192
+
+# Data split config:
+# train, val, eval split sizes and ratios
+data_split_config:
+  eval_size: 100
+  val_ratio: 0.1
+  min_total_records: 50
+  random_seed: 42
+  limit: null  # null = use all available records (ingress limit increased to 1GB)
+  parse_function_arguments: true # parse function arguments to JSON objects for tool calling records
+  stratify_enabled: true # Enable stratified splitting to maintain class balance
+  min_samples_per_class: 2 # Minimum samples required per class for stratification
+  rare_class_threshold: 1 # Group classes with <= this many samples as 'others'
+
+# Evaluation configuration
+evaluation_config:
+  # Workload type: "auto" (auto-detect), "classification", or "tool_calling"
+  # - auto: Automatically detect based on presence of tool_calls in data
+  # - classification: Force use of classification evaluation (F1 score for chat completion)
+  # - tool_calling: Force use of tool calling evaluation (function name accuracy, etc.)
+  # 
+  # NOTE: This financial data example uses classification workloads.
+  # Setting workload_type to "tool_calling" will cause the job to fail if your data
+  # doesn't contain tool_calls in the response messages.
+  workload_type: "classification"
+  
+  # For tool_calling workloads ONLY, specify which evaluation type to use:
+  # - tool-calling-metric: Use exact match metrics (function name, args)
+  # - tool-calling-judge: Use LLM-as-judge for correctness (requires llm_judge_config)
+  # NOTE: This setting is ignored for classification workloads (like this financial example)
+  tool_eval_type: "tool-calling-metric"
+
+# Market data enrichment: enrich training records with point-in-time market context
+enrichment_config:
+  enabled: true
+  sym_field: "sym"
+  timestamp_field: "timestamp"
+  sym_extraction: "field"  # "field" or "regex"
+  default_sym: "SPY"
+
+# Backtest assessment: run vectorised backtest after model assessment
+backtest_config:
+  enabled: true
+  cost_bps: 5.0
+  min_signals: 10
+
+# Training config:
+# Customization config with default values
+training_config:
+  training_type: "sft"
+  finetuning_type: "lora"
+  epochs: 1
+  batch_size: 64
+  learning_rate: 0.0001
+
+# LoRA config:
+# adapter dimension, adapter dropout, sequence packing
+lora_config:
+  adapter_dim: 16
+  adapter_dropout: 0.1
+  sequence_packing_enabled: true  # Enable sequence packing for efficient training (boolean, not string!)

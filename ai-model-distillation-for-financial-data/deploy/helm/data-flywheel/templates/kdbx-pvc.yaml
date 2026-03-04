@@ -1,0 +1,19 @@
+---
+{{- if .Values.kdbx.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.kdbx.fullnameOverride }}-pvc
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Values.kdbx.fullnameOverride }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if .Values.kdbx.persistence.storageClass }}
+  storageClassName: {{ .Values.kdbx.persistence.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.kdbx.persistence.size }}
+{{- end }}

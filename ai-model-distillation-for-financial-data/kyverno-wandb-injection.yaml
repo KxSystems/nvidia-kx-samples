@@ -1,0 +1,33 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: inject-wandb-api-key
+  annotations:
+    policies.kyverno.io/title: Inject WANDB API Key into Training Jobs
+    policies.kyverno.io/category: Other
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      This policy automatically injects the WANDB_API_KEY environment variable
+      from the wandb-api-key secret into all NeMo training job pods.
+spec:
+  rules:
+  - name: inject-wandb-env
+    match:
+      any:
+      - resources:
+          kinds:
+          - Pod
+          names:
+          - "cust-*-training-job-worker-*"
+    mutate:
+      patchStrategicMerge:
+        spec:
+          containers:
+          - (name): "*"
+            env:
+            - name: WANDB_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: wandb-api-key
+                  key: api-key
+

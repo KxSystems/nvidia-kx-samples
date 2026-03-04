@@ -1,0 +1,491 @@
+# Default values for data-flywheel.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+namespace: "nv-nvidia-blueprint-data-flywheel"
+
+# Deployment profile settings
+# - For production profile, Data Flywheel flower server is disabled
+#   For non-production profiles, Data Flywheel flower server is enabled
+# - For mlflow profile (default), COMPOSE_PROFILES is "mlflow"
+# - For non-mlflow profile, COMPOSE_PROFILES is "" (leave blank)
+profile:
+  production:
+    enabled: true
+  mlflow:
+    COMPOSE_PROFILES: "mlflow"
+
+# imagePullSecrets used for pulling candidate NIMs
+imagePullSecrets:
+  - name: nvcrimagepullsecret
+    registry: nvcr.io
+    username: $oauthtoken
+    password: ""  # Set via deploy-eks.sh or --set secrets.ngcApiKey=<key>
+# ngcApiSecret used for pulling nemo customizer and model access
+ngcApiSecret:
+  name: "ngc-api"
+  key: "NGC_API_KEY"
+# nvidiaApiSecret used for accessing remote LLM judge
+nvidiaApiSecret:
+  name: "nvidia-api"
+  key: "NVIDIA_API_KEY"
+# hfSecret used in data-flywheel server
+hfSecret:
+  name: "hf-secret"
+  key: "HF_TOKEN"
+llmJudgeSecret:
+  name: "llm-judge-api"
+  key: "LLM_JUDGE_API_KEY"
+embSecret:
+  name: "emb-api"
+  key: "EMB_API_KEY"
+
+# Secrets values - set these during deployment
+# (for example: helm install data-flywheel . \
+#   --set secrets.ngcApiKey=$NGC_API_KEY \
+#   --set secrets.hfToken=$HF_TOKEN)
+# Note: if you want not to set those via command line during helm install like above, you must create those Kubernetes secrets manually first
+secrets:
+  ngcApiKey: ""  # Set this to your NGC API key
+  nvidiaApiKey: "" # Set this to your NVIDIA API key
+  hfToken: "" # Set this to your HF Token
+  llmJudgeApiKey: "" # Set this to your LLM Judge API key
+  embApiKey: "" # Set this to your Embedding API key
+  kdbBearerToken: "" # Set this to your KDB-X registry bearer token (required for KDB-X install)
+  kdbLicenseB64: "" # Set this to your KDB license (base64-encoded)
+  kdbxUsername: "" # Set this to your KDB-X username (optional)
+  kdbxPassword: "" # Set this to your KDB-X password (optional)
+
+# volcano version which is used in the nemo-microservices-helm-chart
+volcano:
+  enabled: true
+  version: "1.9.0"
+
+# KDB-X configuration (replaces MongoDB and Elasticsearch)
+kdbx:
+  enabled: true
+  image:
+    repository: python
+    tag: "3.12-slim-bookworm"
+  fullnameOverride: "df-kdbx"
+  auth:
+    username: "" # KDB-X username (optional, leave empty to disable auth)
+    password: "" # KDB-X password (optional)
+  persistence:
+    size: "10Gi"
+    storageClass: "" # uses default storage class
+  service:
+    type: ClusterIP
+    port: 8082
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1"
+      ephemeral-storage: "5Gi"
+    limits:
+      memory: "4Gi"
+      cpu: "2"
+      ephemeral-storage: "10Gi"
+
+# Redis configuration
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: 7.2-alpine
+  fullnameOverride: "df-redis"
+  service:
+    type: ClusterIP
+    port: 6379
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+      ephemeral-storage: "2Gi"
+    limits:
+      memory: "2Gi"
+      cpu: "1"
+      ephemeral-storage: "5Gi"
+
+# Data Flywheel server configuration
+foundationalFlywheelServer:
+  image:
+    repository: nvcr.io/nvidia/blueprint/foundational-flywheel-server
+    tag: "0.3.0"
+  imagePullSecrets:
+    - name: nvcrimagepullsecret
+  # Deployments of the foundational flywheel server
+  deployments:
+    # api is the main service that handles the requests and returns the responses
+    api:
+      # api is enabled by default and must be enabled to use the flywheel server
+      enabled: true
+      fullnameOverride: "df-api"
+      service:
+        type: NodePort
+        port: 8000
+      env:
+        KDBX_ENDPOINT: "df-kdbx-service:8082"
+        REDIS_URL: "redis://df-redis-service:6379/0"
+      resources:
+        requests:
+          memory: "1Gi"
+          cpu: "1"
+          ephemeral-storage: "10Gi"
+        limits:
+          memory: "2Gi"
+          cpu: "2"
+          ephemeral-storage: "20Gi"
+      command:
+        - "uv"
+        - "run"
+        - "uvicorn"
+        - "src.app:app"
+        - "--host"
+        - "0.0.0.0"
+        - "--port"
+        - "8000"
+    # celeryWorker is the worker that handles the tasks
+    celeryWorker:
+      # celeryWorker is enabled by default and must be enabled to use the flywheel server
+      enabled: true
+      fullnameOverride: "df-celery-worker"
+      env:
+        KDBX_ENDPOINT: "df-kdbx-service:8082"
+        REDIS_URL: "redis://df-redis-service:6379/0"
+      resources:
+        requests:
+          memory: "10Gi"
+          cpu: "4"
+          ephemeral-storage: "10Gi"
+        limits:
+          memory: "20Gi"
+          cpu: "8"
+          ephemeral-storage: "20Gi"
+      command:
+        - "uv"
+        - "run"
+        - "celery"
+        - "-A"
+        - "src.tasks.cli:celery_app"
+        - "worker"
+        - "--loglevel=info"
+        - "--concurrency=50"
+        - "--queues=celery"
+        - "-n"
+        - "main_worker@%h"
+        - "--purge"
+    # celeryParentWorker is the parent worker that orchestrates the tasks to celeryWorker
+    celeryParentWorker:
+      # celeryParentWorker is enabled by default and must be enabled to use the flywheel server
+      enabled: true
+      fullnameOverride: "df-celery-parent-worker"
+      env:
+        KDBX_ENDPOINT: "df-kdbx-service:8082"
+        REDIS_URL: "redis://df-redis-service:6379/0"
+      resources:
+        requests:
+          memory: "1Gi"
+          cpu: "1"
+          ephemeral-storage: "10Gi"
+        limits:
+          memory: "2Gi"
+          cpu: "2"
+          ephemeral-storage: "20Gi"
+      command:
+        - "uv"
+        - "run"
+        - "celery"
+        - "-A"
+        - "src.tasks.cli:celery_app"
+        - "worker"
+        - "--loglevel=info"
+        - "--concurrency=1"
+        - "--queues=parent_queue"
+        - "-n"
+        - "parent_worker@%h"
+        - "--purge"
+    # mlflowServer is the server that handles the mlflow server
+    # (Check if mlflow is enabled in the section `profile.mlflow.COMPOSE_PROFILES`)
+    mlflow:
+      fullnameOverride: "df-mlflow"
+      image: ghcr.io/mlflow/mlflow:v2.22.0
+      service:
+        type: NodePort
+        port: 5000
+      resources:
+        requests:
+          memory: "1Gi"
+          cpu: "500m"
+          ephemeral-storage: "2Gi"
+        limits:
+          memory: "2Gi"
+          cpu: "2"
+          ephemeral-storage: "5Gi"
+      command:
+        - "mlflow"
+        - "server"
+        - "--host"
+        - "0.0.0.0"
+        - "--port"
+        - "5000"
+    # flower is the celery flower server that shows the celery tasks
+    # (flower is enabled when current profile is not production)
+    flower:
+      fullnameOverride: "df-flower"
+      service:
+        type: NodePort
+        port: 5555
+      env:
+        KDBX_ENDPOINT: "df-kdbx-service:8082"
+        REDIS_URL: "redis://df-redis-service:6379/0"
+      resources:
+        requests:
+          memory: "1Gi"
+          cpu: "1"
+          ephemeral-storage: "2Gi"
+        limits:
+          memory: "2Gi"
+          cpu: "2"
+          ephemeral-storage: "5Gi"
+      command:
+        - "uv"
+        - "run"
+        - "celery"
+        - "-A"
+        - "src.tasks.tasks"
+        - "flower"
+        - "--port=5555"
+  # Configuration file content of Data Flywheel to override the one in the Docker image
+  # (optionally change values according to your demand)
+  config:
+    nmp_config:
+      nemo_base_url: "http://nemo.test"
+      nim_base_url: "http://nim.test"
+      datastore_base_url: "http://data-store.test"
+
+      # All resources created in NeMo Microservices Platform (NMP) will be namespaced to this value
+      nmp_namespace: "mdfd"
+
+    # Logging configuration
+    logging_config:
+      level: "INFO"  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+    # MLflow configuration
+    # Note: MLflow is controlled by COMPOSE_PROFILES environment variable
+    # Set COMPOSE_PROFILES=mlflow to enable both the MLflow service and configuration
+    mlflow_config:
+      tracking_uri: "http://df-mlflow-service:5000"
+      experiment_name_prefix: "data-flywheel"
+      artifact_location: "./mlruns"
+
+    llm_judge_config:
+      # deployment_type: "remote"
+      # url: "http://0.0.0.0:9022/v1/chat/completions"
+      # model_name: "meta/llama-3.3-70b-instruct"
+      # To spin up a dedicated NIM in your cluster, comment the above uncomment and fill these:
+      deployment_type: "local"
+      model_name: "meta/llama-3.3-70b-instruct"
+      context_length: 32768
+      gpus: 4
+      pvc_size: 25Gi
+      tag: "1.8.5"
+
+    nims:
+      - model_name: "meta/llama-3.2-1b-instruct"
+        model_type: "llm"
+        context_length: 8192
+        gpus: 1
+        pvc_size: 25Gi
+        tag: "1.8.3"
+        customization_enabled: true
+        customizer_configs:
+          target: "meta/llama-3.2-1b-instruct@2.0"
+          gpus: 1
+          max_seq_length: 8192
+
+      # - model_name: "meta/llama-3.2-3b-instruct"
+      #   model_type: "llm"
+      #   context_length: 32768
+      #   gpus: 1
+      #   pvc_size: 25Gi
+      #   tag: "1.8.3"
+      #   customization_enabled: false
+
+      # - model_name: "meta/llama-3.1-8b-instruct"
+      #   model_type: "llm"
+      #   context_length: 32768
+      #   gpus: 1
+      #   pvc_size: 25Gi
+      #   tag: "1.8.3"
+      #   customization_enabled: true
+      #   customizer_configs:
+      #     target: "meta/llama-3.1-8b-instruct@2.0"
+      #     gpus: 1
+      #     max_seq_length: 8192
+
+      # - model_name: "meta/llama-3.3-70b-instruct"
+      #   model_type: "llm"
+      #   context_length: 32768
+      #   gpus: 4
+      #   pvc_size: 25Gi
+      #   tag: "1.8.5"
+
+    # Enrichment config:
+    # Market data features added during dataset creation
+    enrichment_config:
+      sma_windows: [5, 20]
+      rsi_period: 14
+      volatility_window: 20
+      pct_change_period: 1
+
+    # Backtest config:
+    # Vectorised backtesting via KDB-X as-of joins
+    backtest_config:
+      cost_bps: 5.0
+      min_signals: 10
+
+    # Data split config:
+    # train, val, eval split sizes and ratios
+    data_split_config:
+      eval_size: 100
+      val_ratio: 0.1
+      min_total_records: 50
+      random_seed: null
+      limit: 1000 # null means no limit
+      parse_function_arguments: true # parse function arguments to JSON objects for tool calling records
+
+    # Training config:
+    # Customization config with default values
+    training_config:
+      training_type: "sft"
+      finetuning_type: "lora"
+      epochs: 2
+      batch_size: 16
+      learning_rate: 0.0001
+
+    # LoRA config:
+    # adapter dimension, adapter dropout
+    lora_config:
+      adapter_dim: 32
+      adapter_dropout: 0.1
+
+# Nemo Microservices configuration
+nemo-microservices-helm-chart:
+  enabled: true
+
+  existingSecret: ngc-api
+  existingImagePullSecret: nvcrimagepullsecret
+
+  global:
+    security:
+      allowInsecureImages: true
+
+  data-store:
+    postgresql-ha:
+      volumePermissions:
+        image:
+          repository: bitnamilegacy/os-shell
+      metrics:
+        image:
+          repository: bitnamilegacy/postgres-exporter
+      postgresql:
+        image:
+          repository: bitnamilegacy/postgresql
+    postgresql:
+      image:
+        repository: bitnamilegacy/postgresql
+      volumePermissions:
+        image:
+          repository: bitnamilegacy/os-shell
+      metrics:
+        image:
+          repository: bitnamilegacy/postgres-exporter
+    external:
+      rootUrl: http://data-store.test
+      domain: data-store.test
+    persistence:
+      size: 2Gi
+
+  guardrails:
+    env:
+      FETCH_NIM_APP_MODELS: "True"
+    postgresql:
+      image:
+        repository: bitnamilegacy/postgresql
+      volumePermissions:
+        image:
+          repository: bitnamilegacy/os-shell
+      metrics:
+        image:
+          repository: bitnamilegacy/postgres-exporter
+
+  entity-store:
+    postgresql:
+      image:
+        repository: bitnamilegacy/postgresql
+      volumePermissions:
+        image:
+          repository: bitnamilegacy/os-shell
+      metrics:
+        image:
+          repository: bitnamilegacy/postgres-exporter
+
+  auditor:
+    postgresql:
+      image:
+        repository: bitnamilegacy/postgresql
+      volumePermissions:
+        image:
+          repository: bitnamilegacy/os-shell
+      metrics:
+        image:
+          repository: bitnamilegacy/postgres-exporter
+
+  ingress:
+    enabled: true
+
+  customizer:
+    enabled: true
+    postgresql:
+      image:
+        repository: bitnamilegacy/postgresql
+      volumePermissions:
+        image:
+          repository: bitnamilegacy/os-shell
+      metrics:
+        image:
+          repository: bitnamilegacy/postgres-exporter
+    modelsStorage:
+      storageClassName: standard
+    customizationTargets:
+      overrideExistingTargets: true
+      targets:
+        meta/llama-3.2-1b-instruct@2.0:
+          enabled: true
+        meta/llama-3.2-3b-instruct@2.0:
+          enabled: true
+        meta/llama-3.1-8b-instruct@2.0:
+          enabled: true
+    customizerConfig:
+      training:
+        pvc:
+          storageClass: "standard"
+          volumeAccessMode: "ReadWriteOnce"
+    opentelemetry-collector:
+      enabled: false
+
+  evaluator:
+    postgresql:
+      image:
+        repository: bitnamilegacy/postgresql
+      volumePermissions:
+        image:
+          repository: bitnamilegacy/os-shell
+      metrics:
+        image:
+          repository: bitnamilegacy/postgres-exporter
+
+  deployment-management:
+    deployments:
+      defaultStorageClass: standard

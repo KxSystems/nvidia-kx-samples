@@ -1,0 +1,54 @@
+##############################################################
+# example values for use with tutorial workflow and minikube #
+##############################################################
+
+existingSecret: ngc-api
+existingImagePullSecret: nvcrimagepullsecret
+
+
+data-store:
+  enabled: true
+  external:
+    rootUrl: http://data-store.test
+    domain: data-store.test
+  persistence:
+    size: 2Gi
+
+customizer:
+  enabled: true
+  env:
+    NVTE_FUSED_ATTN: "0"
+    CUDNN_LOGERR_DBG: "1"
+    CUDNN_LOGDEST_DBG: "stderr"
+  modelsStorage:
+    storageClassName: standard
+  customizationTargets:
+    overrideExistingTargets: true
+    targets:
+      meta/llama-3.2-1b-instruct@2.0:
+        enabled: true
+      meta/llama-3.2-3b-instruct@2.0:
+        enabled: true
+      meta/llama-3.1-8b-instruct@2.0:
+        enabled: true
+  customizerConfig:
+    training:
+      pvc:
+        storageClass: "standard"
+        volumeAccessMode: "ReadWriteOnce"
+
+evaluator:
+  milvus:
+    enabled: false
+
+guardrails:
+  enabled: false
+
+ingress:
+  enabled: true
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 1024m
+
+deployment-management:
+  deployments:
+    defaultStorageClass: standard

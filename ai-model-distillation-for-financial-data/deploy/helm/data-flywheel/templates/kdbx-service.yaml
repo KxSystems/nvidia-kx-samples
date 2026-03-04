@@ -1,0 +1,13 @@
+---
+{{- if .Values.kdbx.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.kdbx.fullnameOverride }}-service
+spec:
+  selector:
+    app: {{ .Values.kdbx.fullnameOverride }}-deployment
+  type: {{ .Values.kdbx.service.type }}
+  ports:
+    - port: {{ .Values.kdbx.service.port }}
+{{- end }}
