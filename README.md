@@ -11,31 +11,43 @@ This repository contains samples that highlight the combination of KX and NVIDIA
 | [NVIDIA_accelerated_RAG](NVIDIA_accelerated_RAG) | **Accelerated RAG Notebook** - Jupyter notebook demonstrating KDB.AI with NVIDIA NeMo Retriever, RAPIDS cuVS, and NIM LLMs. Shows ingestion and querying of vector embeddings with GPU acceleration. |
 | [ai-model-distillation-for-financial-data](ai-model-distillation-for-financial-data) | **AI Model Distillation for Financial Data** - Production-ready developer example demonstrating how to distill large language models into smaller, cost-efficient models for financial workloads using the NVIDIA Data Flywheel Blueprint. Built on NVIDIA NeMo Microservices and KDB-X, it shows how to fine-tune and evaluate student models for financial news classification, achieving teacher-model accuracy while reducing inference costs by up to 98%. |
 
-## Architecture Overview
-
-![NVIDIA Accelerated Multimodal RAG Architecture](./NVIDIA_accelerated_RAG/images/architecture.JPG)
 
 ## NVIDIA AI Software Stack
 
-### NeMo Retriever
+The samples in this repository leverage the following NVIDIA technologies:
 
-NeMo Retriever is part of the NVIDIA NeMo platform - a suite of AI models and tools for NLP and other AI tasks. It's a GPU-accelerated retrieval model enabling efficient and accurate information retrieval from large datasets. Key benefits include speed, accuracy, and scalability for applications like virtual assistants, search engines, and chatbots.
+### NVIDIA NIM
+
+**NVIDIA NIM (NVIDIA Inference Microservices)** optimizes and manages AI inference workloads on NVIDIA GPUs. It provides tools and APIs for deploying, managing, and optimizing AI models with high performance, scalable deployment, and enterprise-grade security. Used across all samples for serving LLMs (Llama 3.x family), embedding models, reranking models, and vision-language models.
+
+### NeMo Microservices Platform
+
+**NVIDIA NeMo Microservices** is a platform for building, customizing, and deploying enterprise AI applications. The platform includes several key components used across the samples:
+
+- **NeMo Retriever** — GPU-accelerated retrieval models enabling efficient and accurate information retrieval from large datasets. Includes embedding models (NV-EmbedQA), reranking models, document parsing NIMs (Page Elements, Table Structure, Graphic Elements, OCR), and multimodal embeddings. Used in the [RAG Blueprint](KX-nvidia-rag-blueprint), [AIQ Research Assistant](KX-AIQ-nvidia-rag-blueprint), and [Accelerated RAG](NVIDIA_accelerated_RAG) samples.
+- **NeMo Customizer** — Fine-tuning service supporting LoRA (Low-Rank Adaptation), P-tuning, and multi-GPU/multi-node training. Used in the [Accelerated RAG](NVIDIA_accelerated_RAG) and [AI Model Distillation](ai-model-distillation-for-financial-data) samples.
+- **NeMo Evaluator** — Model evaluation service for measuring metrics like F1-score across base and customized models. Used in the [AI Model Distillation](ai-model-distillation-for-financial-data) sample.
+- **NeMo Datastore** — Dataset management and versioning service. Used in the [AI Model Distillation](ai-model-distillation-for-financial-data) sample.
+- **NeMo Guardrails** — Content safety and topic control using NemoGuard NIMs. Used in the [RAG Blueprint](KX-nvidia-rag-blueprint) sample for input/output guardrails.
 
 ### NVIDIA RAPIDS, cuVS, RAFT
 
-**NVIDIA RAPIDS** is an open-source framework that accelerates data science and ML workflows using GPUs. Built on CUDA, it provides libraries for data ingestion, processing, ML, and visualization with a Python API compatible with Pandas, NumPy, and scikit-learn.
+**NVIDIA RAPIDS** is an open-source framework that accelerates data science and ML workflows using GPUs. Built on CUDA, it provides libraries (cuDF, cuML, cuGraph) for data ingestion, processing, ML, and visualization with a Python API compatible with Pandas, NumPy, and scikit-learn. Used in the [Accelerated RAG](NVIDIA_accelerated_RAG) sample.
 
-**cuVS (CUDA Vector Search)** provides GPU-accelerated vector similarity search algorithms, enabling high-performance nearest neighbor search for RAG applications.
+**cuVS (CUDA Vector Search)** provides GPU-accelerated vector similarity search algorithms, enabling high-performance nearest neighbor search. Embedded in KDB.AI for GPU-accelerated vector indexing across the RAG samples.
 
 **RAFT (Reusable Accelerated Functions and Tools)** contains CUDA-accelerated algorithms and primitives for ML and information retrieval, forming building blocks for high-performance applications.
 
-### NVIDIA NIM for LLMs
+### Technology Matrix
 
-**NVIDIA NIM (NVIDIA Inference Microservices)** optimizes and manages AI inference workloads on NVIDIA GPUs. It provides tools and APIs for deploying, managing, and optimizing AI models with high performance, scalable deployment, and enterprise-grade security.
-
-### NVIDIA NeMo Microservices
-
-**NVIDIA NeMo Microservices** is a platform for building, customizing, and deploying enterprise AI applications. It provides programmatic control over datasets, fine-tuning (NeMo Customizer), evaluation (NeMo Evaluator), and inference through NIM endpoints. Used in the [AI Model Distillation](ai-model-distillation-for-financial-data) sample for automated model distillation workflows.
+| Technology | [RAG Blueprint](KX-nvidia-rag-blueprint) | [AIQ Research Assistant](KX-AIQ-nvidia-rag-blueprint) | [Accelerated RAG](NVIDIA_accelerated_RAG) | [Model Distillation](ai-model-distillation-for-financial-data) |
+|------------|:---:|:---:|:---:|:---:|
+| NIM | ✓ | ✓ | ✓ | ✓ |
+| NeMo Retriever | ✓ | ✓ | ✓ | |
+| NeMo Customizer | | | ✓ | ✓ |
+| NeMo Evaluator | | | | ✓ |
+| NeMo Guardrails | ✓ | | | |
+| RAPIDS / cuVS | ✓ | ✓ | ✓ | |
 
 ## Setup
 
