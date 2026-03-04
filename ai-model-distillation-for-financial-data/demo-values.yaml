@@ -1,0 +1,61 @@
+##############################################################
+# example values for use with tutorial workflow and minikube #
+##############################################################
+
+existingSecret: ngc-api
+existingImagePullSecret: nvcrimagepullsecret
+data-store:
+  enabled: true
+  external:
+    rootUrl: http://data-store.test
+    domain: data-store.test
+  persistence:
+    size: 2Gi
+customizer:
+  enabled: true
+  modelsStorage:
+    storageClassName: standard
+  customizationTargets:
+    overrideExistingTargets: true
+    targets:
+      meta/llama-3.2-1b-instruct@2.0:
+        enabled: true
+      meta/llama-3.2-3b-instruct@2.0:
+        enabled: true
+      meta/llama-3.1-8b-instruct@2.0:
+        enabled: true
+  # WandB secret configuration for customizer subchart
+  wandb:
+    secretValue: "" # Clear default value to use existingSecret instead
+    existingSecret: "wandb-api-key"
+    existingSecretKey: "api-key"
+  customizerConfig:
+    training:
+      pvc:
+        storageClass: "standard"
+        volumeAccessMode: "ReadWriteOnce"
+      # Configure training container with WANDB environment variables
+      # Following NVIDIA NeMo documentation - container_defaults only supports direct values, not valueFrom
+      # WANDB_API_KEY will be automatically injected by deploy-nmp.sh if set in ~/.env
+      container_defaults:
+        env:
+          - name: WANDB_BASE_URL
+            value: "https://api.wandb.ai"
+
+    # Weights & Biases configuration
+    # If wandb-api-key secret exists, training metrics will be logged to W&B
+    wandb:
+      entity: null # Optional: set your W&B team/username
+      project: "ai-model-distillation-financial"
+evaluator:
+  milvus:
+    enabled: false
+guardrails:
+  enabled: false
+ingress:
+  enabled: true
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 1024m
+deployment-management:
+  deployments:
+    defaultStorageClass: standard

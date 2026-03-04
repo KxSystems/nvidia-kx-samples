@@ -1,0 +1,164 @@
+services:
+
+  api:
+    image: nvcr.io/nvidia/blueprint/foundational-flywheel-server:${TAG:-0.3.0}
+    build:
+      context: ..
+      dockerfile: ./deploy/Dockerfile
+      target: dev
+    ports:
+      - "8000:8000"
+    environment:
+      - KDBX_ENDPOINT=localhost:8082
+      - KDBX_USERNAME=${KDBX_USERNAME:-}
+      - KDBX_PASSWORD=${KDBX_PASSWORD:-}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@localhost:6379/0
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
+      - LLM_JUDGE_API_KEY=${LLM_JUDGE_API_KEY:-${NVIDIA_API_KEY}}
+      - EMB_API_KEY=${EMB_API_KEY:-${NVIDIA_API_KEY}}
+      - COMPOSE_PROFILES=${COMPOSE_PROFILES}
+    volumes:
+      - ./src:/app/src  # Mount the src directory for hot reloading
+    command: ["uv", "run", "uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "8000"]
+    network_mode: host
+    restart: always
+    depends_on:
+      kdbx:
+        condition: service_started
+      redis:
+        condition: service_started
+
+  celery_worker:
+    image: nvcr.io/nvidia/blueprint/foundational-flywheel-server:${TAG:-0.3.0}
+    build:
+      context: ..
+      dockerfile: ./deploy/Dockerfile
+      target: dev
+    environment:
+      - KDBX_ENDPOINT=localhost:8082
+      - KDBX_USERNAME=${KDBX_USERNAME:-}
+      - KDBX_PASSWORD=${KDBX_PASSWORD:-}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@localhost:6379/0
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
+      - LLM_JUDGE_API_KEY=${LLM_JUDGE_API_KEY:-${NVIDIA_API_KEY}}
+      - EMB_API_KEY=${EMB_API_KEY:-${NVIDIA_API_KEY}}
+      - COMPOSE_PROFILES=${COMPOSE_PROFILES}
+    network_mode: host
+    volumes:
+      - ./src:/app/src  # Mount the src directory for hot reloading
+    command: ["uv", "run", "celery", "-A", "src.tasks.cli:celery_app", "worker", "--loglevel=info", "--concurrency=50", "--queues=celery", "-n", "main_worker@%h", "--purge"]
+
+    restart: always
+    depends_on:
+      kdbx:
+        condition: service_started
+      redis:
+        condition: service_started
+
+
+  celery_parent_worker:
+    image: nvcr.io/nvidia/blueprint/foundational-flywheel-server:${TAG:-0.3.0}
+    build:
+      context: ..
+      dockerfile: ./deploy/Dockerfile
+      target: dev
+    environment:
+      - KDBX_ENDPOINT=localhost:8082
+      - KDBX_USERNAME=${KDBX_USERNAME:-}
+      - KDBX_PASSWORD=${KDBX_PASSWORD:-}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@localhost:6379/0
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
+      - LLM_JUDGE_API_KEY=${LLM_JUDGE_API_KEY:-${NVIDIA_API_KEY}}
+      - EMB_API_KEY=${EMB_API_KEY:-${NVIDIA_API_KEY}}
+      - COMPOSE_PROFILES=${COMPOSE_PROFILES}
+    network_mode: host
+    volumes:
+      - ./src:/app/src  # Mount the src directory for hot reloading
+    command: ["uv", "run", "celery", "-A", "src.tasks.cli:celery_app", "worker", "--loglevel=info", "--concurrency=1", "--queues=parent_queue", "-n", "parent_worker@%h", "--purge"]
+
+    restart: always
+    depends_on:
+      kdbx:
+        condition: service_started
+      redis:
+        condition: service_started
+
+
+  # Datastores
+  # - Redis is the Celery broker and result backend
+  # - KDB-X is the unified database and vector store
+  redis:
+    image: redis:7.2-alpine
+    ports:
+      - "6379:6379"  # Bind to localhost only
+    volumes:
+      - redis-data:/data
+    command: sh -c 'if [ -n "$$REDIS_PASSWORD" ]; then redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"; else redis-server --appendonly yes; fi'
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    restart: always
+
+  kdbx:
+    image: python:3.12-slim-bookworm
+    container_name: kdbx
+    ports:
+      - "8082:8082"
+    volumes:
+      - kdbx-data:/opt/kx/data
+    environment:
+      - KDB_BEARER_TOKEN=${KDBAI_REGISTRY_TOKEN:?KDBAI_REGISTRY_TOKEN is required for KDB-X installation}
+      - KDB_LICENSE_B64=${KDB_LICENSE_B64:-}
+      - KDBX_USERNAME=${KDBX_USERNAME:-}
+      - KDBX_PASSWORD=${KDBX_PASSWORD:-}
+      - TERM=xterm
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        set -e
+        echo "=== Installing KDB-X at runtime ==="
+        apt-get update && apt-get install -y --no-install-recommends curl ca-certificates libssl-dev unzip
+
+        echo "=== Downloading KDB-X installer ==="
+        cd /tmp
+        curl -sLO --oauth2-bearer "$${KDB_BEARER_TOKEN}" \
+          https://portal.dl.kx.com/assets/raw/kdb-x/install_kdb/~latest~/install_kdb.sh
+        chmod +x install_kdb.sh
+
+        echo "=== Installing KDB-X ==="
+        export HOME=/opt/kx
+        mkdir -p /opt/kx
+        ./install_kdb.sh -y --b64lic "$${KDB_LICENSE_B64}" 2>&1
+        rm -f install_kdb.sh
+
+        echo "=== Starting KDB-X on port 8082 ==="
+        export QHOME="/opt/kx/.kx"
+        export QLIC="/opt/kx/.kx"
+        export PATH="/opt/kx/.kx/bin:$$PATH"
+
+        # KDB-X provides table storage and native HNSW vector search
+        # via the .ai module.  Module is loaded on-demand by es_adapter.py.
+        q -p 8082
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8082/ || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  # MLflow service - only starts when mlflow profile is enabled
+  mlflow:
+    profiles: ["mlflow"]
+    image: ghcr.io/mlflow/mlflow:v2.22.0
+    command: mlflow server --host 0.0.0.0 --port 5000
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-data:/mlruns  # Persistent storage for artifacts
+    restart: always
+
+volumes:
+  kdbx-data:
+  redis-data:
+  mlflow-data:

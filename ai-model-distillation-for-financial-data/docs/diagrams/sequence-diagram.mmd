@@ -1,0 +1,336 @@
+sequenceDiagram
+    %% =========================================================
+    %% Data Flywheel - End-to-End Workflow Sequence Diagram
+    %% =========================================================
+
+    actor User
+    participant API as FastAPI<br/>(endpoints.py)
+    participant SVC as JobService<br/>(job_service.py)
+    participant Redis as Redis<br/>(Celery Broker)
+    participant PW as Parent Worker<br/>(parent_queue)
+    participant CW as Celery Worker<br/>(default queue)
+    participant DBM as TaskDBManager<br/>(db_manager.py)
+    participant Compat as KDBXCollection<br/>(compat.py)
+    participant KDBX as KDB-X<br/>(port 8082)
+    participant DMS as NeMo DMS<br/>(Deployment Mgmt)
+    participant NIM as NIM<br/>(Inference)
+    participant Eval as NeMo Evaluator
+    participant Cust as NeMo Customizer
+    participant DS as NeMo Datastore
+    participant HNSW as HNSW Index<br/>(es_adapter.py)
+    participant MLflow as MLflow
+
+    %% ===========================================
+    %% WORKFLOW 1: JOB CREATION
+    %% ===========================================
+    rect rgb(230, 245, 255)
+    Note over User, MLflow: Workflow 1 - Job Creation
+    User ->>+ API: POST /api/jobs<br/>workload_id, client_id
+    API ->> API: Build FlywheelRun(status=PENDING)
+    API ->>+ Compat: db.flywheel_runs.insert_one(run)
+    Compat ->>+ KDBX: flywheel_runs insert col1 col2!(v0 v1)
+    KDBX -->>- Compat: inserted_id
+    Compat -->>- API: InsertOneResult
+    API ->>+ Redis: run_nim_workflow_dag.delay(...)
+    Redis -->>- API: task_id
+    API -->>- User: id, status: queued
+    end
+
+    %% ===========================================
+    %% WORKFLOW 2: FLYWHEEL PIPELINE DAG
+    %% ===========================================
+    rect rgb(235, 255, 235)
+    Note over User, MLflow: Workflow 2 - Flywheel Pipeline (Parent Worker orchestrates)
+    Redis ->>+ PW: run_nim_workflow_dag
+
+    %% --- Stage 1: Initialize ---
+    rect rgb(255, 250, 230)
+    Note over PW, KDBX: Stage 1 - initialize_workflow
+    PW ->>+ CW: initialize_workflow.delay()
+    CW ->> DBM: check_cancellation(run_id)
+    DBM ->> Compat: flywheel_runs.find_one(_id)
+    Compat ->> KDBX: select from flywheel_runs where ...
+    KDBX -->> Compat: run record
+    Compat -->> DBM: FlywheelRun
+    CW ->> DBM: update status to RUNNING
+    DBM ->> Compat: flywheel_runs.update_one(status: RUNNING)
+    Compat ->> KDBX: update status from flywheel_runs where ...
+    loop For each NIM in config
+        CW ->> DBM: Insert NIMRun(status=PENDING)
+        DBM ->> Compat: nims.insert_one(nim_run)
+        Compat ->> KDBX: nims insert ...
+    end
+    CW -->>- PW: TaskResult workload_id, run_id, nims
+    end
+
+    %% --- Stage 2: Create Datasets ---
+    rect rgb(255, 245, 235)
+    Note over PW, DS: Stage 2 - create_datasets
+    PW ->>+ CW: create_datasets.delay()
+    CW ->> DBM: get_records(client_id, workload_id)
+    DBM ->> Compat: flywheel_logs.find(workload_id, client_id)
+    Compat ->> KDBX: select from flywheel_logs where ...
+    KDBX -->> Compat: training records
+    Compat -->> DBM: records[]
+
+    opt enrichment_config.enabled
+        CW ->> KDBX: enrich_training_pairs_batch()<br/>join with market_ticks table
+        KDBX -->> CW: enriched records
+        CW ->> DBM: update flywheel_runs.enrichment_stats
+    end
+
+    CW ->> CW: identify_workload_type()<br/>split train/eval sets
+    CW ->>+ DS: DataUploader.upload(train_dataset)
+    DS -->>- CW: nmp_uri (train)
+    CW ->>+ DS: DataUploader.upload(eval_dataset)
+    DS -->>- CW: nmp_uri (eval)
+    CW ->> DBM: update flywheel_runs.datasets
+    CW -->>- PW: TaskResult datasets, workload_type
+    end
+
+    %% --- Stage 3: LLM Judge ---
+    rect rgb(245, 235, 255)
+    Note over PW, NIM: Stage 3 - wait_for_llm_as_judge (tool-calling only)
+    PW ->>+ CW: wait_for_llm_as_judge.delay()
+    alt llm_judge_config is remote
+        CW ->> CW: Validate remote endpoint reachable
+    else llm_judge_config is local
+        CW ->>+ DMS: deploy_model(judge_nim)
+        DMS -->>- CW: deployment_id
+        loop Poll until READY
+            CW ->> DMS: get_deployment_status()
+            CW ->> DBM: check_cancellation()
+        end
+        loop Poll until model synced
+            CW ->> NIM: GET /v1/models
+        end
+    end
+    CW ->> DBM: update llm_judge_runs.deployment_status
+    CW -->>- PW: TaskResult
+    end
+
+    %% --- Stage 4: Per-NIM Pipeline ---
+    rect rgb(255, 240, 240)
+    Note over PW, MLflow: Stage 4 - Per-NIM Pipeline (repeated for each NIM)
+
+    %% 4a: Spin up NIM
+    rect rgb(255, 250, 245)
+    Note over CW, NIM: 4a - spin_up_nim
+    PW ->>+ CW: spin_up_nim.delay(nim_config)
+    CW ->>+ DMS: POST /v1/deployment/model-deployments
+    DMS -->>- CW: deployment created
+    loop Poll every 5s until READY
+        CW ->> DMS: GET deployment status
+        CW ->> DBM: check_cancellation()
+    end
+    CW ->> DBM: update nims.deployment_status = READY
+    loop Poll every 30s until model synced
+        CW ->>+ NIM: GET /v1/models
+        NIM -->>- CW: model list
+        CW ->> DBM: check_cancellation()
+    end
+    CW ->> DBM: update nims.status = RUNNING
+    CW -->>- PW: TaskResult nim
+    end
+
+    %% 4b/4c/4d: Parallel group
+    par Base Evaluation
+        rect rgb(245, 250, 255)
+        Note over CW, MLflow: 4b - run_base_eval
+        PW ->>+ CW: run_base_eval.delay()
+        CW ->> DBM: Insert NIMEvaluation(eval_type=BASE)
+        CW ->>+ Eval: POST /v1/evaluation/jobs<br/>dataset, model, metrics
+        Eval -->>- CW: eval_job_id
+        loop Poll every 5s until COMPLETED
+            CW ->>+ Eval: GET /v1/evaluation/jobs/id
+            Eval -->>- CW: status, progress
+            CW ->> DBM: update evaluations.progress
+            CW ->> DBM: check_cancellation()
+        end
+        CW ->>+ Eval: GET /v1/evaluation/jobs/id/results
+        Eval -->>- CW: scores (f1, accuracy, etc.)
+        CW ->> DBM: update evaluations.scores
+        opt MLflow enabled
+            CW ->> MLflow: upload_evaluation_results()
+        end
+        CW -->>- PW: TaskResult evaluations
+        end
+
+    and Backtest Assessment
+        rect rgb(250, 255, 245)
+        Note over CW, KDBX: 4c - run_backtest_assessment
+        PW ->>+ CW: run_backtest_assessment.delay()
+        CW ->> KDBX: count signals for model_id
+        alt signals >= min_signals
+            CW ->> KDBX: run_backtest(model_id, cost_bps)<br/>Sharpe, drawdown, return, win_rate
+            KDBX -->> CW: backtest scores
+            CW ->> DBM: update evaluations.scores
+        else signals < min_signals
+            CW ->> DBM: update evaluations (skipped)
+        end
+        CW -->>- PW: TaskResult
+        end
+
+    and Customization Chain
+        rect rgb(255, 245, 250)
+        Note over CW, Cust: 4d - start_customization then run_customization_eval
+
+        %% Customization
+        PW ->>+ CW: start_customization.delay()
+        CW ->> DBM: Insert NIMCustomization
+        CW ->>+ Cust: start_training_job()<br/>train_dataset, LoRA config
+        Cust -->>- CW: customization_job_id
+        loop Poll until COMPLETED
+            CW ->>+ Cust: get_job_status()
+            Cust -->>- CW: status, epochs, steps
+            CW ->> DBM: update customizations progress
+            CW ->> DBM: check_cancellation()
+        end
+        loop Poll until fine-tuned model synced
+            CW ->>+ NIM: GET /v1/models
+            NIM -->>- CW: model list (includes fine-tuned)
+        end
+        CW ->> DBM: update customizations.customized_model
+        CW -->>- PW: TaskResult customization
+
+        %% Post-customization eval
+        PW ->>+ CW: run_customization_eval.delay()
+        CW ->> DBM: Insert NIMEvaluation(eval_type=CUSTOMIZED)
+        CW ->>+ Eval: POST /v1/evaluation/jobs<br/>dataset, fine-tuned model
+        Eval -->>- CW: eval_job_id
+        loop Poll until COMPLETED
+            CW ->> Eval: GET /v1/evaluation/jobs/id
+            CW ->> DBM: check_cancellation()
+        end
+        CW ->> Eval: GET /v1/evaluation/jobs/id/results
+        CW ->> DBM: update evaluations.scores
+        opt MLflow enabled
+            CW ->> MLflow: upload_evaluation_results()
+        end
+        CW -->>- PW: TaskResult evaluations
+        end
+    end
+
+    %% 4e: Shutdown NIM
+    rect rgb(250, 248, 245)
+    Note over CW, DMS: 4f - shutdown_deployment
+    PW ->>+ CW: shutdown_deployment.delay()
+    CW ->> DBM: update nims.status = COMPLETED
+    CW ->>+ DMS: DELETE /v1/deployment/model-deployments
+    DMS -->>- CW: shutdown confirmed
+    CW -->>- PW: TaskResult
+    end
+
+    end
+
+    %% --- Stage 5: Finalize ---
+    rect rgb(240, 250, 240)
+    Note over PW, KDBX: Stage 5 - finalize_flywheel_run
+    PW ->>+ CW: finalize_flywheel_run.delay()
+    CW ->> CW: sleep(60s) allow k8s pod cleanup
+    CW ->> DBM: mark_flywheel_run_completed()
+    DBM ->> Compat: update status=COMPLETED, finished_at=now()
+    Compat ->> KDBX: update from flywheel_runs where ...
+    CW -->>- PW: TaskResult status COMPLETED
+    end
+
+    PW -->>- Redis: DAG complete
+    end
+
+    %% ===========================================
+    %% WORKFLOW 3: JOB CANCELLATION
+    %% ===========================================
+    rect rgb(255, 235, 235)
+    Note over User, MLflow: Workflow 3 - Job Cancellation
+    User ->>+ API: POST /api/jobs/id/cancel
+    API ->>+ SVC: cancel_job(id)
+    SVC ->> DBM: get_flywheel_run(id)
+    DBM ->> Compat: flywheel_runs.find_one()
+    Compat ->> KDBX: select from flywheel_runs
+    KDBX -->> Compat: run (finished_at=None)
+    SVC ->> Redis: cancel_job_resources.delay(id)
+    SVC -->>- API: status cancelling
+    API -->>- User: JobCancelResponse
+
+    Redis ->>+ CW: cancel_job_resources
+    CW ->> DBM: mark_flywheel_run_cancelled()
+    DBM ->> Compat: update status=CANCELLED, finished_at=now()
+    Compat ->> KDBX: update from flywheel_runs where ...
+    Note over CW, KDBX: Running tasks detect cancellation<br/>via check_cancellation() on next poll
+    CW -->>- Redis: done
+    end
+
+    %% ===========================================
+    %% WORKFLOW 4: JOB DELETION
+    %% ===========================================
+    rect rgb(255, 245, 230)
+    Note over User, MLflow: Workflow 4 - Job Deletion (after completion/cancellation)
+    User ->>+ API: DELETE /api/jobs/id
+    API ->>+ SVC: delete_job(id)
+    SVC ->> Redis: delete_job_resources.delay(id)
+    SVC -->>- API: status deleting
+    API -->>- User: JobDeleteResponse
+
+    Redis ->>+ CW: delete_job_resources
+    loop For each NIM in job
+        CW ->>+ Cust: delete_customized_model()
+        Cust -->>- CW: ok
+        CW ->>+ Eval: delete_evaluation_job()
+        Eval -->>- CW: ok
+    end
+    opt MLflow enabled
+        CW ->> MLflow: delete_experiment()
+    end
+    loop For each dataset
+        CW ->>+ DS: delete_dataset() + unregister_dataset()
+        DS -->>- CW: ok
+    end
+    CW ->> DBM: delete_job_records(id)
+    DBM ->> Compat: delete from evaluations, customizations,<br/>nims, llm_judge_runs, flywheel_runs
+    Compat ->> KDBX: delete from table where ...
+    CW -->>- Redis: done
+    end
+
+    %% ===========================================
+    %% WORKFLOW 5: VECTOR SEARCH (ES ADAPTER)
+    %% ===========================================
+    rect rgb(245, 240, 255)
+    Note over User, MLflow: Workflow 5 - Embedding Indexing and Vector Search
+    Note over CW, HNSW: Index Embeddings
+    CW ->>+ HNSW: index_embeddings_to_es(index, vectors, records)
+    HNSW ->> KDBX: insert into flywheel_embeddings
+    HNSW ->> KDBX: .ai.hnsw.put build native HNSW index
+    HNSW -->>- CW: indexed
+
+    Note over CW, HNSW: Search Similar
+    CW ->>+ HNSW: search_similar_embeddings(index, query_vec, k)
+    HNSW ->> KDBX: .ai.hnsw.search cosine similarity top-k
+    KDBX -->> HNSW: scores, indices
+    HNSW ->> KDBX: select records by indices
+    KDBX -->> HNSW: matching records
+    HNSW -->>- CW: (score, tool_name, record) tuples
+    end
+
+    %% ===========================================
+    %% WORKFLOW 6: DATA EXPLORER & ANALYTICS
+    %% ===========================================
+    rect rgb(240, 255, 250)
+    Note over User, MLflow: Workflow 6 - Data Explorer and Financial Analytics
+    User ->>+ API: GET /api/data/table?limit=50
+    API ->> DBM: db.table.find(limit=50)
+    DBM ->> Compat: collection.find()
+    Compat ->> KDBX: select[50] from table
+    KDBX -->> Compat: rows
+    Compat -->> API: records[]
+    API -->>- User: data, total
+
+    User ->>+ API: GET /api/data/schema
+    API ->> KDBX: meta each table
+    KDBX -->> API: column types per table
+    API -->>- User: tables with column schemas
+
+    User ->>+ API: POST /api/backtest<br/>model_id, cost_bps
+    API ->> KDBX: run_backtest(model_id, cost_bps)
+    KDBX -->> API: sharpe, max_drawdown, total_return
+    API -->>- User: BacktestResponse
+    end

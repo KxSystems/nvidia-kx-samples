@@ -1,0 +1,15 @@
+---
+# Patches NeMo Evaluator's _custom_json_serializer to handle datetime objects.
+# Upstream bug: evaluator/jobs/custom.py only serializes Pydantic models,
+# causing "Object of type datetime is not JSON serializable" when dumping task_logs.
+# This ConfigMap is mounted over the original file via evaluator.volumes/volumeMounts.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: evaluator-datetime-patch
+  labels:
+    app.kubernetes.io/component: evaluator-patch
+    app.kubernetes.io/part-of: data-flywheel
+data:
+  custom.py: |
+{{ .Files.Get "files/evaluator-custom-patched.py" | indent 4 }}

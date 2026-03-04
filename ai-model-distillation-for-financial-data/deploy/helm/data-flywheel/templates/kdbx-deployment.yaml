@@ -1,0 +1,99 @@
+---
+{{- if .Values.kdbx.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.kdbx.fullnameOverride }}-deployment
+  labels:
+    app: {{ .Values.kdbx.fullnameOverride }}-deployment
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: {{ .Values.kdbx.fullnameOverride }}-deployment
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.kdbx.fullnameOverride }}-deployment
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: kdbx
+          image: "{{ .Values.kdbx.image.repository }}:{{ .Values.kdbx.image.tag }}"
+          imagePullPolicy: Always
+          resources:
+            {{- toYaml .Values.kdbx.resources | nindent 12 }}
+          ports:
+            - containerPort: {{ .Values.kdbx.service.port }}
+          env:
+            - name: KDB_BEARER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: kdbx-registry
+                  key: KDB_BEARER_TOKEN
+            - name: KDB_LICENSE_B64
+              valueFrom:
+                secretKeyRef:
+                  name: kdbx-license
+                  key: KDB_LICENSE_B64
+                  optional: true
+            - name: KDBX_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: kdbx-auth
+                  key: KDBX_USERNAME
+                  optional: true
+            - name: KDBX_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kdbx-auth
+                  key: KDBX_PASSWORD
+                  optional: true
+            - name: TERM
+              value: "xterm"
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              echo "=== Installing KDB-X at runtime ==="
+              apt-get update && apt-get install -y --no-install-recommends curl ca-certificates libssl-dev unzip
+
+              echo "=== Downloading KDB-X installer ==="
+              cd /tmp
+              curl -sLO --oauth2-bearer "$KDB_BEARER_TOKEN" \
+                https://portal.dl.kx.com/assets/raw/kdb-x/install_kdb/~latest~/install_kdb.sh
+              chmod +x install_kdb.sh
+
+              echo "=== Installing KDB-X ==="
+              export HOME=/opt/kx
+              mkdir -p /opt/kx
+              ./install_kdb.sh -y --b64lic "$KDB_LICENSE_B64" 2>&1
+              rm -f install_kdb.sh
+
+              echo "=== Starting KDB-X on port {{ .Values.kdbx.service.port }} ==="
+              export QHOME="/opt/kx/.kx"
+              export QLIC="/opt/kx/.kx"
+              export PATH="/opt/kx/.kx/bin:$PATH"
+
+              q -p {{ .Values.kdbx.service.port }}
+          volumeMounts:
+            - name: kdbx-data
+              mountPath: /opt/kx/data
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.kdbx.service.port }}
+            initialDelaySeconds: 120
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.kdbx.service.port }}
+            initialDelaySeconds: 90
+            periodSeconds: 5
+      volumes:
+        - name: kdbx-data
+          persistentVolumeClaim:
+            claimName: {{ .Values.kdbx.fullnameOverride }}-pvc
+{{- end }}

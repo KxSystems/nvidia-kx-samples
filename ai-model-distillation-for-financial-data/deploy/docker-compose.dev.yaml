@@ -1,0 +1,21 @@
+services:
+  flower:
+    image: nvcr.io/nvidia/blueprint/foundational-flywheel-server:${TAG:-0.3.0}
+    build:
+      context: ..
+      dockerfile: ./deploy/Dockerfile
+      target: dev
+    ports:
+      - "5555:5555"
+    env_file:
+      - .env
+    environment:
+      - KDBX_ENDPOINT=localhost:8082
+      - KDBX_USERNAME=${KDBX_USERNAME:-}
+      - KDBX_PASSWORD=${KDBX_PASSWORD:-}
+      - REDIS_URL=redis://redis:6379/0
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
+      - LLM_JUDGE_API_KEY=${LLM_JUDGE_API_KEY:-${NVIDIA_API_KEY}}
+      - EMB_API_KEY=${EMB_API_KEY:-${NVIDIA_API_KEY}}
+    command: ["uv", "run", "celery", "-A", "src.tasks.tasks", "flower", "--port=5555"]
+    restart: always
