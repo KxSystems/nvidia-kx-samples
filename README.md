@@ -9,6 +9,7 @@ This repository contains samples that highlight the combination of KX and NVIDIA
 | [KX-nvidia-rag-blueprint](KX-nvidia-rag-blueprint) | **NVIDIA RAG Blueprint with KDB.AI** - Enterprise-ready RAG solution combining NVIDIA NIM microservices with KDB.AI vector database. Features multimodal document ingestion, GPU-accelerated search, React frontend, and multiple deployment options (Docker Compose, Kubernetes, EKS). |
 | [KX-AIQ-nvidia-rag-blueprint](KX-AIQ-nvidia-rag-blueprint) | **AI-Q Research Assistant with KDB-X** - Deep research assistant that creates detailed reports using on-premise data and web search. Includes KDB-X financial data integration for real-time and historical time-series analysis. Pre-built Docker images available on KX Portal. |
 | [NVIDIA_accelerated_RAG](NVIDIA_accelerated_RAG) | **Accelerated RAG Notebook** - Jupyter notebook demonstrating KDB.AI with NVIDIA NeMo Retriever, RAPIDS cuVS, and NIM LLMs. Shows ingestion and querying of vector embeddings with GPU acceleration. |
+| [ai-model-distillation-for-financial-data](ai-model-distillation-for-financial-data) | **AI Model Distillation for Financial Data** - Production-ready developer example demonstrating how to distill large language models into smaller, cost-efficient models for financial workloads using the NVIDIA Data Flywheel Blueprint. Built on NVIDIA NeMo Microservices and KDB-X, it shows how to fine-tune and evaluate student models for financial news classification, achieving teacher-model accuracy while reducing inference costs by up to 98%. |
 
 ## Architecture Overview
 
@@ -32,6 +33,10 @@ NeMo Retriever is part of the NVIDIA NeMo platform - a suite of AI models and to
 
 **NVIDIA NIM (NVIDIA Inference Microservices)** optimizes and manages AI inference workloads on NVIDIA GPUs. It provides tools and APIs for deploying, managing, and optimizing AI models with high performance, scalable deployment, and enterprise-grade security.
 
+### NVIDIA NeMo Microservices
+
+**NVIDIA NeMo Microservices** is a platform for building, customizing, and deploying enterprise AI applications. It provides programmatic control over datasets, fine-tuning (NeMo Customizer), evaluation (NeMo Evaluator), and inference through NIM endpoints. Used in the [AI Model Distillation](ai-model-distillation-for-financial-data) sample for automated model distillation workflows.
+
 ## Setup
 
 Each sample has its own setup instructions in its respective directory:
@@ -39,6 +44,7 @@ Each sample has its own setup instructions in its respective directory:
 - [KX-nvidia-rag-blueprint Setup](KX-nvidia-rag-blueprint/docs/change-vectordb-kdbai.md)
 - [KX-AIQ-nvidia-rag-blueprint Setup](KX-AIQ-nvidia-rag-blueprint/README.md#aiq-kx-quick-start)
 - [NVIDIA_accelerated_RAG Setup](NVIDIA_accelerated_RAG/README.md#setup)
+- [AI Model Distillation for Financial Data Setup](ai-model-distillation-for-financial-data/docs/02-quickstart.md)
 
 ## Dataset Disclaimer
 
