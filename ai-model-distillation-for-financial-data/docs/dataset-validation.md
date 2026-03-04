@@ -106,11 +106,12 @@ If any of these checks fail, the validation stops with a descriptive error messa
 
 The validator checks for a complete OpenAI format structure:
 
-- Top-level: `request`, `response`, `workload_id`, `client_id` fields
+- Top-level: `request` and `response` fields
 - Request: Must have `messages` list with valid message objects
 - Response: Must have `choices` list with valid choice objects
 - Each message: Must have `role` and appropriate content fields
-- Each choice: Must have `message` with either `content` or `tool_calls`
+- Each choice: Must have `message` field
+- **Tool Properties Limit**: If tools are present, tool function parameter definitions are limited to a maximum of 8 properties (workaround for known NIM bug)
 
 ### 3. Quality Filters
 
@@ -118,10 +119,9 @@ Based on workload type:
 
 #### Tool Calling Workloads
 
-- Record must have tool calls in response
-- **Tool Properties Limit**: Tool function parameter definitions are limited to a maximum of 8 properties (for known NIM bug)
+- Record must have tool calls in response with `type: "function"`
 - Function arguments must be valid JSON
-- Arguments are parsed from strings to JSON objects
+- Arguments are parsed from strings to JSON objects (when `parse_function_arguments` is enabled)
 
 #### Generic Workloads
 
@@ -131,8 +131,8 @@ Based on workload type:
 
 Removes duplicate records based on user queries:
 
-- Handles both string and multimodal content
-- Creates unique keys from user messages
+- Creates unique keys from the text `content` of user messages only
+- Non-textual or multimodal content is not currently hashed or compared
 
 ### 5. Final Selection
 
@@ -170,7 +170,7 @@ The validator implements the following logic based on the `limit` parameter from
 When there are insufficient records:
 
 ```sh
-Insufficient valid records. Found {deduplicated} but need {limit}.
+Insufficient valid records. Found {deduplicated} but need {min_records}.
 Total records: {total}, valid OpenAI format: {valid_openai}, 
 after quality filters: {quality_filtered}.
 Please provide more valid records.
@@ -187,7 +187,10 @@ data_split_config:
   min_total_records: 50
   random_seed: null
   limit: 1000
-  parse_function_arguments: True
+  parse_function_arguments: true
+  stratify_enabled: true
+  min_samples_per_class: 2
+  rare_class_threshold: 1
 ```
 
 ## Implementation Details
@@ -210,13 +213,14 @@ The validation is implemented in two classes:
 ```python
 from src.lib.integration.data_validator import DataValidator
 from src.api.models import WorkloadClassification
+from src.config import DataSplitConfig
 
 validator = DataValidator()
+split_config = DataSplitConfig(limit=1000, min_total_records=50)
 validated_records = validator.validate_records(
     records=raw_records,
     workload_type=WorkloadClassification.GENERIC,
-    limit=1000,
-    min_total_records=50
+    split_config=split_config,
 )
 ```
 

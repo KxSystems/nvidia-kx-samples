@@ -1,3 +1,20 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 KX Systems, Inc. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 # KDB-X Architecture — Data Flywheel Blueprint
 
 ## Overview
@@ -8,7 +25,7 @@ The Data Flywheel Blueprint replaces MongoDB and Elasticsearch with a single KDB
 
 ```
                          ┌──────────────────────────────────────────┐
-                         │          EKS Cluster (rag-dev)           │
+                         │            EKS Cluster                    │
                          │    ns: nv-nvidia-blueprint-data-flywheel │
 ┌───────────┐            │                                          │
 │  Client   │───NLB──────┤►  df-api (FastAPI :8000)                 │
@@ -41,7 +58,7 @@ The Data Flywheel Blueprint replaces MongoDB and Elasticsearch with a single KDB
                          │  │  │ │ backtest_results │   │ │         │
                          │  │  │ └──────────────────┘   │ │ search  │
                          │  │  └────────────────────────┘ │         │
-                         │  │  PVC: 50Gi (kdbai-storage)  │         │
+                         │  │  PVC: 10Gi (kdbx-storage)   │         │
                          │  └─────────────────────────────┘         │
                          │                                          │
                          │  ┌──────────┐  ┌──────────────────┐      │
@@ -74,7 +91,7 @@ The Data Flywheel Blueprint replaces MongoDB and Elasticsearch with a single KDB
 | **Vector Search** | Elasticsearch `dense_vector` | KDB-X native HNSW via `.ai.hnsw` module (`kdbx.es_adapter`) |
 | **Connection** | `pymongo.MongoClient` + `elasticsearch.Elasticsearch` | `pykx.SyncQConnection` (single IPC) |
 | **Data Services** | 3 (MongoDB, Elasticsearch, Redis) | 2 (KDB-X, Redis) |
-| **PVCs** | 2 (MongoDB + Elasticsearch) | 1 (KDB-X, 50Gi) |
+| **PVCs** | 2 (MongoDB + Elasticsearch) | 1 (KDB-X, 10Gi default) |
 | **Memory Footprint** | ~6Gi (Mongo 2Gi + ES 4Gi) | ~4Gi (KDB-X) |
 
 ## Python Adapter Layers
@@ -101,9 +118,11 @@ Replaces Elasticsearch for vector search:
 
 ### `kdbx/enrichment.py` — Market Data Enrichment
 
-Extracts ticker symbols from flywheel log records and enriches them with financial features:
-- `extract_sym_from_record(record)` — parses ticker from request messages
-- Features: SMA (configurable windows), RSI, rolling volatility, percent change
+Enriches training records with point-in-time market context using KDB-X as-of joins (`aj`):
+- `enrich_training_pair(record, sym, timestamp)` — single-record enrichment
+- `enrich_training_pairs_batch(records)` — batch enrichment in a single `aj` call
+- `extract_sym_from_record(record, config)` — parses ticker from request messages (field or regex strategy)
+- Features added: close, vwap, high, low, volume (from `market_ticks`) + bid_price, ask_price, spread, mid (from `order_book`)
 - Used during `create_datasets` to add market context to training pairs
 
 ### `kdbx/backtest.py` — Vectorised Backtesting Engine
@@ -168,13 +187,13 @@ Data is persisted to a 50Gi EBS volume (`kdbai-storage` StorageClass, gp3).
 
 5. **Single service**: One KDB-X instance handles both document storage (replacing MongoDB) and vector search (replacing Elasticsearch), reducing operational complexity.
 
-6. **Remote LLM Judge**: Uses NVIDIA API (`meta/llama-3.3-70b-instruct`) instead of local 4-GPU NIM — the cluster has single-GPU nodes (g5.2xlarge), insufficient for a 70B model.
+6. **Remote LLM Judge**: Uses NVIDIA API (`meta/llama-3.3-70b-instruct`) instead of deploying a local 70B NIM — avoids dedicating GPU resources to the judge model.
 
 ## Phase 3 — Enrichment + Backtest Pipeline
 
 Phase 3 integrates financial analytics into the flywheel DAG:
 
-1. **Market-data enrichment** in `create_datasets` — adds SMA, RSI, volatility, percent-change features to training records
+1. **Market-data enrichment** in `create_datasets` — uses `aj` (as-of join) to add point-in-time OHLCV + order book features (close, vwap, high, low, volume, bid, ask, spread, mid) to training records
 2. **Backtest assessment** — new Celery task (`run_backtest_assessment`) wired after customization eval, producing `backtest-eval` evaluations with Sharpe/drawdown/return metrics
 3. **New API endpoints** — `POST /api/backtest` (ad-hoc) and `GET /api/market-status` (table stats)
 4. **`enrichment_stats`** — persisted on `flywheel_runs`, surfaced in job detail responses

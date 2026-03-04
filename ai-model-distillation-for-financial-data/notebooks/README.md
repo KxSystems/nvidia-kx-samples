@@ -46,9 +46,9 @@ First, please ensure your platform meets the [Requirements](https://docs.nvidia.
 1. Clone the blueprint repository:
 
    ```sh
-   git clone git@github.com:NVIDIA-AI-Blueprints/ai-model-distillation-for-financial-data.git
+   git clone git@github.com:KxSystems/nvidia-kx-samples.git
 
-   cd ai-model-distillation-for-financial-data
+   cd nvidia-kx-samples/ai-model-distillation-for-financial-data
    ```
 
 2. Install dependencies using [uv](https://docs.astral.sh/uv/getting-started/installation/):

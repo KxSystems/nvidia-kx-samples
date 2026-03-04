@@ -66,6 +66,7 @@ deploy/helm/data-flywheel/
 │   ├── celeryParentWorker-deployment.yaml  # Main worker
 │   ├── celeryWorker-deployment.yaml        # Additional workers
 │   ├── dfw-configmap.yaml        # Configuration management
+│   ├── evaluator-datetime-patch-configmap.yaml  # NeMo Evaluator patch
 │   ├── secrets.yaml              # Sensitive data management
 │   ├── flower-deployment.yaml    # Task monitoring UI
 │   ├── flower-service.yaml       # Flower service
@@ -83,7 +84,7 @@ deploy/helm/data-flywheel/
 
 ### Production Configuration
 
-**Source**: `deploy/helm/data-flywheel/values.yaml:1-505`
+**Source**: `deploy/helm/data-flywheel/values.yaml:1-491`
 
 #### Core Production Settings
 
@@ -114,6 +115,12 @@ secrets:
   ngcApiKey: ""  # Set this to your NGC API key
   nvidiaApiKey: "" # Set this to your NVIDIA API key
   hfToken: "" # Set this to your HF token
+  llmJudgeApiKey: "" # Set this to your LLM Judge API key
+  embApiKey: "" # Set this to your Embedding API key
+  kdbBearerToken: "" # Set this to your KDB-X registry bearer token (required for KDB-X install)
+  kdbLicenseB64: "" # Set this to your KDB license (base64-encoded)
+  kdbxUsername: "" # Set this to your KDB-X username (optional)
+  kdbxPassword: "" # Set this to your KDB-X password (optional)
 ```
 
 #### Default Configuration (from `values.yaml`)

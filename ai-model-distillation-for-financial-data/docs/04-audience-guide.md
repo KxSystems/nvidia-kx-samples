@@ -36,7 +36,7 @@ Different stakeholders engage with the developer example at different layers. Us
 ## For Researchers / ML Engineers
 
 - **What you get**:
-  - Auto-generated evaluation datasets (base, ICL, fine-tune) from live traffic.
+  - Auto-generated evaluation and fine-tuning datasets from live traffic.
   - One-click comparative evaluation across many NIMs.
   - Fine-tuning jobs (LoRA) with sensible defaults.
 - **How to Drill Deeper**:
@@ -60,7 +60,6 @@ Different stakeholders engage with the developer example at different layers. Us
   | Log prompt & completion text | Yes | | Essential for training data |
   | Include `workload_id` | Yes | | Critical for data partitioning |
   | Include `client_id` | Yes | | Required for job identification |
-  | Add long-form `description` | | Yes | Recommended for better insights |
   | Record latency, tokens_in/out | | Yes | Useful for performance analysis |
 
 > **For complete implementation guide:** See [Data Logging for AI Apps](data-logging.md)

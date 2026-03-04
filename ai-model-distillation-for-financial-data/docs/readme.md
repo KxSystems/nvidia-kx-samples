@@ -45,7 +45,7 @@ Welcome to the AI Model Distillation for Financial Data developer example docume
 
 ### For DevOps & Platform Teams
 - **Start here:** [Production Deployment](10-production-deployment.md)
-- **Installation:** [Helm Installation](11-helm-installation.md)
+- **Installation:** [Helm Installation](11-helm-installation.md) or [EKS Deployment](eks-deployment-guide.md)
 - **Operations:** [Scripts Guide](scripts.md)
 - **Troubleshooting:** [FAQ & Troubleshooting](faq-troubleshooting.md)
 
@@ -58,6 +58,7 @@ Welcome to the AI Model Distillation for Financial Data developer example docume
 |----------|---------|--------------|
 | **[Quickstart](02-quickstart.md)** | End-to-end setup guide | First time setup, demos |
 | **[Architecture Overview](01-architecture.md)** | High-level system design | Understanding components |
+| **[KDB-X Value Proposition](kdbx-value-proposition.md)** | Why KDB-X as the data platform | Understanding the data layer choice |
 | **[Audience Guide](04-audience-guide.md)** | Role-specific guidance | Finding your starting point |
 
 ### Configuration & Setup  
@@ -72,6 +73,7 @@ Welcome to the AI Model Distillation for Financial Data developer example docume
 |----------|---------|--------------|
 | **[Evaluation Types and Metrics](06-evaluation-types-and-metrics.md)** | Understanding results | Interpreting model performance |
 | **[Financial Backtesting](financial-backtesting.md)** | Why NLP accuracy isn't enough | Understanding financial validation of model signals |
+| **[KDB-X Architecture](KDB-X-Architecture.md)** | Data layer internals and design | Understanding KDB-X schema, compat shim, vector search |
 | **[Task Orchestration](08-workflow-orchestration.md)** | Workflow internals | Debugging, customizing workflows |
 | **[NeMo Platform Integration](09-nemo-platform-integration.md)** | Advanced NeMo features | Deep NeMo customization |
 
@@ -80,6 +82,8 @@ Welcome to the AI Model Distillation for Financial Data developer example docume
 |----------|---------|--------------|
 | **[Production Deployment](10-production-deployment.md)** | Kubernetes production setup | Production deployments |
 | **[Helm Installation](11-helm-installation.md)** | Helm chart deployment | Kubernetes with Helm |
+| **[EKS Deployment](eks-deployment-guide.md)** | Amazon EKS with GPU nodes | EKS-specific deployment |
+| **[LoRA Model Extraction](12-lora-model-extraction.md)** | Extract and deploy fine-tuned LoRA models | Using models outside the developer example |
 | **[Scripts Guide](scripts.md)** | Utility scripts reference | Development, maintenance |
 
 ### Reference & Troubleshooting
@@ -151,7 +155,7 @@ graph TD
 
 ## 🤝 Getting Help
 
-- **GitHub Issues:** [Report bugs or request features](https://github.com/NVIDIA-AI-Blueprints/ai-model-distillation-for-financial-data/issues)
+- **GitHub Issues:** [Report bugs or request features](https://github.com/KxSystems/nvidia-kx-samples/issues)
 - **Documentation Issues:** Found something unclear? Let us know!
 - **Community:** Join discussions and share experiences
 

@@ -21,7 +21,7 @@ nmp_config:
   nemo_base_url: "http://nemo.test"     # Development endpoint
   nim_base_url: "http://nim.test"       # Development endpoint
   datastore_base_url: "http://data-store.test"  # Development endpoint
-  nmp_namespace: "dfwbp"
+  nmp_namespace: "mdfd"
 ```
 
 **Production Configuration Example**:

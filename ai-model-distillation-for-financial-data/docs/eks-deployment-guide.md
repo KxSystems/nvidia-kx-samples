@@ -309,7 +309,7 @@ Port-forward KDB-X and run the data loaders:
 kubectl port-forward svc/df-kdbx-service 8082:8082 -n nv-nvidia-blueprint-data-flywheel &
 
 # Load FinGPT sentiment dataset
-PYTHONPATH=. python src/scripts/load_test_data.py fingpt_sentiment_1k.jsonl news_sentiment fingpt-1k
+PYTHONPATH=. python src/scripts/load_test_data.py --file fingpt_sentiment_1k.jsonl --workload-id news_sentiment --client-id fingpt-1k
 
 # Load market data (OHLCV + order book)
 PYTHONPATH=. python -c "
@@ -334,13 +334,14 @@ curl -X POST "http://${API_LB}:8000/api/jobs" \
 
 1. **initialize_workflow** — Creates flywheel run record
 2. **create_datasets** — Enriches records with market context via KDB-X `aj`, splits into eval (20) and train
-3. **spin_up_nim** — Deploys Llama 3.2 1B via NIM (~3 min)
-4. **run_base_eval** — Evaluates base model (F1 score)
-5. **run_backtest_assessment** — Vectorised backtest via KDB-X `aj` (Sharpe, drawdown, win rate)
-6. **start_customization** — LoRA fine-tuning via NeMo Customizer (~6 min)
-7. **run_customization_eval** — Evaluates fine-tuned model
-8. **shutdown_deployment** — Removes NIM deployment
-9. **finalize** — Marks run as complete
+3. **wait_for_llm_as_judge** — Deploys or connects to the LLM judge model
+4. **spin_up_nim** — Deploys Llama 3.2 1B via NIM (~3 min)
+5. **In parallel:**
+   - **run_base_eval** — Evaluates base model (F1 score)
+   - **run_backtest_assessment** — Vectorised backtest via KDB-X `aj` (Sharpe, drawdown, win rate)
+   - **start_customization → run_customization_eval** — LoRA fine-tuning via NeMo Customizer (~6 min), then evaluates fine-tuned model
+6. **shutdown_deployment** — Removes NIM deployment
+7. **finalize** — Marks run as complete
 
 Total runtime: ~10-15 minutes.
 

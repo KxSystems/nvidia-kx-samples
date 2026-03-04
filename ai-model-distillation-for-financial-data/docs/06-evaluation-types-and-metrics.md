@@ -7,13 +7,12 @@ The system compares the performance of student models with and without customiza
 - **Student Model**: The smaller, more efficient model being trained/evaluated (e.g., Llama 3.2 1B, Llama 3.2 3B)
 - **Teacher Model**: The larger, more capable model that generated the production responses used as ground truth
 - **Base Evaluation**: Testing the student model before any customization (zero-shot)
-- **ICL Evaluation**: Testing the student model with in-context learning examples (few-shot) but no fine-tuning
 - **Customized Evaluation**: Testing the student model after fine-tuning with LoRA
 - **F1-Score**: The primary metric measuring how well the student model's responses match the teacher model's responses
 
 ## Evaluation Types
 
-The system supports four evaluation types:
+The system supports three evaluation types:
 
 ### Base Evaluation (`base-eval`)
 
@@ -27,46 +26,6 @@ Base evaluation tests the student model on a held-out evaluation dataset sampled
 - **Purpose:** Establishes baseline performance before customization
 
 > **Note:** The model receives only the `request.messages` as input and generates its own response, which is then compared against the ground truth for F1-score calculation.
-
-### ICL Evaluation (`icl-eval`)
-
-**Few-shot F1-score evaluation of student model with in-context learning examples**
-
-ICL (In-Context Learning) evaluation tests the student model's ability to leverage a few-shot context -- a small number of example Q&A pairs are injected into the system message of each prompt, simulating a "few-shot" learning scenario. The ICL examples are retrieved from KDB-X.
-
-- **Dataset:** ICL-augmented evaluation set (each test example has a configurable number of ICL examples injected into its system message)
-- **Model:** Student model (no fine-tuning)
-- **Context:** Few-shot (ICL) examples, controlled by `icl_config` in `config.yaml`
-- **Metric:** F1-score
-- **Purpose:** Measures how well the student model can adapt when given a few relevant examples, simulating real-world prompt engineering or agentic use cases
-
-**Example:**
-
-```json
-{
-  "request": {
-    "messages": [
-      {
-        "role": "system",
-        "content": "You are a helpful assistant that can answer questions and help with tasks.\nHere are some examples of how you should respond to different types of requests:\n\nFor example, if the conversation looks like this:\nuser: What is the sentiment of this earnings call?\n\nThen you'll respond with:\nassistant: The sentiment is bullish based on revenue guidance and margin expansion.\n\nFor example, if the conversation looks like this:\nuser: Summarise the key risk factors.\n\nThen you'll respond with:\nassistant: Key risks include rising interest rates, supply chain disruptions, and regulatory uncertainty."
-      },
-      {"role": "user", "content": "What is the outlook for next quarter?"}
-    ]
-  },
-  "response": {
-    "choices": [
-      {
-        "message": {
-          "role": "assistant",
-          "content": "The outlook is cautiously optimistic, with management guiding for 8-10% revenue growth."
-        }
-      }
-    ]
-  }
-}
-```
-
-> **Note:** ICL examples are injected into the system message as formatted instructional text. The model receives the `request.messages` (including the system message with examples) as input, and its response is compared against the ground truth for F1-score calculation.
 
 ### Customized Evaluation (`customized-eval`)
 
@@ -85,7 +44,7 @@ Customized evaluation tests the fine-tuned version of the student model on the s
 
 **Financial-grade evaluation of model trading signals**
 
-Backtest evaluation runs a vectorised backtest in KDB-X using as-of joins (`aj`) to measure the financial performance of a model's trading signals. This evaluation is only triggered when the enrichment pipeline produces market data.
+Backtest evaluation runs a vectorised backtest in KDB-X using as-of joins (`aj`) to measure the financial performance of a model's trading signals. This evaluation runs when `backtest_config.enabled` is true and the model has at least `min_signals` signals in the `signals` table.
 
 - **Dataset:** Trading signals generated during the flywheel run, joined against `market_ticks` for entry/exit prices
 - **Model:** The NIM model whose signals are being evaluated
@@ -128,6 +87,6 @@ Scores range from 0 to 1, where:
 
 ## Evaluation Results Format
 
-Evaluation results are returned in a consistent structure. Each result includes metadata (such as evaluation type, timestamps, and progress) and a `scores` dictionary containing the F1-score metric.
+Evaluation results are returned in a consistent structure. Each result includes metadata (such as evaluation type, timestamps, and progress) and a `scores` dictionary containing the relevant metrics — F1-score for base/customized evaluations, or financial metrics (Sharpe, drawdown, return, win rate) for backtest evaluations.
 
 

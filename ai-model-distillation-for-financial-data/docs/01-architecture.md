@@ -55,10 +55,13 @@ sequenceDiagram
 
     loop For each NIM
         Worker ->> dms: Spin up NIM
-        Worker ->> customizer: Fine tune NIM
 
-        Worker->> eval: Base evaluation
-        Worker->> eval: Customization eval
+        par Parallel evaluation
+            Worker->> eval: Base evaluation
+            Worker->> eval: Backtest assessment
+            Worker ->> customizer: Fine tune NIM
+            Worker->> eval: Customization eval
+        end
 
         Worker->>API: Work
     end
@@ -118,11 +121,11 @@ The `CleanupManager` automatically activates during worker shutdown and performs
 
 1. **Detects running resources**: Finds all jobs with `PENDING` or `RUNNING` status
 2. **Identifies active NIMs**: Locates all NVIDIA Inference Microservices with `RUNNING` deployment status
-3. **Cancels running jobs**: 
-   - Cancels active customization jobs through NeMo Customizer
-4. **Shuts down deployments**: 
-   - Stops all running NIM deployments via NeMo Deployment Manager
-5. **Updates database state**: Marks all resources as `CANCELLED` with appropriate timestamps and error messages
+3. **Cancels running jobs**: Cancels active customization jobs through NeMo Customizer
+4. **Shuts down deployments**: Stops all running NIM deployments via NeMo Deployment Manager
+5. **Shuts down LLM judge**: Stops the LLM judge deployment if running
+6. **Deletes customization configs**: Removes customization target configs for all NIMs in settings
+7. **Updates database state**: Marks all resources as `CANCELLED` with appropriate timestamps and error messages
 
 ### When Automatic Cleanup Triggers
 

@@ -1,3 +1,20 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 KX Systems, Inc. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 # KDB-X Integration — Value Proposition
 
 ## 1. Consolidated Infrastructure (3 Databases → 1)
@@ -22,7 +39,7 @@ Replaced Elasticsearch's approximate kNN with KDB-X's **native HNSW** via the `.
 This is the real differentiator. KDB-X is purpose-built for financial data:
 
 - **Backtesting** — q can compute Sharpe ratio, max drawdown, win rate, and PnL curves in microseconds over tick-level data. The blueprint now has a `/api/backtest` endpoint powered by native q analytics.
-- **Market data enrichment** — Training pairs can be joined with `market_ticks` using `aj` (asof join) to enrich prompts with real-time price context at inference time.
+- **Market data enrichment** — Training pairs can be joined with `market_ticks` using `aj` (asof join) to enrich training records with point-in-time price context at the time the event occurred.
 - **Time-series AI** — `.ai.tss.search` for pattern matching, `.ai.dtw.distance` for dynamic time warping, `.ai.anomaly.detect` — all available natively for financial signal analysis.
 
 ## 4. Performance at Scale

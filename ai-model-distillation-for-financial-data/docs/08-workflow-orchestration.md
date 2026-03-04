@@ -13,10 +13,10 @@ graph TD
     A[Initialize Workflow] --> B[Create Datasets + Enrich]
     B --> C[Deploy NIM]
     C --> D[Run Base Evaluations]
-    D --> E[Start Customization]
+    C --> E[Start Customization]
+    C --> F2[Run Backtest Assessment]
     E --> F[Run Customization Eval]
-    F --> F2[Run Backtest Assessment]
-    F2 --> G[Shutdown Deployments]
+    D & F & F2 --> G[Shutdown Deployments]
     G --> H[Finalize Results]
 ```
 
@@ -25,7 +25,7 @@ graph TD
 ### 1. **`initialize_workflow`**
 **Purpose**: Sets up the job run, validates configuration, and prepares the job for execution.
 
-**Source**: `src/tasks/tasks.py:104`
+**Source**: `src/tasks/tasks.py:105`
 
 **Key Operations**:
 - Validates workload_id and client_id
@@ -46,7 +46,7 @@ run_nim_workflow_dag.delay(
 ### 2. **`create_datasets`** (with enrichment)
 **Purpose**: Extracts data from KDB-X, creates training/evaluation datasets, and enriches training records with market-data features.
 
-**Source**: `src/tasks/tasks.py:185`
+**Source**: `src/tasks/tasks.py:195`
 
 **Key Operations**:
 - Queries KDB-X for logged interactions
@@ -163,42 +163,10 @@ The developer example supports two methods for selecting in-context learning exa
     - Value of 1.0 disables coverage-based selection entirely
 - **Requirements**: Requires `similarity_config` with `embedding_nim_config`
 
-#### Embedding NIM Workflow Integration
-
-When using `semantic_similarity` with `deployment_type: "local"`, the workflow includes embedding NIM lifecycle management:
-
-**Workflow Chain** (`src/tasks/tasks.py:1107-1118`):
-```python
-if (
-    icl_config.example_selection == "semantic_similarity"
-    and icl_config.similarity_config.embedding_nim_config.deployment_type == "local"
-):
-    dataset_workflow = chain(
-        spin_up_nim.s(embedding_nim_config),  # Deploy embedding NIM
-        create_datasets.s()                   # Create datasets + cleanup
-    )
-else:
-    dataset_workflow = create_datasets.s()    # Direct dataset creation
-```
-
-**Embedding NIM Lifecycle**:
-
-1. **Spin-Up** (`spin_up_nim` task): Deploys embedding NIM and waits for readiness
-2. **Processing** (`create_datasets` task):
-   - Generates embeddings of training dataset in batches of 32
-   - Creates HNSW similarity index in KDB-X via the native AI module
-   - For each record in evaluation dataset; performs vector search and example selection
-3. **Spin-Down** (`create_datasets` finally block): Drops the HNSW index and shuts down embedding NIM
-
-**Performance Impact**:
-- Adds ~2-5 minutes for embedding NIM deployment
-- Batch processing optimizes embedding generation
-- Guaranteed cleanup prevents resource leaks
-
 ### 3. **`spin_up_nim`**
 **Purpose**: Deploys a NIM model and waits for readiness
 
-**Source**: `src/tasks/tasks.py:342`
+**Source**: `src/tasks/tasks.py:383`
 
 **Key Operations**:
 - Deploys NIM with specified configuration
@@ -211,7 +179,7 @@ else:
 ### 4. **`run_base_eval`**
 **Purpose**: Runs evaluations against deployed NIMs using F1-score metrics.
 
-**Source**: `src/tasks/tasks.py:474`
+**Source**: `src/tasks/tasks.py:511`
 
 **Key Operations**:
 - Executes base evaluations on held-out test data
@@ -224,7 +192,7 @@ else:
 ### 5. **`start_customization`**
 **Purpose**: Initiates fine-tuning of candidate models using production data.
 
-**Source**: `src/tasks/tasks.py:727`
+**Source**: `src/tasks/tasks.py:764`
 
 **Key Operations**:
 - Creates customization jobs in NeMo Customizer
@@ -232,7 +200,7 @@ else:
 - Monitors training progress
 - Handles training failures and retries
 
-**Dependencies**: None (runs in parallel with `run_base_eval`)
+**Dependencies**: `spin_up_nim` (runs in parallel with `run_base_eval` and `run_backtest_assessment`)
 
 **Customization Features**:
 - **LoRA Fine-tuning**: Parameter-efficient training
@@ -242,7 +210,7 @@ else:
 ### 6. **`run_customization_eval`**
 **Purpose**: Evaluates fine-tuned models against base evaluation datasets using F1-score metrics.
 
-**Source**: `src/tasks/tasks.py:874`
+**Source**: `src/tasks/tasks.py:911`
 
 **Key Operations**:
 - Deploys customized models
@@ -254,7 +222,7 @@ else:
 ### 7. **`run_backtest_assessment`**
 **Purpose**: Evaluates the model's trading signals using a vectorised KDB-X backtest.
 
-**Source**: `src/tasks/tasks.py`
+**Source**: `src/tasks/tasks.py:962`
 
 **Key Operations**:
 - Checks if signals exist for the model in the `signals` table
@@ -263,24 +231,24 @@ else:
 - Stores backtest evaluation results (Sharpe, drawdown, win rate, etc.) in the `evaluations` table with `eval_type="backtest-eval"`
 - Configurable: `cost_bps` (transaction cost), `min_signals` threshold
 
-**Dependencies**: `run_customization_eval`
+**Dependencies**: `spin_up_nim` (runs in parallel with `run_base_eval` and `start_customization`)
 
 ### 8. **`shutdown_deployment`**
 **Purpose**: Gracefully shuts down NIM deployments to free resources.
 
-**Source**: `src/tasks/tasks.py:925`
+**Source**: `src/tasks/tasks.py:1064`
 
 **Key Operations**:
 - Marks the NIM as completed by updating deployment status in database
 - Stops the NIM deployments
 - Preserves evaluation results and model artifacts
 
-**Dependencies**: `run_backtest_assessment`
+**Dependencies**: All parallel tasks (`run_base_eval`, `run_backtest_assessment`, `run_customization_eval`) must complete
 
 ### 9. **`finalize_flywheel_run`**
 **Purpose**: Aggregates results and marks the job as complete.
 
-**Source**: `src/tasks/tasks.py:1004`
+**Source**: `src/tasks/tasks.py:1143`
 
 **Key Operations**:
 - Updates job status to `COMPLETED`
@@ -309,7 +277,7 @@ stateDiagram-v2
 
 ### Cancellation Mechanism
 
-**Source**: `src/lib/flywheel/cancellation.py:1-47`
+**Source**: `src/lib/flywheel/cancellation.py:1-46`
 
 The flywheel implements **graceful cancellation** with automatic resource cleanup:
 
@@ -409,7 +377,7 @@ logger.error(f"Task failed: {error_message}")
 ```python
 # Check data quality via KDB-X
 import pykx as kx
-with kx.SyncQConnection(host="localhost", port=5000) as conn:
+with kx.SyncQConnection(host="localhost", port=8082) as conn:
     print(conn("select count i from flywheel_data"))
 
 # Validate data format by loading via the API
@@ -469,11 +437,11 @@ cleanup.cleanup_all_running_resources()
 ```python
 # Find orphaned resources via KDB-X
 import pykx as kx
-with kx.SyncQConnection(host="localhost", port=5000) as conn:
+with kx.SyncQConnection(host="localhost", port=8082) as conn:
     orphaned = conn("select from nims where status=`running, not flywheel_run_id in exec _id from flywheel_runs where status=`running")
 
 # Reset stuck jobs
-with kx.SyncQConnection(host="localhost", port=5000) as conn:
+with kx.SyncQConnection(host="localhost", port=8082) as conn:
     conn("update status:`failed, error:`$\"Timeout recovery\" from `flywheel_runs where status=`running, started_at<cutoff_time")
 ```
 

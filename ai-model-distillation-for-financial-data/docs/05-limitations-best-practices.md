@@ -14,8 +14,8 @@ The following simplified example results surface the `llama-3.2-1b-instruct-ft-1
     "model_name": "llama-3.2-1b-instruct-ft-1",
     "evaluations": [
       {
-        "eval_type": "accuracy",
-        "scores": { "score": 0.92 },
+        "eval_type": "base-eval",
+        "scores": { "f1_score": 0.92 },
         "progress": 100.0
       }
     ]
@@ -24,8 +24,8 @@ The following simplified example results surface the `llama-3.2-1b-instruct-ft-1
     "model_name": "llama-3.2-1b-instruct-ft-2",
     "evaluations": [
       {
-        "eval_type": "accuracy",
-        "scores": { "score": 0.78 },
+        "eval_type": "base-eval",
+        "scores": { "f1_score": 0.78 },
         "progress": 100.0
       }
     ]
@@ -101,12 +101,11 @@ Always retain the results of previous jobs, including evaluation metrics and mod
 - The system tracks job runs and results in persistent storage (KDB-X tables such as `flywheel_runs`).
 - Keeping a record of past results supports root cause analysis and informed rollback decisions if needed.
 
-### Tune `data_split_config` and `icl_config` as You Learn Workload Characteristics
+### Tune `data_split_config` as You Learn Workload Characteristics
 
-This developer example provides configuration options to control how data is partitioned and how in-context learning (ICL) is performed:
+This developer example provides configuration options to control how data is partitioned:
 
-- `data_split_config` controls the partitioning of data into evaluation, training, and validation sets using **class-aware stratified splitting**. Adjust `eval_size`, `val_ratio`, and `min_total_records` to match your workload's size and diversity.
-- `icl_config` manages ICL parameters such as `max_context_length`, `reserved_tokens`, and the number of ICL examples. Tune these to optimize for your model's capabilities and the complexity of your tasks.
+- `data_split_config` controls the partitioning of data into evaluation, training, and validation sets using **class-aware stratified splitting**. Adjust `eval_size`, `val_ratio`, `min_total_records`, and `stratify_enabled` to match your workload's size and diversity.
 - Monitor the impact of these settings on evaluation outcomes and iterate as you gather more data about your workloads.
 - Refer to the configuration files and code (`src/config.py`, `src/tasks/tasks.py`, and `src/lib/flywheel/util.py`) for details on how these parameters are used in practice.
 
@@ -126,11 +125,13 @@ This developer example provides configuration options to control how data is par
 | Uneven class distribution | Too many rare classes | Check class balance with `get_tool_name()` analysis |
 | Non-reproducible splits | Missing `random_seed` | Set `random_seed: 42` in config |
 
-#### When Stratification Fails
+#### When Stratification Falls Back to Random Splitting
 The system automatically falls back to random splitting when:
-- Number of classes > `eval_size`
-- Any class has only 1 sample
-- Insufficient samples for stratified sampling
+- Stratification is disabled (`stratify_enabled: false`)
+- Only one unique class exists (`num_classes == 1`)
+- Split size is smaller than the number of classes (`test_size < num_classes`)
 
-**Source Reference**: See `src/lib/flywheel/util.py:133-141` for fallback logic.
+Classes with very few samples (≤ `rare_class_threshold`) are grouped as `"others"` to improve stratification stability.
+
+**Source Reference**: See `src/lib/flywheel/util.py:219-245` for the `_safe_stratified_split` fallback logic.
 

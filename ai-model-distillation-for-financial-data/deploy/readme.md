@@ -19,10 +19,10 @@ Leveraging the [NVIDIA NeMo Microservices](https://docs.nvidia.com/nemo/microser
 
 # Links
 
-- [Source Code](https://github.com/NVIDIA-AI-Blueprints/data-flywheel)
-- [Documentation](https://github.com/NVIDIA-AI-Blueprints/data-flywheel/blob/main/docs/02-quickstart.md)
-- [Readme](https://github.com/NVIDIA-AI-Blueprints/data-flywheel/blob/main/README.md)
-- [Notebooks](https://github.com/NVIDIA-AI-Blueprints/data-flywheel/tree/main/notebooks)
+- [Source Code](https://github.com/KxSystems/nvidia-kx-samples/tree/main/ai-model-distillation-for-financial-data)
+- [Documentation](https://github.com/KxSystems/nvidia-kx-samples/blob/main/ai-model-distillation-for-financial-data/docs/02-quickstart.md)
+- [Readme](https://github.com/KxSystems/nvidia-kx-samples/blob/main/ai-model-distillation-for-financial-data/README.md)
+- [Notebooks](https://github.com/KxSystems/nvidia-kx-samples/tree/main/ai-model-distillation-for-financial-data/notebooks)
 
 # Ethical Considerations
 

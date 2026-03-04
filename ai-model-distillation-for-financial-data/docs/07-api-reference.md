@@ -31,7 +31,7 @@ Creates a new flywheel job that runs the complete NIM workflow including data ex
     "eval_size": 20,
     "val_ratio": 0.1,
     "min_total_records": 50,
-    "limit": 10000
+    "limit": null
   }
 }
 ```
@@ -122,9 +122,9 @@ Retrieves detailed information about a specific job, including all workflow stag
   "finished_at": "2024-01-15T12:45:00Z",
   "num_records": 1000,
   "enrichment_stats": {
-    "records_enriched": 150,
-    "features_added": ["sma_5", "sma_20", "rsi_14", "volatility_20", "pct_change"],
-    "enrichment_time_seconds": 2.3
+    "num_enriched": 150,
+    "total_records": 1000,
+    "fields_added": ["market_close", "market_vwap", "market_high", "market_low", "market_volume", "market_bid", "market_ask", "market_spread", "market_mid"]
   },
   "datasets": [
     {
@@ -142,7 +142,7 @@ Retrieves detailed information about a specific job, including all workflow stag
       "evaluations": [
         {
           "eval_type": "base-eval",
-          "scores": {"accuracy": 0.85},
+          "scores": {"f1_score": 0.85},
           "started_at": "2024-01-15T11:00:00Z",
           "finished_at": "2024-01-15T11:30:00Z",
           "runtime_seconds": 1800.0,
@@ -249,9 +249,9 @@ Returns the schema for every KDB-X table, including column names.
 ```json
 {
   "tables": {
-    "flywheel_logs": ["_id", "client_id", "request", "response", "workload_id"],
-    "market_ticks": ["close", "high", "low", "open", "sym", "timestamp", "volume"],
-    "signals": ["direction", "model_id", "sym", "timestamp"]
+    "flywheel_runs": ["_id", "client_id", "datasets", "enrichment_stats", "error", "finished_at", "num_records", "started_at", "status", "workload_id"],
+    "flywheel_logs": ["client_id", "doc_id", "request", "response", "timestamp", "workload_id"],
+    "evaluations": ["_id", "error", "eval_type", "finished_at", "job_id", "mlflow_uri", "nim_id", "nmp_uri", "progress", "runtime_seconds", "scores", "started_at"]
   }
 }
 ```
@@ -273,12 +273,12 @@ Returns the row count for a table. Supports optional column equality filters as 
 |-----------|------|----------|-------------|
 | `table` | `string` | Yes | Table name (must match a known KDB-X table) |
 
-**Query Parameters:** Any valid column name for the table can be passed as a filter (e.g., `?sym=NVDA`).
+**Query Parameters:** Any valid column name for the table can be passed as a filter (e.g., `?workload_id=customer-service-v1`).
 
 **Success Response:**
 ```json
 {
-  "table": "market_ticks",
+  "table": "flywheel_logs",
   "count": 500
 }
 ```
@@ -286,10 +286,10 @@ Returns the row count for a table. Supports optional column equality filters as 
 **Example cURL:**
 ```bash
 # Count all rows
-curl "http://localhost:8000/api/data/market_ticks/count"
+curl "http://localhost:8000/api/data/flywheel_logs/count"
 
 # Count with filter
-curl "http://localhost:8000/api/data/signals/count?model_id=test-model"
+curl "http://localhost:8000/api/data/evaluations/count?eval_type=base-eval"
 ```
 
 ---
@@ -314,17 +314,16 @@ Additional query parameters matching valid column names act as equality filters.
 **Success Response:**
 ```json
 {
-  "table": "market_ticks",
+  "table": "flywheel_logs",
   "count": 50,
   "rows": [
     {
-      "sym": "NVDA",
+      "doc_id": "abc123",
+      "workload_id": "customer-service-v1",
+      "client_id": "production-app",
       "timestamp": "2024-01-15T10:30:00",
-      "open": 547.25,
-      "high": 548.10,
-      "low": 546.80,
-      "close": 547.90,
-      "volume": 12500
+      "request": {"messages": [{"role": "user", "content": "..."}]},
+      "response": {"choices": [{"message": {"role": "assistant", "content": "..."}}]}
     }
   ]
 }
@@ -335,8 +334,8 @@ Additional query parameters matching valid column names act as equality filters.
 # Get first 50 rows (default)
 curl "http://localhost:8000/api/data/flywheel_logs"
 
-# Get 100 rows filtered by ticker
-curl "http://localhost:8000/api/data/market_ticks?limit=100&sym=NVDA"
+# Get 100 rows filtered by workload
+curl "http://localhost:8000/api/data/flywheel_logs?limit=100&workload_id=customer-service-v1"
 ```
 
 ---
@@ -431,9 +430,12 @@ The optional `data_split_config` allows you to control how logged data is proces
   "eval_size": 20,
   "val_ratio": 0.1,
   "min_total_records": 50,
-  "limit": 10000,
+  "limit": null,
   "random_seed": 42,
-  "parse_function_arguments": true
+  "parse_function_arguments": true,
+  "stratify_enabled": true,
+  "min_samples_per_class": 2,
+  "rare_class_threshold": 1
 }
 ```
 
@@ -441,9 +443,12 @@ The optional `data_split_config` allows you to control how logged data is proces
 - `eval_size` (int): Size of evaluation set (default: 20)
 - `val_ratio` (float): Validation ratio (0.0-1.0, default: 0.1)
 - `min_total_records` (int): Minimum total records required to proceed (default: 50)
-- `limit` (int): Maximum records to use for evaluation (default: 10000)
+- `limit` (int | null): Maximum records to use for evaluation (default: null — no limit)
 - `random_seed` (int): Seed for reproducible splits (optional)
 - `parse_function_arguments` (bool): Parse function arguments to JSON (default: true)
+- `stratify_enabled` (bool): Enable stratified splitting to maintain class balance (default: true)
+- `min_samples_per_class` (int): Minimum samples required per class for stratification (default: 2)
+- `rare_class_threshold` (int): Group classes with <= this many samples as "others" (default: 1)
 
 ## Python Integration Example
 

@@ -1,3 +1,20 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 KX Systems, Inc. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 # Data Logging for AI Apps
 
 Instrumenting your AI application to log interactions is a critical step in implementing the developer example. This guide explains how to enable data logging for any AI app, providing a general approach and best practices.
@@ -153,12 +170,11 @@ The system uses a KDB-X connection with PyKX:
 
 ```python
 # From src/api/db.py (simplified for readability)
-import pykx as kx
 from kdbx.compat import KDBXDatabase
 
 def get_db() -> KDBXDatabase:
     """Get the KDB-X database instance."""
-    return KDBXDatabase(host, port)
+    return KDBXDatabase()  # reads KDBX_HOST/KDBX_PORT from env
 ```
 
 The `KDBXDatabase` provides a pymongo-compatible API — `find()`, `insert_one()`, `update_one()` — that translates to parameterized q queries under the hood.
@@ -169,7 +185,7 @@ For development and testing, you can load sample data via the API or the example
 
 ```python
 # Example: load data via the KDB-X pymongo-compatible shim
-from src.api.db_manager import get_db
+from src.api.db import get_db
 
 db = get_db()
 

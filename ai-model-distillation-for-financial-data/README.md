@@ -30,7 +30,7 @@ You can get started quickly and achieve similar results using your own infrastru
 Demonstrates model distillation on financial news headlines classification (13 event categories: market movements, earnings, regulatory changes, etc.).
 
 **The Workflow:**
-- Teacher: Generate labeled data using Llama 3.3 Nemotron 49B (or Llama 3.3 70B).
+- Teacher: Generate labeled data using Llama 3.3 Nemotron Super 49B (or Llama 3.3 70B).
 - Enrich: Augment training records with point-in-time market data (OHLCV, bid/ask) via KDB-X as-of joins — see [How Market Data Enriches Student Model Training](./docs/08-workflow-orchestration.md#how-market-data-enriches-student-model-training).
 - Distill: Transfer knowledge to smaller models (Llama 3.2 1B/3B, Llama 3.1 8B).
 - Evaluate: Use F1-score metrics to measure classification accuracy.
@@ -295,7 +295,7 @@ The following are some of the customizations you can make after completing the [
 
 | Category | Description | Available Options |
 |----------|-------------|------------------|
-| [Environment Variables](docs/03-configuration.md#environment-variables) | Configure system using environment variables | **Required**: NGC_API_KEY, NVIDIA_API_KEY, HF_TOKEN, KDB_LICENSE_B64<br>**Optional**: KDBX_ENDPOINT, REDIS_URL, KDBAI_REGISTRY_TOKEN, KDBX_USERNAME, KDBX_PASSWORD<br>**Configuration**: Via .env file or system environment |
+| [Environment Variables](docs/03-configuration.md#environment-variables) | Configure system using environment variables | **Required**: NVIDIA_API_KEY, KDB_LICENSE_B64, KDBAI_REGISTRY_TOKEN<br>**Optional**: KDBX_ENDPOINT, REDIS_URL, HF_TOKEN, KDBX_USERNAME, KDBX_PASSWORD<br>**Configuration**: Via .env file or system environment |
 | [Model Integration](docs/03-configuration.md#model-integration) | Configure and deploy LLM models | **Supported**: Llama 3.2 1B/3B, Llama 3.1 8B<br>**Context Length**: Up to 32768 tokens<br>**Hardware**: Configurable GPU and PVC settings |
 | [Evaluation Settings](docs/03-configuration.md#evaluation-settings) | Configure data splitting and evaluation | **Data Split**: eval_size, val_ratio, min_total_records<br>**Reproducibility**: Optional random seed<br>**Stratification**: Class-aware splitting via scikit-learn |
 | [Fine-tuning Options](docs/03-configuration.md#fine-tuning-options) | Customize model training | **Method**: LoRA with configurable parameters<br>**Parameters**: epochs, batch size, learning rate<br>**LoRA Config**: adapter dimension, dropout |

@@ -28,10 +28,7 @@ Learn how to configure the AI Model Distillation for Financial Data developer ex
       - [Splitting Process Visualization](#splitting-process-visualization)
       - [Examples](#examples)
       - [Configuration Recommendations by Use Case](#configuration-recommendations-by-use-case)
-    - [ICL (In-Context Learning) Configuration](#icl-in-context-learning-configuration)
-      - [Example Selection Options](#example-selection-options)
-      - [Similarity Configuration](#similarity-configuration)
-      - [Embedding NIM Configuration](#embedding-nim-configuration)
+    - [Evaluation Configuration](#evaluation-configuration)
   - [Fine-tuning Options](#fine-tuning-options)
     - [Training Configuration](#training-configuration)
     - [LoRA Configuration](#lora-configuration)
@@ -65,7 +62,7 @@ Learn how to configure the AI Model Distillation for Financial Data developer ex
 | **Cluster** | Single-node NVIDIA GPU cluster on Linux with cluster-admin permissions |
 | **Disk Space** | At least 200 GB free |
 | **Software** | Python 3.12<br>Docker Engine<br>Docker Compose v2 |
-| **Services** | KDB-X<br>Redis 7.2<br>FastAPI (API server)<br>Celery (task processing)<br>MLflow 2.22.0<br>Wandb 0.22.3 |
+| **Services** | KDB-X<br>Redis 7.2<br>FastAPI (API server)<br>Celery (task processing)<br>MLflow 3.6+ |
 | **Resource** | **Minimum Memory**: 1 GB<br>**Storage**: Varies by log volume or model size<br>**Network**: Ports 8000 (API), 8082 (KDB-X), 6379 (Redis) |
 | **Development** | Docker Compose for local development with hot reloading<br>Supports macOS (Darwin) and Linux<br>Optional: GPU support for model inference |
 | **Production** | Kubernetes cluster (recommended)<br>Resources scale with workload<br>Persistent volume support for data storage |
@@ -191,7 +188,7 @@ nmp_config:
   nemo_base_url: "http://nemo.test"
   nim_base_url: "http://nim.test"
   datastore_base_url: "http://data-store.test"
-  nmp_namespace: "dfwbp"
+  nmp_namespace: "mdfd"
 ```
 
 | Option | Description | Default |
@@ -199,7 +196,7 @@ nmp_config:
 | `nemo_base_url` | Base URL for NeMo services | `http://nemo.test` |
 | `nim_base_url` | Base URL for NIM services | `http://nim.test` |
 | `datastore_base_url` | Base URL for datastore services | `http://data-store.test` |
-| `nmp_namespace` | Namespace for NMP resources | "dfwbp" |
+| `nmp_namespace` | Namespace for NMP resources | "mdfd" |
 
 ## Logging Configuration
 
@@ -305,9 +302,9 @@ Currently supported models include:
 
 Student models:
 
-- Meta Llama 3.1 1B Instruct
+- Meta Llama 3.2 1B Instruct
 - Meta Llama 3.2 3B Instruct
-- Meta Llama 3.2 8B Instruct
+- Meta Llama 3.1 8B Instruct
 
 Teacher models:
 
@@ -318,7 +315,7 @@ Note: Not all models may be enabled by default in the configuration. Enable them
 
 ## Evaluation Settings
 
-The `data_split_config` and `icl_config` sections control evaluation processes:
+The `data_split_config` section controls evaluation processes:
 
 ### Data Split Configuration
 
@@ -330,18 +327,24 @@ data_split_config:
   val_ratio: 0.1
   min_total_records: 50
   random_seed: null
-  limit: 10000
+  limit: null
   parse_function_arguments: true
+  stratify_enabled: true
+  min_samples_per_class: 2
+  rare_class_threshold: 1
 ```
 
 | Option | Description | Default | Notes |
 |--------|-------------|---------|-------|
-| `eval_size` | Number of examples for evaluation | 100 | Minimum size of evaluation set (stratified across tool types) |
+| `eval_size` | Number of examples for evaluation | 20 | Minimum size of evaluation set (stratified across tool types). Set to 100 in default config |
 | `val_ratio` | Ratio of data used for validation | 0.1 | Must be ≥ 0 and < 1 (10% of remaining data after eval, stratified) |
 | `min_total_records` | Minimum required records | 50 | Total dataset size requirement |
 | `random_seed` | Seed for reproducible splits | null | Set for reproducible results |
-| `limit` | Limit for evaluator | 10000 | Set for evaluator config limit |
+| `limit` | Limit on number of records to evaluate | null | null = use all available records |
 | `parse_function_arguments` | Parse function arguments to JSON | true | Data validation: converts string function arguments to JSON objects |
+| `stratify_enabled` | Enable stratified splitting | true | Maintains class balance across splits |
+| `min_samples_per_class` | Minimum samples per class for stratification | 2 | Classes below this threshold use random splitting |
+| `rare_class_threshold` | Group rare classes as "others" | 1 | Classes with ≤ this many samples are grouped |
 
 #### Stratified Splitting Behavior
 
@@ -418,108 +421,24 @@ When all records use the same tool, stratification automatically falls back to r
 >
 > See the [Job Operations section](02-quickstart.md#job-operations) in the Quickstart Guide for a complete example.
 
-### ICL (In-Context Learning) Configuration
+### Evaluation Configuration
 
-The ICL configuration supports two example selection methods to optimize few-shot learning performance:
+The `evaluation_config` section controls how model outputs are evaluated:
 
 ```yaml
-icl_config:
-  max_context_length: 32768
-  reserved_tokens: 4096
-  max_examples: 3
-  min_examples: 1
-  example_selection: "semantic_similarity"  # or "uniform_distribution"
-  similarity_config:
-    relevance_ratio: 0.7
-    embedding_nim_config:
-      deployment_type: "remote"
-      url: "https://integrate.api.nvidia.com/v1/embeddings"
-      model_name: "nvidia/llama-3.2-nv-embedqa-1b-v2"
+evaluation_config:
+  workload_type: "classification"
+  tool_eval_type: "tool-calling-metric"
 ```
 
 | Option | Description | Default | Notes |
 |--------|-------------|---------|-------|
-| `max_context_length` | Maximum tokens in context | 32768 | Model dependent |
-| `reserved_tokens` | Tokens reserved for system | 4096 | For prompts and metadata |
-| `max_examples` | Maximum ICL examples | 3 | Upper limit per context |
-| `min_examples` | Minimum ICL examples | 1 | Lower limit per context |
-| `example_selection` | ICL selection method | "semantic_similarity" | See [Example Selection Options](#example-selection-options) |
-| `similarity_config` | Similarity configuration | Required for semantic_similarity | Required for `semantic_similarity` selection |
+| `workload_type` | Workload type for evaluation | "auto" | `"auto"` (auto-detect), `"classification"` (F1 score), or `"tool_calling"` (function metrics) |
+| `tool_eval_type` | Evaluation method for tool-calling workloads | "tool-calling-metric" | `"tool-calling-metric"` (exact match) or `"tool-calling-judge"` (LLM judge). Ignored for classification workloads |
 
-#### Example Selection Options
-
-The developer example supports two methods for selecting in-context learning examples:
-
-**1. Uniform Distribution** (`uniform_distribution`)
-- **Description**: Distributes examples evenly across different tool types
-- **Use Case**: Provides balanced representation of all available tools
-- **Behavior**: For tool-calling workloads, ensures each tool gets roughly equal representation in the ICL examples
-- **Requirements**: No additional configuration needed
-
-**2. Semantic Similarity** (`semantic_similarity`)
-- **Description**: Selects examples based on semantic similarity using vector embeddings
-- **Use Case**: Finds the most relevant examples for each evaluation query
-- **Behavior**: Uses an embedding model to identify semantically similar examples from historical data stored in KDB-X
-- **Requirements**: Requires `similarity_config` to be configured
-
-#### Similarity Configuration
-
-When using `semantic_similarity`, you must configure the `similarity_config` section:
-
-```yaml
-icl_config:
-  example_selection: "semantic_similarity"
-  similarity_config:
-    relevance_ratio: 0.7
-    embedding_nim_config:
-      deployment_type: "remote"
-      url: "https://integrate.api.nvidia.com/v1/embeddings"
-      model_name: "nvidia/llama-3.2-nv-embedqa-1b-v2"
-```
-
-| Option | Description | Default | Notes |
-|--------|-------------|---------|-------|
-| `relevance_ratio` | Ratio of examples selected by pure relevance | 0.7 | Range: 0.0-1.0. Higher values prioritize relevance; lower values ensure tool diversity |
-| `embedding_nim_config` | Embedding model configuration | Required | See [Embedding NIM Configuration](#embedding-nim-configuration) below |
-
-#### Embedding NIM Configuration
-
-When using `semantic_similarity`, you must configure an embedding model within the `similarity_config` section:
-
-
-**Local Deployment** (`deployment_type: "local"`):
-- Spins up a dedicated embedding NIM in your cluster
-- Requires GPU resources and storage
-- Provides isolated embedding generation
-
-```yaml
-icl_config:
-  example_selection: "semantic_similarity"
-  similarity_config:
-    relevance_ratio: 0.7
-    embedding_nim_config:
-      deployment_type: "local"
-      model_name: "nvidia/llama-3.2-nv-embedqa-1b-v2"
-      context_length: 32768
-      gpus: 1
-      pvc_size: "25Gi"
-      tag: "1.9.0"
-```
-
-**Remote Deployment** (`deployment_type: "remote"`):
-- Uses an external embedding API endpoint
-- Requires API key configuration (set `EMB_API_KEY` or defaults to `NVIDIA_API_KEY`)
-
-```yaml
-icl_config:
-  example_selection: "semantic_similarity"
-  similarity_config:
-    relevance_ratio: 0.7
-    embedding_nim_config:
-      deployment_type: "remote"
-      url: "https://integrate.api.nvidia.com/v1/embeddings"
-      model_name: "nvidia/llama-3.2-nv-embedqa-1b-v2"
-```
+> **Note**
+>
+> This financial data example uses classification workloads. Setting `workload_type` to `"tool_calling"` will cause the job to fail if your data doesn't contain `tool_calls` in the response messages.
 
 ## Fine-tuning Options
 
@@ -536,6 +455,7 @@ training_config:
 lora_config:
   adapter_dim: 32
   adapter_dropout: 0.1
+  sequence_packing_enabled: true
 ```
 
 ### Training Configuration
@@ -554,6 +474,7 @@ lora_config:
 |--------|-------------|---------|-------|
 | `adapter_dim` | LoRA adapter dimension | 32 | Rank of adaptation |
 | `adapter_dropout` | Dropout rate | 0.1 | Regularization parameter |
+| `sequence_packing_enabled` | Enable sequence packing | true | Packs multiple sequences into a single training batch for efficiency |
 
 ## Model Customization
 
@@ -639,8 +560,8 @@ training_config:
 
 lora_config:
   adapter_dim: 32             # Used by customization
-  adapter_alpha: 16           # Used by customization
   adapter_dropout: 0.1        # Used by customization
+  sequence_packing_enabled: true  # Used by customization
 ```
 
 ### Example Configurations
@@ -695,24 +616,29 @@ nims:
 
 ## Enrichment Configuration
 
-The `enrichment_config` section controls market-data enrichment applied to training records during dataset creation:
+The `enrichment_config` section controls market-data enrichment applied to training records during dataset creation. Enrichment uses KDB-X as-of joins (`aj`) to add point-in-time market context (price, volume, order book) to each training record.
 
 ```yaml
 enrichment_config:
-  sma_windows: [5, 20]
-  rsi_period: 14
-  volatility_window: 20
-  pct_change_period: 1
+  enabled: true
+  sym_field: "sym"
+  timestamp_field: "timestamp"
+  sym_extraction: "field"  # "field" or "regex"
+  default_sym: "SPY"
 ```
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `sma_windows` | Simple moving average window sizes | [5, 20] |
-| `rsi_period` | RSI calculation period | 14 |
-| `volatility_window` | Rolling volatility window | 20 |
-| `pct_change_period` | Percent change lookback period | 1 |
+| `enabled` | Enable market-data enrichment | false |
+| `sym_field` | Record field containing the ticker symbol | "sym" |
+| `timestamp_field` | Record field containing the event timestamp | "timestamp" |
+| `sym_extraction` | How to extract the ticker: `"field"` (read from `sym_field`) or `"regex"` (parse from user query) | "field" |
+| `sym_regex` | Regex pattern for ticker extraction (used when `sym_extraction: "regex"`) | `\b([A-Z]{1,5})\b` |
+| `default_sym` | Fallback ticker when extraction fails | "SPY" |
 
-Enrichment adds the following features to each record: SMA (for each window), RSI, rolling volatility, and percent change. The ticker symbol is extracted from each record using `kdbx/enrichment.py:extract_sym_from_record()`.
+Enrichment adds 9 market context fields to each record: `market_close`, `market_vwap`, `market_high`, `market_low`, `market_volume`, `market_bid`, `market_ask`, `market_spread`, `market_mid`. The ticker symbol is extracted from each record using `kdbx/enrichment.py:extract_sym_from_record()`.
+
+> **📖 For details on enriched fields and the as-of join pipeline:** See [Workflow Orchestration — Market Data Enrichment](08-workflow-orchestration.md#how-market-data-enriches-student-model-training)
 
 ## Backtest Configuration
 
@@ -720,12 +646,14 @@ The `backtest_config` section controls the financial backtesting evaluation:
 
 ```yaml
 backtest_config:
+  enabled: true
   cost_bps: 5.0
   min_signals: 10
 ```
 
 | Option | Description | Default |
 |--------|-------------|---------|
+| `enabled` | Enable backtest assessment | false |
 | `cost_bps` | Round-trip transaction cost in basis points | 5.0 |
 | `min_signals` | Minimum number of signals required to run backtest | 10 |
 
@@ -761,7 +689,6 @@ The developer example supports multiple deployment strategies for different envi
 
 Includes additional services for development:
 - Flower (Celery monitoring)
-- KDB-X Studio (database visualization)
 
 ### Production Deployment Options
 

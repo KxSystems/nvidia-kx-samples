@@ -1,3 +1,20 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 KX Systems, Inc. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 # Financial Backtesting: Why NLP Accuracy Isn't Enough
 
 ## The Problem
@@ -25,23 +42,20 @@ This runs automatically as part of the flywheel DAG when market data is availabl
 
 ```mermaid
 flowchart LR
-    A[Model generates<br/>classification signals] --> B[Enrichment pipeline<br/>adds market features]
-    B --> C["As-of join (aj)<br/>matches signals<br/>to market prices"]
-    C --> D[Simulate trades:<br/>enter at signal,<br/>exit after hold period]
-    D --> E[Compute financial<br/>metrics]
+    A[Model generates<br/>classification signals] --> B["As-of join (aj)<br/>matches signals<br/>to market prices"]
+    B --> C[Simulate trades:<br/>enter at signal,<br/>exit after hold period]
+    C --> D[Compute financial<br/>metrics]
 ```
 
 ### Step by Step
 
-1. **Signal generation**: During a flywheel run, the student model classifies financial news headlines into event categories (e.g., "earnings_beat", "regulatory_action", "market_crash").
+1. **Signal generation**: During a flywheel run, the student model classifies financial news headlines into event categories (e.g., "earnings_beat", "regulatory_action", "market_crash"). These signals are stored in the `signals` table with a timestamp and direction (BUY/SELL).
 
-2. **Market data enrichment**: The enrichment pipeline joins each signal with market tick data — price, volume, and derived features like moving averages and volatility.
+2. **As-of join (`aj`)**: KDB-X's temporal join matches each signal to the most recent `close` price from `market_ticks` at the time the signal was generated, and again 1 day later for the exit price. This prevents look-ahead bias — the backtest only uses data that would have been available in real time.
 
-3. **As-of join (`aj`)**: KDB-X's temporal join matches each signal to the most recent market price at the time the signal was generated. This prevents look-ahead bias — the backtest only uses data that would have been available in real time.
+3. **Trade simulation**: For each signal, the system enters a position at the entry price and exits at the close price 1 day later. Transaction costs are applied (default: 5 basis points round-trip).
 
-4. **Trade simulation**: For each signal, the system enters a position at the matched price and exits after a configurable hold period (default: 1 day). Transaction costs are applied (default: 5 basis points per trade).
-
-5. **Metric computation**: The system computes financial performance metrics across all trades.
+4. **Metric computation**: The system computes financial performance metrics across all trades.
 
 ## Financial Metrics Explained
 
@@ -79,7 +93,7 @@ flowchart TD
 
 - **Automatic**: Backtest evaluation triggers automatically when the enrichment pipeline has produced market data. No manual setup required.
 - **Alongside F1**: Results appear in the job details alongside base and customized F1-scores, giving you both NLP accuracy and financial validation in one view.
-- **Configurable**: Hold period and transaction costs can be adjusted via configuration. See the [Configuration Guide](03-configuration.md) for details.
+- **Configurable**: Transaction costs and minimum signal threshold can be adjusted via configuration. See the [Configuration Guide](03-configuration.md) for details.
 
 ## Why This Matters
 

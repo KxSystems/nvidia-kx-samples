@@ -16,7 +16,7 @@ The repository ships with synthetic seed data (`data/test_financial_data.jsonl` 
 | Minimum GPU | 2× (NVIDIA A100/H100/H200/B200 GPUs) |
 | Cluster | Single-node NVIDIA GPU cluster on Linux with cluster-admin permissions |
 | Disk Space | At least 200 GB free |
-| Software | KDB-X (data platform)<br>Redis 7.2<br>FastAPI (API server)<br>Celery (task processing)<br>MLflow 2.22.0 |
+| Software | KDB-X (data platform)<br>Redis 7.2<br>FastAPI (API server)<br>Celery (task processing)<br>MLflow 3.6+ |
 | KDB-X License | Free Community Edition license from [portal.dl.kx.com](https://portal.dl.kx.com) — you will need: a **bearer token** (for downloading the installer), a **base64-encoded license** (`KDB_LICENSE_B64`), and optionally a **registry email** |
 
 > **📖 For complete system requirements:** See [System Requirements](03-configuration.md#system-requirements)
@@ -155,9 +155,8 @@ The developer example uses a configuration file (`config/config.yaml`) that defi
 4. Clone the repository:
 
    ```bash
-   git clone https://github.com/NVIDIA-AI-Blueprints/ai-model-distillation-for-financial-data.git
-   cd ai-model-distillation-for-financial-data
-   git checkout main
+   git clone https://github.com/KxSystems/nvidia-kx-samples.git
+   cd nvidia-kx-samples/ai-model-distillation-for-financial-data
    ```
 
 5. Review and modify the [configuration file](../config/config.yaml) according to your requirements.
@@ -269,7 +268,7 @@ You have several options to start the services:
 You can feed data to the developer example in two ways:
 
 1. **Manually:** For demo or short-lived environments, use the example notebook at [`notebooks/ai-model-distillation-financial-data.ipynb`](../notebooks/ai-model-distillation-financial-data.ipynb) to load data via the API.
-2. **Automatically:** For production environments where you deploy the developer example to run continuously, use a [continuous log exportation flow](./01-architecture.md#how-production-logs-flow-into-the-system). For production deployment setup, see the [Helm Installation Guide](11-helm-installation.md).
+2. **Automatically:** For production environments where you deploy the developer example to run continuously, use a [continuous log exportation flow](./01-architecture.md#how-production-logs-flow-into-the-flywheel). For production deployment setup, see the [Helm Installation Guide](11-helm-installation.md).
 
 > **📖 For complete implementation guide:** See [Data Logging for AI Apps](data-logging.md)
 
@@ -289,9 +288,7 @@ curl -X POST http://localhost:8000/api/jobs \
   -H "Content-Type: application/json" \
   -d '{
     "workload_id": "news_sentiment",
-    "client_id": "fingpt-1k",
-    "model_name": "meta/llama-3.2-1b-instruct",
-    "steps": ["deploy_base", "evaluate_base", "fine_tune", "evaluate_customized"]
+    "client_id": "fingpt-1k"
   }'
 ```
 
@@ -357,9 +354,7 @@ curl -X POST http://localhost:8000/api/jobs \
   -H "Content-Type: application/json" \
   -d '{
     "workload_id": "news_classifier",
-    "client_id": "<DATASET_ID>",
-    "model_name": "meta/llama-3.2-1b-instruct",
-    "steps": ["deploy_base", "evaluate_base"]
+    "client_id": "<DATASET_ID>"
   }'
 ```
 
@@ -473,7 +468,7 @@ If you encounter any issues:
 
 ## Additional Resources
 
-- [AI Model Distillation for Financial Data Developer Example Repository](https://github.com/NVIDIA-AI-Blueprints/ai-model-distillation-for-financial-data)
+- [AI Model Distillation for Financial Data Developer Example Repository](https://github.com/KxSystems/nvidia-kx-samples/tree/main/ai-model-distillation-for-financial-data)
 
 ## Next Steps
 
