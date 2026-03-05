@@ -133,82 +133,124 @@ sequenceDiagram
     CW -->>- PW: TaskResult nim
     end
 
-    %% 4b/4c/4d: Parallel group
-    par Base Evaluation
-        rect rgb(245, 250, 255)
-        Note over CW, MLflow: 4b - run_base_eval
-        PW ->>+ CW: run_base_eval.delay()
-        CW ->> DBM: Insert NIMEvaluation(eval_type=BASE)
-        CW ->>+ Eval: POST /v1/evaluation/jobs<br/>dataset, model, metrics
-        Eval -->>- CW: eval_job_id
-        loop Poll every 5s until COMPLETED
-            CW ->>+ Eval: GET /v1/evaluation/jobs/id
-            Eval -->>- CW: status, progress
-            CW ->> DBM: update evaluations.progress
-            CW ->> DBM: check_cancellation()
-        end
-        CW ->>+ Eval: GET /v1/evaluation/jobs/id/results
-        Eval -->>- CW: scores (f1, accuracy, etc.)
+    %% 4b: Base Evaluation
+    rect rgb(245, 250, 255)
+    Note over CW, MLflow: 4b - run_base_eval
+    PW ->>+ CW: run_base_eval.delay()
+    CW ->> DBM: Insert NIMEvaluation(eval_type=BASE)
+    CW ->>+ Eval: POST /v1/evaluation/jobs<br/>dataset, model, metrics
+    Eval -->>- CW: eval_job_id
+    loop Poll every 5s until COMPLETED
+        CW ->>+ Eval: GET /v1/evaluation/jobs/id
+        Eval -->>- CW: status, progress
+        CW ->> DBM: update evaluations.progress
+        CW ->> DBM: check_cancellation()
+    end
+    CW ->>+ Eval: GET /v1/evaluation/jobs/id/results
+    Eval -->>- CW: scores (f1, accuracy, etc.)
+    CW ->> DBM: update evaluations.scores
+    opt MLflow enabled
+        CW ->> MLflow: upload_evaluation_results()
+    end
+    CW -->>- PW: TaskResult evaluations
+    end
+
+    %% 4c: Generate Signals (base)
+    rect rgb(245, 255, 250)
+    Note over CW, KDBX: 4c - generate_signals (base)
+    PW ->>+ CW: generate_signals.delay(model_type="base")
+    CW ->> KDBX: get eval records via RecordExporter
+    loop For each record
+        CW ->>+ NIM: POST /v1/chat/completions
+        NIM -->>- CW: model response
+        CW ->> CW: parse direction (BUY/SELL/HOLD)
+    end
+    CW ->> KDBX: write_signals_batch()
+    CW -->>- PW: TaskResult
+    end
+
+    %% 4d: Backtest (base)
+    rect rgb(250, 255, 245)
+    Note over CW, KDBX: 4d - run_backtest_assessment (base)
+    PW ->>+ CW: run_backtest_assessment.delay(model_type="base")
+    CW ->> KDBX: count signals for model_id
+    alt signals >= min_signals
+        CW ->> KDBX: run_backtest(model_id, cost_bps)<br/>Sharpe, drawdown, return, win_rate
+        KDBX -->> CW: backtest scores
         CW ->> DBM: update evaluations.scores
-        opt MLflow enabled
-            CW ->> MLflow: upload_evaluation_results()
-        end
-        CW -->>- PW: TaskResult evaluations
-        end
+    else signals < min_signals
+        CW ->> DBM: update evaluations (skipped)
+    end
+    CW -->>- PW: TaskResult
+    end
 
-    and Backtest Assessment
-        rect rgb(250, 255, 245)
-        Note over CW, KDBX: 4c - run_backtest_assessment
-        PW ->>+ CW: run_backtest_assessment.delay()
-        CW ->> KDBX: count signals for model_id
-        alt signals >= min_signals
-            CW ->> KDBX: run_backtest(model_id, cost_bps)<br/>Sharpe, drawdown, return, win_rate
-            KDBX -->> CW: backtest scores
-            CW ->> DBM: update evaluations.scores
-        else signals < min_signals
-            CW ->> DBM: update evaluations (skipped)
-        end
-        CW -->>- PW: TaskResult
-        end
+    %% 4e: Customization
+    rect rgb(255, 245, 250)
+    Note over CW, Cust: 4e - start_customization
+    PW ->>+ CW: start_customization.delay()
+    CW ->> DBM: Insert NIMCustomization
+    CW ->>+ Cust: start_training_job()<br/>train_dataset, LoRA config
+    Cust -->>- CW: customization_job_id
+    loop Poll until COMPLETED
+        CW ->>+ Cust: get_job_status()
+        Cust -->>- CW: status, epochs, steps
+        CW ->> DBM: update customizations progress
+        CW ->> DBM: check_cancellation()
+    end
+    loop Poll until fine-tuned model synced
+        CW ->>+ NIM: GET /v1/models
+        NIM -->>- CW: model list (includes fine-tuned)
+    end
+    CW ->> DBM: update customizations.customized_model
+    CW -->>- PW: TaskResult customization
+    end
 
-    and Customization Chain
-        rect rgb(255, 245, 250)
-        Note over CW, Cust: 4d - start_customization then run_customization_eval
+    %% 4f: Post-customization eval
+    rect rgb(255, 245, 250)
+    Note over CW, Eval: 4f - run_customization_eval
+    PW ->>+ CW: run_customization_eval.delay()
+    CW ->> DBM: Insert NIMEvaluation(eval_type=CUSTOMIZED)
+    CW ->>+ Eval: POST /v1/evaluation/jobs<br/>dataset, fine-tuned model
+    Eval -->>- CW: eval_job_id
+    loop Poll until COMPLETED
+        CW ->> Eval: GET /v1/evaluation/jobs/id
+        CW ->> DBM: check_cancellation()
+    end
+    CW ->> Eval: GET /v1/evaluation/jobs/id/results
+    CW ->> DBM: update evaluations.scores
+    opt MLflow enabled
+        CW ->> MLflow: upload_evaluation_results()
+    end
+    CW -->>- PW: TaskResult evaluations
+    end
 
-        %% Customization
-        PW ->>+ CW: start_customization.delay()
-        CW ->> DBM: Insert NIMCustomization
-        CW ->>+ Cust: start_training_job()<br/>train_dataset, LoRA config
-        Cust -->>- CW: customization_job_id
-        loop Poll until COMPLETED
-            CW ->>+ Cust: get_job_status()
-            Cust -->>- CW: status, epochs, steps
-            CW ->> DBM: update customizations progress
-            CW ->> DBM: check_cancellation()
-        end
-        loop Poll until fine-tuned model synced
-            CW ->>+ NIM: GET /v1/models
-            NIM -->>- CW: model list (includes fine-tuned)
-        end
-        CW ->> DBM: update customizations.customized_model
-        CW -->>- PW: TaskResult customization
+    %% 4g: Generate Signals (customized)
+    rect rgb(245, 255, 250)
+    Note over CW, KDBX: 4g - generate_signals (customized)
+    PW ->>+ CW: generate_signals.delay(model_type="customized")
+    CW ->> KDBX: get eval records via RecordExporter
+    loop For each record
+        CW ->>+ NIM: POST /v1/chat/completions
+        NIM -->>- CW: model response
+        CW ->> CW: parse direction (BUY/SELL/HOLD)
+    end
+    CW ->> KDBX: write_signals_batch()
+    CW -->>- PW: TaskResult
+    end
 
-        %% Post-customization eval
-        PW ->>+ CW: run_customization_eval.delay()
-        CW ->> DBM: Insert NIMEvaluation(eval_type=CUSTOMIZED)
-        CW ->>+ Eval: POST /v1/evaluation/jobs<br/>dataset, fine-tuned model
-        Eval -->>- CW: eval_job_id
-        loop Poll until COMPLETED
-            CW ->> Eval: GET /v1/evaluation/jobs/id
-            CW ->> DBM: check_cancellation()
-        end
-        CW ->> Eval: GET /v1/evaluation/jobs/id/results
+    %% 4h: Backtest (customized)
+    rect rgb(250, 255, 245)
+    Note over CW, KDBX: 4h - run_backtest_assessment (customized)
+    PW ->>+ CW: run_backtest_assessment.delay(model_type="customized")
+    CW ->> KDBX: count signals for model_id
+    alt signals >= min_signals
+        CW ->> KDBX: run_backtest(model_id, cost_bps)<br/>Sharpe, drawdown, return, win_rate
+        KDBX -->> CW: backtest scores
         CW ->> DBM: update evaluations.scores
-        opt MLflow enabled
-            CW ->> MLflow: upload_evaluation_results()
-        end
-        CW -->>- PW: TaskResult evaluations
-        end
+    else signals < min_signals
+        CW ->> DBM: update evaluations (skipped)
+    end
+    CW -->>- PW: TaskResult
     end
 
     %% 4e: Shutdown NIM

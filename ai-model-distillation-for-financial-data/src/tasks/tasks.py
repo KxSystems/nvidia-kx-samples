@@ -1330,11 +1330,10 @@ def run_nim_workflow_dag(
     data_split_config: dict | None = None,
 ) -> dict:
     """
-    Execute the NIM workflow as a DAG where:
-    - Data upload must complete first
-    - Then NIMs can be spun up in parallel
-    - Each NIM runs its evaluations in parallel
-    - Finally, NIMs are shut down
+    Execute the NIM workflow as a fully sequential DAG:
+    - Data upload and enrichment complete first
+    - Per NIM: base eval → signal generation → backtest → customization → cust eval → signal generation → backtest → shutdown
+    - Finalize the flywheel run
     """
 
     # fix for duplicate execution
@@ -1366,7 +1365,7 @@ def run_nim_workflow_dag(
     nim_chains = []
     for nim in settings.nims:
         assert isinstance(nim, NIMConfig)
-        # For each NIM, create a chain: spin_up_nim -> parallel_evals
+        # For each NIM, create a sequential chain: eval -> signals -> backtest per model
         nim_chain = chain(
             spin_up_nim.s(nim_config=nim.model_dump()),  # Convert NIMConfig to dict
             run_base_eval.s(),

@@ -49,7 +49,7 @@ flowchart LR
 
 ### Step by Step
 
-1. **Signal generation**: During a flywheel run, the student model classifies financial news headlines into event categories (e.g., "earnings_beat", "regulatory_action", "market_crash"). These signals are stored in the `signals` table with a timestamp and direction (BUY/SELL).
+1. **Signal generation**: After each evaluation (base and customized), the `generate_signals` task calls the deployed NIM with the evaluation records and parses each response to extract a trading direction (BUY/SELL/HOLD). These signals are written to the KDB-X `signals` table with a timestamp, ticker symbol, model ID, and the model's rationale.
 
 2. **As-of join (`aj`)**: KDB-X's temporal join matches each signal to the most recent `close` price from `market_ticks` at the time the signal was generated, and again 1 day later for the exit price. This prevents look-ahead bias — the backtest only uses data that would have been available in real time.
 
@@ -78,20 +78,22 @@ No single metric tells the full story:
 
 ## Integration into the Flywheel
 
-Backtest evaluation is the third evaluation type in the flywheel DAG, alongside base and customized F1-score evaluations:
+Backtest evaluation runs **sequentially** after each model's signal generation step — once for the base model, once for the customized model:
 
 ```mermaid
 flowchart TD
-    A[Flywheel Run] --> B[Base Eval<br/>F1-Score]
-    A --> C[LoRA Fine-tuning]
-    C --> D[Customized Eval<br/>F1-Score]
-    A --> E{Market data<br/>available?}
-    E -->|Yes| F[Backtest Eval<br/>Financial Metrics]
-    E -->|No| G[Skip backtest]
-    B & D & F --> H[Job Results]
+    A[Deploy NIM] --> B[Base Eval — F1-Score]
+    B --> B2[Generate Signals — base]
+    B2 --> B3[Backtest — base]
+    B3 --> C[LoRA Fine-tuning]
+    C --> D[Customized Eval — F1-Score]
+    D --> D2[Generate Signals — customized]
+    D2 --> D3[Backtest — customized]
+    D3 --> E[Job Results]
 ```
 
-- **Automatic**: Backtest evaluation triggers automatically when the enrichment pipeline has produced market data. No manual setup required.
+- **Sequential**: Signal generation runs after each evaluation, and backtest runs immediately after signal generation. This ensures signals always exist before the backtest executes.
+- **Per-model comparison**: Both base and customized models are backtested independently, letting you compare trading performance before and after fine-tuning.
 - **Alongside F1**: Results appear in the job details alongside base and customized F1-scores, giving you both NLP accuracy and financial validation in one view.
 - **Configurable**: Transaction costs and minimum signal threshold can be adjusted via configuration. See the [Configuration Guide](03-configuration.md) for details.
 

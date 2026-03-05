@@ -134,10 +134,10 @@ from src.lib.nemo.evaluator import Evaluator
 from src.api.models import WorkloadClassification, ToolEvalType
 ```
 
-**Parallel Evaluation Strategy**:
+**Evaluation Strategy**:
 ```python
 def run_comprehensive_evaluation(nim_config: dict, datasets: dict, workload_type: WorkloadClassification) -> list:
-    """Run multiple evaluation types in parallel."""
+    """Run evaluation for a model."""
     
     # Initialize evaluator with judge model config
     evaluator = Evaluator(judge_model_config=judge_config)

@@ -114,90 +114,108 @@ rows = [
     (32, "2 - Flywheel Pipeline", "4a - Spin Up NIM",  "Celery Worker", "NIM",           "Poll GET /v1/models every 30s",     "Wait for model to appear",        "HTTP GET (loop)"),
     (33, "2 - Flywheel Pipeline", "4a - Spin Up NIM",  "Celery Worker", "TaskDBManager", "Update nims.status = RUNNING",      "deployment_status=READY",         "DB Write"),
 
-    # Stage 4b (parallel)
-    (34, "2 - Flywheel Pipeline", "4b - Base Eval [parallel]",    "Parent Worker", "Celery Worker", "run_base_eval.delay()",                 "TaskResult",                    "Celery"),
-    (35, "2 - Flywheel Pipeline", "4b - Base Eval [parallel]",    "Celery Worker", "TaskDBManager", "Insert NIMEvaluation(type=BASE)",        "NIMEvaluation record",          "DB Write"),
-    (36, "2 - Flywheel Pipeline", "4b - Base Eval [parallel]",    "Celery Worker", "NeMo Evaluator","POST /v1/evaluation/jobs",               "dataset, model, metrics config", "HTTP POST"),
-    (37, "2 - Flywheel Pipeline", "4b - Base Eval [parallel]",    "Celery Worker", "NeMo Evaluator","Poll status every 5s until COMPLETED",   "Updates progress in KDB-X",     "HTTP GET (loop)"),
-    (38, "2 - Flywheel Pipeline", "4b - Base Eval [parallel]",    "Celery Worker", "NeMo Evaluator","GET /v1/evaluation/jobs/id/results",     "f1_score or function_accuracy", "HTTP GET"),
-    (39, "2 - Flywheel Pipeline", "4b - Base Eval [parallel]",    "Celery Worker", "MLflow",        "[Optional] upload_evaluation_results()", "Scores + artifacts",            "HTTP POST"),
-    (40, "2 - Flywheel Pipeline", "4b - Base Eval [parallel]",    "Celery Worker", "TaskDBManager", "Update evaluations.scores",              "Final scores",                  "DB Write"),
+    # Stage 4b - Base Eval (sequential)
+    (34, "2 - Flywheel Pipeline", "4b - Base Eval",              "Parent Worker", "Celery Worker", "run_base_eval.delay()",                 "TaskResult",                    "Celery"),
+    (35, "2 - Flywheel Pipeline", "4b - Base Eval",              "Celery Worker", "TaskDBManager", "Insert NIMEvaluation(type=BASE)",        "NIMEvaluation record",          "DB Write"),
+    (36, "2 - Flywheel Pipeline", "4b - Base Eval",              "Celery Worker", "NeMo Evaluator","POST /v1/evaluation/jobs",               "dataset, model, metrics config", "HTTP POST"),
+    (37, "2 - Flywheel Pipeline", "4b - Base Eval",              "Celery Worker", "NeMo Evaluator","Poll status every 5s until COMPLETED",   "Updates progress in KDB-X",     "HTTP GET (loop)"),
+    (38, "2 - Flywheel Pipeline", "4b - Base Eval",              "Celery Worker", "NeMo Evaluator","GET /v1/evaluation/jobs/id/results",     "f1_score or function_accuracy", "HTTP GET"),
+    (39, "2 - Flywheel Pipeline", "4b - Base Eval",              "Celery Worker", "MLflow",        "[Optional] upload_evaluation_results()", "Scores + artifacts",            "HTTP POST"),
+    (40, "2 - Flywheel Pipeline", "4b - Base Eval",              "Celery Worker", "TaskDBManager", "Update evaluations.scores",              "Final scores",                  "DB Write"),
 
-    # Stage 4c (parallel)
-    (41, "2 - Flywheel Pipeline", "4c - Backtest [parallel]",     "Parent Worker", "Celery Worker", "run_backtest_assessment.delay()",        "TaskResult",                    "Celery"),
-    (42, "2 - Flywheel Pipeline", "4c - Backtest [parallel]",     "Celery Worker", "KDB-X",         "Count signals for model_id",             "model_id filter",               "q IPC"),
-    (43, "2 - Flywheel Pipeline", "4c - Backtest [parallel]",     "Celery Worker", "KDB-X",         "run_backtest(model_id, cost_bps)",       "Sharpe, drawdown, return, win_rate", "q IPC"),
-    (44, "2 - Flywheel Pipeline", "4c - Backtest [parallel]",     "Celery Worker", "TaskDBManager", "Update evaluations.scores (backtest)",   "Backtest result scores",        "DB Write"),
+    # Stage 4c - Generate Signals (base)
+    (41, "2 - Flywheel Pipeline", "4c - Generate Signals (base)","Parent Worker", "Celery Worker", "generate_signals.delay(model_type='base')", "TaskResult",                "Celery"),
+    (42, "2 - Flywheel Pipeline", "4c - Generate Signals (base)","Celery Worker", "KDB-X",         "Get eval records via RecordExporter",     "workload_id, client_id",        "q IPC"),
+    (43, "2 - Flywheel Pipeline", "4c - Generate Signals (base)","Celery Worker", "NIM",           "POST /v1/chat/completions per record",   "request.messages",              "HTTP POST (loop)"),
+    (44, "2 - Flywheel Pipeline", "4c - Generate Signals (base)","Celery Worker", "KDB-X",         "write_signals_batch()",                  "BUY/SELL/HOLD signals",         "q IPC"),
 
-    # Stage 4d (parallel - customization chain)
-    (45, "2 - Flywheel Pipeline", "4d - Customization [parallel]","Parent Worker", "Celery Worker", "start_customization.delay()",            "TaskResult",                    "Celery"),
-    (46, "2 - Flywheel Pipeline", "4d - Customization [parallel]","Celery Worker", "TaskDBManager", "Insert NIMCustomization",                "NIMCustomization record",       "DB Write"),
-    (47, "2 - Flywheel Pipeline", "4d - Customization [parallel]","Celery Worker", "NeMo Customizer","start_training_job()",                  "train_dataset, LoRA config, epochs", "HTTP POST"),
-    (48, "2 - Flywheel Pipeline", "4d - Customization [parallel]","Celery Worker", "NeMo Customizer","Poll job status until COMPLETED",       "epochs_completed, steps_completed",  "HTTP GET (loop)"),
-    (49, "2 - Flywheel Pipeline", "4d - Customization [parallel]","Celery Worker", "NIM",           "Poll GET /v1/models until fine-tuned model synced", "",               "HTTP GET (loop)"),
-    (50, "2 - Flywheel Pipeline", "4d - Customization [parallel]","Celery Worker", "TaskDBManager", "Update customizations.customized_model", "Fine-tuned model name",         "DB Write"),
+    # Stage 4d - Backtest (base)
+    (45, "2 - Flywheel Pipeline", "4d - Backtest (base)",        "Parent Worker", "Celery Worker", "run_backtest_assessment.delay(model_type='base')", "TaskResult",          "Celery"),
+    (46, "2 - Flywheel Pipeline", "4d - Backtest (base)",        "Celery Worker", "KDB-X",         "Count signals for model_id",             "model_id filter",               "q IPC"),
+    (47, "2 - Flywheel Pipeline", "4d - Backtest (base)",        "Celery Worker", "KDB-X",         "run_backtest(model_id, cost_bps)",       "Sharpe, drawdown, return, win_rate", "q IPC"),
+    (48, "2 - Flywheel Pipeline", "4d - Backtest (base)",        "Celery Worker", "TaskDBManager", "Update evaluations.scores (backtest)",   "Backtest result scores",        "DB Write"),
 
-    # Stage 4d continued - post-customization eval
-    (51, "2 - Flywheel Pipeline", "4d - Post-Custom Eval [parallel]","Parent Worker","Celery Worker","run_customization_eval.delay()",        "TaskResult",                    "Celery"),
-    (52, "2 - Flywheel Pipeline", "4d - Post-Custom Eval [parallel]","Celery Worker","TaskDBManager","Insert NIMEvaluation(type=CUSTOMIZED)", "NIMEvaluation record",          "DB Write"),
-    (53, "2 - Flywheel Pipeline", "4d - Post-Custom Eval [parallel]","Celery Worker","NeMo Evaluator","POST /v1/evaluation/jobs (fine-tuned)","dataset, fine-tuned model",     "HTTP POST"),
-    (54, "2 - Flywheel Pipeline", "4d - Post-Custom Eval [parallel]","Celery Worker","NeMo Evaluator","Poll and get results",                 "Fine-tuned model scores",       "HTTP GET (loop)"),
-    (55, "2 - Flywheel Pipeline", "4d - Post-Custom Eval [parallel]","Celery Worker","MLflow",       "[Optional] upload_evaluation_results()", "Scores + artifacts",           "HTTP POST"),
+    # Stage 4e - Customization
+    (49, "2 - Flywheel Pipeline", "4e - Customization",          "Parent Worker", "Celery Worker", "start_customization.delay()",            "TaskResult",                    "Celery"),
+    (50, "2 - Flywheel Pipeline", "4e - Customization",          "Celery Worker", "TaskDBManager", "Insert NIMCustomization",                "NIMCustomization record",       "DB Write"),
+    (51, "2 - Flywheel Pipeline", "4e - Customization",          "Celery Worker", "NeMo Customizer","start_training_job()",                  "train_dataset, LoRA config, epochs", "HTTP POST"),
+    (52, "2 - Flywheel Pipeline", "4e - Customization",          "Celery Worker", "NeMo Customizer","Poll job status until COMPLETED",       "epochs_completed, steps_completed",  "HTTP GET (loop)"),
+    (53, "2 - Flywheel Pipeline", "4e - Customization",          "Celery Worker", "NIM",           "Poll GET /v1/models until fine-tuned model synced", "",               "HTTP GET (loop)"),
+    (54, "2 - Flywheel Pipeline", "4e - Customization",          "Celery Worker", "TaskDBManager", "Update customizations.customized_model", "Fine-tuned model name",         "DB Write"),
 
-    # Stage 4f - shutdown
-    (56, "2 - Flywheel Pipeline", "4f - Shutdown NIM", "Parent Worker", "Celery Worker", "shutdown_deployment.delay()",           "TaskResult",                    "Celery"),
-    (57, "2 - Flywheel Pipeline", "4f - Shutdown NIM", "Celery Worker", "TaskDBManager", "Update nims.status = COMPLETED",       "status=COMPLETED",              "DB Write"),
-    (58, "2 - Flywheel Pipeline", "4f - Shutdown NIM", "Celery Worker", "NeMo DMS",      "DELETE /v1/deployment/model-deployments","namespace/model",              "HTTP DELETE"),
+    # Stage 4f - Post-customization eval
+    (55, "2 - Flywheel Pipeline", "4f - Customization Eval",     "Parent Worker", "Celery Worker", "run_customization_eval.delay()",         "TaskResult",                    "Celery"),
+    (56, "2 - Flywheel Pipeline", "4f - Customization Eval",     "Celery Worker", "TaskDBManager", "Insert NIMEvaluation(type=CUSTOMIZED)",  "NIMEvaluation record",          "DB Write"),
+    (57, "2 - Flywheel Pipeline", "4f - Customization Eval",     "Celery Worker", "NeMo Evaluator","POST /v1/evaluation/jobs (fine-tuned)",  "dataset, fine-tuned model",     "HTTP POST"),
+    (58, "2 - Flywheel Pipeline", "4f - Customization Eval",     "Celery Worker", "NeMo Evaluator","Poll and get results",                   "Fine-tuned model scores",       "HTTP GET (loop)"),
+    (59, "2 - Flywheel Pipeline", "4f - Customization Eval",     "Celery Worker", "MLflow",        "[Optional] upload_evaluation_results()",  "Scores + artifacts",           "HTTP POST"),
+
+    # Stage 4g - Generate Signals (customized)
+    (60, "2 - Flywheel Pipeline", "4g - Generate Signals (cust)","Parent Worker", "Celery Worker", "generate_signals.delay(model_type='customized')", "TaskResult",          "Celery"),
+    (61, "2 - Flywheel Pipeline", "4g - Generate Signals (cust)","Celery Worker", "KDB-X",         "Get eval records via RecordExporter",     "workload_id, client_id",       "q IPC"),
+    (62, "2 - Flywheel Pipeline", "4g - Generate Signals (cust)","Celery Worker", "NIM",           "POST /v1/chat/completions per record",   "request.messages",              "HTTP POST (loop)"),
+    (63, "2 - Flywheel Pipeline", "4g - Generate Signals (cust)","Celery Worker", "KDB-X",         "write_signals_batch()",                  "BUY/SELL/HOLD signals",         "q IPC"),
+
+    # Stage 4h - Backtest (customized)
+    (64, "2 - Flywheel Pipeline", "4h - Backtest (customized)",  "Parent Worker", "Celery Worker", "run_backtest_assessment.delay(model_type='customized')", "TaskResult",  "Celery"),
+    (65, "2 - Flywheel Pipeline", "4h - Backtest (customized)",  "Celery Worker", "KDB-X",         "Count signals for model_id",             "model_id filter",               "q IPC"),
+    (66, "2 - Flywheel Pipeline", "4h - Backtest (customized)",  "Celery Worker", "KDB-X",         "run_backtest(model_id, cost_bps)",       "Sharpe, drawdown, return, win_rate", "q IPC"),
+    (67, "2 - Flywheel Pipeline", "4h - Backtest (customized)",  "Celery Worker", "TaskDBManager", "Update evaluations.scores (backtest)",   "Backtest result scores",        "DB Write"),
+
+    # Stage 4i - shutdown
+    (68, "2 - Flywheel Pipeline", "4i - Shutdown NIM", "Parent Worker", "Celery Worker", "shutdown_deployment.delay()",           "TaskResult",                    "Celery"),
+    (69, "2 - Flywheel Pipeline", "4i - Shutdown NIM", "Celery Worker", "TaskDBManager", "Update nims.status = COMPLETED",       "status=COMPLETED",              "DB Write"),
+    (70, "2 - Flywheel Pipeline", "4i - Shutdown NIM", "Celery Worker", "NeMo DMS",      "DELETE /v1/deployment/model-deployments","namespace/model",              "HTTP DELETE"),
 
     # Stage 5 - finalize
-    (59, "2 - Flywheel Pipeline", "5 - Finalize",     "Parent Worker", "Celery Worker", "finalize_flywheel_run.delay()",         "TaskResult",                    "Celery"),
-    (60, "2 - Flywheel Pipeline", "5 - Finalize",     "Celery Worker", "Celery Worker", "sleep(60s) - allow k8s pod cleanup",    "",                              "Internal"),
-    (61, "2 - Flywheel Pipeline", "5 - Finalize",     "Celery Worker", "TaskDBManager", "mark_flywheel_run_completed()",         "status=COMPLETED, finished_at", "DB Write"),
-    (62, "2 - Flywheel Pipeline", "5 - Finalize",     "TaskDBManager", "KDB-X",         "update from flywheel_runs where ...",   "Set status + timestamp",        "q IPC"),
+    (71, "2 - Flywheel Pipeline", "5 - Finalize",     "Parent Worker", "Celery Worker", "finalize_flywheel_run.delay()",         "TaskResult",                    "Celery"),
+    (72, "2 - Flywheel Pipeline", "5 - Finalize",     "Celery Worker", "Celery Worker", "sleep(60s) - allow k8s pod cleanup",    "",                              "Internal"),
+    (73, "2 - Flywheel Pipeline", "5 - Finalize",     "Celery Worker", "TaskDBManager", "mark_flywheel_run_completed()",         "status=COMPLETED, finished_at", "DB Write"),
+    (74, "2 - Flywheel Pipeline", "5 - Finalize",     "TaskDBManager", "KDB-X",         "update from flywheel_runs where ...",   "Set status + timestamp",        "q IPC"),
 
     # ── Workflow 3: Cancellation ──
-    (63, "3 - Job Cancellation", "", "User",         "FastAPI",        "POST /api/jobs/id/cancel",                  "job_id",                                "HTTP Request"),
-    (64, "3 - Job Cancellation", "", "FastAPI",       "JobService",     "cancel_job(id)",                            "job_id",                                "Internal"),
-    (65, "3 - Job Cancellation", "", "JobService",    "TaskDBManager",  "get_flywheel_run(id) - validate cancelable","Checks finished_at=None",               "DB Read"),
-    (66, "3 - Job Cancellation", "", "JobService",    "Redis",          "cancel_job_resources.delay(id)",            "job_id",                                "Celery Dispatch"),
-    (67, "3 - Job Cancellation", "", "FastAPI",       "User",           "Return JobCancelResponse",                  "status: cancelling",                    "HTTP Response"),
-    (68, "3 - Job Cancellation", "", "Redis",         "Celery Worker",  "Dequeue cancel_job_resources",              "job_id",                                "Celery"),
-    (69, "3 - Job Cancellation", "", "Celery Worker", "TaskDBManager",  "mark_flywheel_run_cancelled()",             "status=CANCELLED, finished_at=now()",   "DB Write"),
-    (70, "3 - Job Cancellation", "", "TaskDBManager", "KDB-X",          "update from flywheel_runs where ...",       "Set cancelled flag",                    "q IPC"),
-    (71, "3 - Job Cancellation", "", "",              "",               "Running tasks detect via check_cancellation() on next poll", "Database flag pattern", "Distributed"),
+    (75, "3 - Job Cancellation", "", "User",         "FastAPI",        "POST /api/jobs/id/cancel",                  "job_id",                                "HTTP Request"),
+    (76, "3 - Job Cancellation", "", "FastAPI",       "JobService",     "cancel_job(id)",                            "job_id",                                "Internal"),
+    (77, "3 - Job Cancellation", "", "JobService",    "TaskDBManager",  "get_flywheel_run(id) - validate cancelable","Checks finished_at=None",               "DB Read"),
+    (78, "3 - Job Cancellation", "", "JobService",    "Redis",          "cancel_job_resources.delay(id)",            "job_id",                                "Celery Dispatch"),
+    (79, "3 - Job Cancellation", "", "FastAPI",       "User",           "Return JobCancelResponse",                  "status: cancelling",                    "HTTP Response"),
+    (80, "3 - Job Cancellation", "", "Redis",         "Celery Worker",  "Dequeue cancel_job_resources",              "job_id",                                "Celery"),
+    (81, "3 - Job Cancellation", "", "Celery Worker", "TaskDBManager",  "mark_flywheel_run_cancelled()",             "status=CANCELLED, finished_at=now()",   "DB Write"),
+    (82, "3 - Job Cancellation", "", "TaskDBManager", "KDB-X",          "update from flywheel_runs where ...",       "Set cancelled flag",                    "q IPC"),
+    (83, "3 - Job Cancellation", "", "",              "",               "Running tasks detect via check_cancellation() on next poll", "Database flag pattern", "Distributed"),
 
     # ── Workflow 4: Deletion ──
-    (72, "4 - Job Deletion", "", "User",         "FastAPI",        "DELETE /api/jobs/id",                   "job_id",                                "HTTP Request"),
-    (73, "4 - Job Deletion", "", "FastAPI",       "JobService",     "delete_job(id) - validate finished",   "Checks finished_at is not None",        "Internal"),
-    (74, "4 - Job Deletion", "", "JobService",    "Redis",          "delete_job_resources.delay(id)",        "job_id",                                "Celery Dispatch"),
-    (75, "4 - Job Deletion", "", "FastAPI",       "User",           "Return JobDeleteResponse",              "status: deleting",                      "HTTP Response"),
-    (76, "4 - Job Deletion", "", "Celery Worker", "NeMo Customizer","delete_customized_model() per NIM",    "model_name",                            "HTTP DELETE"),
-    (77, "4 - Job Deletion", "", "Celery Worker", "NeMo Evaluator", "delete_evaluation_job() per record",   "job_id",                                "HTTP DELETE"),
-    (78, "4 - Job Deletion", "", "Celery Worker", "MLflow",         "[Optional] delete_experiment()",        "experiment_name",                       "HTTP DELETE"),
-    (79, "4 - Job Deletion", "", "Celery Worker", "NeMo Datastore", "delete + unregister per dataset",      "dataset_name",                          "HTTP DELETE"),
-    (80, "4 - Job Deletion", "", "Celery Worker", "KDB-X",          "Cascade delete: evaluations, customizations, nims, llm_judge_runs, flywheel_runs", "All records by job_id", "q IPC"),
+    (84, "4 - Job Deletion", "", "User",         "FastAPI",        "DELETE /api/jobs/id",                   "job_id",                                "HTTP Request"),
+    (85, "4 - Job Deletion", "", "FastAPI",       "JobService",     "delete_job(id) - validate finished",   "Checks finished_at is not None",        "Internal"),
+    (86, "4 - Job Deletion", "", "JobService",    "Redis",          "delete_job_resources.delay(id)",        "job_id",                                "Celery Dispatch"),
+    (87, "4 - Job Deletion", "", "FastAPI",       "User",           "Return JobDeleteResponse",              "status: deleting",                      "HTTP Response"),
+    (88, "4 - Job Deletion", "", "Celery Worker", "NeMo Customizer","delete_customized_model() per NIM",    "model_name",                            "HTTP DELETE"),
+    (89, "4 - Job Deletion", "", "Celery Worker", "NeMo Evaluator", "delete_evaluation_job() per record",   "job_id",                                "HTTP DELETE"),
+    (90, "4 - Job Deletion", "", "Celery Worker", "MLflow",         "[Optional] delete_experiment()",        "experiment_name",                       "HTTP DELETE"),
+    (91, "4 - Job Deletion", "", "Celery Worker", "NeMo Datastore", "delete + unregister per dataset",      "dataset_name",                          "HTTP DELETE"),
+    (92, "4 - Job Deletion", "", "Celery Worker", "KDB-X",          "Cascade delete: evaluations, customizations, nims, llm_judge_runs, flywheel_runs", "All records by job_id", "q IPC"),
 
     # ── Workflow 5: Vector Search ──
-    (81, "5 - Vector Search", "", "Celery Worker", "HNSW Adapter",  "index_embeddings_to_es(index, vecs, records)", "Embedding vectors + metadata",   "Internal"),
-    (82, "5 - Vector Search", "", "HNSW Adapter",  "KDB-X",         "Insert into flywheel_embeddings table",  "doc_id, embedding, tool_name, record",  "q IPC"),
-    (83, "5 - Vector Search", "", "HNSW Adapter",  "KDB-X",         ".ai.hnsw.put - build native HNSW index", "Vectors, cosine similarity, M=32",     "q IPC"),
-    (84, "5 - Vector Search", "", "Celery Worker", "HNSW Adapter",  "search_similar_embeddings(index, query, k)", "Query vector, top-k",              "Internal"),
-    (85, "5 - Vector Search", "", "HNSW Adapter",  "KDB-X",         ".ai.hnsw.search cosine similarity top-k", "Query vector, k, index ref",         "q IPC"),
-    (86, "5 - Vector Search", "", "KDB-X",         "HNSW Adapter",  "Return (scores, indices)",               "Float scores + row indices",            "q IPC"),
-    (87, "5 - Vector Search", "", "HNSW Adapter",  "KDB-X",         "Select records by indices",              "Row indices",                           "q IPC"),
-    (88, "5 - Vector Search", "", "HNSW Adapter",  "Celery Worker", "Return (score, tool_name, record) tuples","Ranked results",                      "Internal"),
+    (94,  "5 - Vector Search", "", "Celery Worker", "HNSW Adapter",  "index_embeddings_to_es(index, vecs, records)", "Embedding vectors + metadata",   "Internal"),
+    (95,  "5 - Vector Search", "", "HNSW Adapter",  "KDB-X",         "Insert into flywheel_embeddings table",  "doc_id, embedding, tool_name, record",  "q IPC"),
+    (96,  "5 - Vector Search", "", "HNSW Adapter",  "KDB-X",         ".ai.hnsw.put - build native HNSW index", "Vectors, cosine similarity, M=32",     "q IPC"),
+    (97,  "5 - Vector Search", "", "Celery Worker", "HNSW Adapter",  "search_similar_embeddings(index, query, k)", "Query vector, top-k",              "Internal"),
+    (98,  "5 - Vector Search", "", "HNSW Adapter",  "KDB-X",         ".ai.hnsw.search cosine similarity top-k", "Query vector, k, index ref",         "q IPC"),
+    (99,  "5 - Vector Search", "", "KDB-X",         "HNSW Adapter",  "Return (scores, indices)",               "Float scores + row indices",            "q IPC"),
+    (100, "5 - Vector Search", "", "HNSW Adapter",  "KDB-X",         "Select records by indices",              "Row indices",                           "q IPC"),
+    (101, "5 - Vector Search", "", "HNSW Adapter",  "Celery Worker", "Return (score, tool_name, record) tuples","Ranked results",                      "Internal"),
 
     # ── Workflow 6: Data Explorer ──
-    (89, "6 - Data Explorer", "", "User",    "FastAPI", "GET /api/data/{table}?limit=50",       "table name, limit",               "HTTP Request"),
-    (90, "6 - Data Explorer", "", "FastAPI", "KDB-X",   "select[50] from table",                "Parameterized q query",           "q IPC"),
-    (91, "6 - Data Explorer", "", "KDB-X",  "FastAPI",  "Return rows",                          "PyKX table -> dicts",             "q IPC"),
-    (92, "6 - Data Explorer", "", "FastAPI", "User",     "Return data + total",                  "JSON records + count",            "HTTP Response"),
-    (93, "6 - Data Explorer", "", "User",    "FastAPI",  "GET /api/data/schema",                 "",                                "HTTP Request"),
-    (94, "6 - Data Explorer", "", "FastAPI", "KDB-X",    "meta each table",                      "Table introspection",             "q IPC"),
-    (95, "6 - Data Explorer", "", "FastAPI", "User",     "Return table schemas",                 "Column names + types per table",  "HTTP Response"),
-    (96, "6 - Data Explorer", "", "User",    "FastAPI",  "POST /api/backtest",                   "model_id, cost_bps",              "HTTP Request"),
-    (97, "6 - Data Explorer", "", "FastAPI", "KDB-X",    "run_backtest(model_id, cost_bps)",     "q analytics on signals table",    "q IPC"),
-    (98, "6 - Data Explorer", "", "FastAPI", "User",     "Return BacktestResponse",              "sharpe, max_drawdown, total_return, win_rate", "HTTP Response"),
+    (102, "6 - Data Explorer", "", "User",    "FastAPI", "GET /api/data/{table}?limit=50",       "table name, limit",               "HTTP Request"),
+    (103, "6 - Data Explorer", "", "FastAPI", "KDB-X",   "select[50] from table",                "Parameterized q query",           "q IPC"),
+    (104, "6 - Data Explorer", "", "KDB-X",  "FastAPI",  "Return rows",                          "PyKX table -> dicts",             "q IPC"),
+    (105, "6 - Data Explorer", "", "FastAPI", "User",     "Return data + total",                  "JSON records + count",            "HTTP Response"),
+    (106, "6 - Data Explorer", "", "User",    "FastAPI",  "GET /api/data/schema",                 "",                                "HTTP Request"),
+    (107, "6 - Data Explorer", "", "FastAPI", "KDB-X",    "meta each table",                      "Table introspection",             "q IPC"),
+    (108, "6 - Data Explorer", "", "FastAPI", "User",     "Return table schemas",                 "Column names + types per table",  "HTTP Response"),
+    (109, "6 - Data Explorer", "", "User",    "FastAPI",  "POST /api/backtest",                   "model_id, cost_bps",              "HTTP Request"),
+    (110, "6 - Data Explorer", "", "FastAPI", "KDB-X",    "run_backtest(model_id, cost_bps)",     "q analytics on signals table",    "q IPC"),
+    (111, "6 - Data Explorer", "", "FastAPI", "User",     "Return BacktestResponse",              "sharpe, max_drawdown, total_return, win_rate", "HTTP Response"),
 ]
 
 for i, row in enumerate(rows, 2):
@@ -407,7 +425,7 @@ summaries = [
      "KDB-X, Redis, NeMo DMS, NIM, NeMo Evaluator, NeMo Customizer, NeMo Datastore, MLflow",
      "5-stage DAG: (1) Initialize - set RUNNING, create NIM records. (2) Create Datasets - read logs, "
      "optional market enrichment, split, upload to Datastore. (3) LLM Judge - deploy/validate judge model. "
-     "(4) Per-NIM: spin up -> parallel [base eval + backtest + customization chain] -> shutdown. "
+     "(4) Per-NIM: spin up -> base eval -> generate signals (base) -> backtest (base) -> customization -> cust eval -> generate signals (customized) -> backtest (customized) -> shutdown. "
      "(5) Finalize - mark COMPLETED."),
 
     (3, "Job Cancellation",   "POST /api/jobs/{id}/cancel",
