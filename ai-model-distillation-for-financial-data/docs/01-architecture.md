@@ -55,15 +55,15 @@ sequenceDiagram
 
     loop For each NIM
         Worker ->> dms: Spin up NIM
-
-        par Parallel evaluation
-            Worker->> eval: Base evaluation
-            Worker->> eval: Backtest assessment
-            Worker ->> customizer: Fine tune NIM
-            Worker->> eval: Customization eval
-        end
-
-        Worker->>API: Work
+        Worker ->> eval: Base evaluation
+        Worker ->> NIM: Generate signals (base)
+        Worker ->> KDBX: Backtest (base)
+        Worker ->> customizer: Fine tune NIM
+        Worker ->> eval: Customization eval
+        Worker ->> NIM: Generate signals (customized)
+        Worker ->> KDBX: Backtest (customized)
+        Worker ->> dms: Shutdown NIM
+        Worker ->> API: Work
     end
     API->>App: Notify of new model
 ```

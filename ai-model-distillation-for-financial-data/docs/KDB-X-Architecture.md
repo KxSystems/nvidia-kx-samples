@@ -125,6 +125,14 @@ Enriches training records with point-in-time market context using KDB-X as-of jo
 - Features added: close, vwap, high, low, volume (from `market_ticks`) + bid_price, ask_price, spread, mid (from `order_book`)
 - Used during `create_datasets` to add market context to training pairs
 
+### `kdbx/signals.py` — Batch Signal Writer
+
+Writes model trading signals to the KDB-X `signals` table using PyKX IPC:
+- `write_signals_batch(signals)` — inserts a list of signal dicts in a single q call
+- Uses typed vectors (`kx.SymbolVector`, `kx.TimestampVector`, `kx.toq()`) for correct column types
+- Generates `realized_pnl` and `realized_at` nulls server-side (avoids q's 8-parameter limit)
+- Called by the `generate_signals` Celery task after each evaluation
+
 ### `kdbx/backtest.py` — Vectorised Backtesting Engine
 
 Runs financial backtests using KDB-X as-of joins (`aj`):
@@ -194,8 +202,10 @@ Data is persisted to a 50Gi EBS volume (`kdbai-storage` StorageClass, gp3).
 Phase 3 integrates financial analytics into the flywheel DAG:
 
 1. **Market-data enrichment** in `create_datasets` — uses `aj` (as-of join) to add point-in-time OHLCV + order book features (close, vwap, high, low, volume, bid, ask, spread, mid) to training records
-2. **Backtest assessment** — new Celery task (`run_backtest_assessment`) wired after customization eval, producing `backtest-eval` evaluations with Sharpe/drawdown/return metrics
-3. **New API endpoints** — `POST /api/backtest` (ad-hoc) and `GET /api/market-status` (table stats)
-4. **`enrichment_stats`** — persisted on `flywheel_runs`, surfaced in job detail responses
+2. **Signal generation** — new Celery task (`generate_signals`) runs after each evaluation (base and customized), calling the deployed NIM with eval records and writing BUY/SELL/HOLD signals to the `signals` table via `kdbx/signals.py`
+3. **Backtest assessment** — `run_backtest_assessment` runs after each signal generation step, producing `backtest-eval` evaluations with Sharpe/drawdown/return metrics for both the base and customized models
+4. **Sequential DAG** — the pipeline runs fully sequentially: `base_eval → generate_signals(base) → backtest(base) → customization → cust_eval → generate_signals(customized) → backtest(customized)`
+5. **New API endpoints** — `POST /api/backtest` (ad-hoc) and `GET /api/market-status` (table stats)
+6. **`enrichment_stats`** — persisted on `flywheel_runs`, surfaced in job detail responses
 
 The `flywheel_runs` table now includes an `enrichment_stats` column (general list, JSON-serialized) tracking records enriched, features added, and enrichment time.

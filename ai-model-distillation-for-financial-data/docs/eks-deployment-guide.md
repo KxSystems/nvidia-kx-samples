@@ -336,12 +336,14 @@ curl -X POST "http://${API_LB}:8000/api/jobs" \
 2. **create_datasets** — Enriches records with market context via KDB-X `aj`, splits into eval (20) and train
 3. **wait_for_llm_as_judge** — Deploys or connects to the LLM judge model
 4. **spin_up_nim** — Deploys Llama 3.2 1B via NIM (~3 min)
-5. **In parallel:**
-   - **run_base_eval** — Evaluates base model (F1 score)
-   - **run_backtest_assessment** — Vectorised backtest via KDB-X `aj` (Sharpe, drawdown, win rate)
-   - **start_customization → run_customization_eval** — LoRA fine-tuning via NeMo Customizer (~6 min), then evaluates fine-tuned model
-6. **shutdown_deployment** — Removes NIM deployment
-7. **finalize** — Marks run as complete
+5. **run_base_eval** — Evaluates base model (F1 score)
+6. **generate_signals (base)** — Calls the NIM to generate trading signals from eval records
+7. **run_backtest_assessment (base)** — Vectorised backtest via KDB-X `aj` (Sharpe, drawdown, win rate)
+8. **start_customization → run_customization_eval** — LoRA fine-tuning via NeMo Customizer (~6 min), then evaluates fine-tuned model
+9. **generate_signals (customized)** — Generates trading signals using the fine-tuned model
+10. **run_backtest_assessment (customized)** — Backtests the customized model's signals
+11. **shutdown_deployment** — Removes NIM deployment
+12. **finalize** — Marks run as complete
 
 Total runtime: ~10-15 minutes.
 

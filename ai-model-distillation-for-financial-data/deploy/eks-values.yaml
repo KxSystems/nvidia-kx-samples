@@ -95,7 +95,7 @@ nemo-microservices-helm-chart:
 
   customizer:
     modelsStorage:
-      storageClassName: kdbx-storage
+      storageClassName: kdbx-storage-1f
     customizerConfig:
       training:
         pvc:

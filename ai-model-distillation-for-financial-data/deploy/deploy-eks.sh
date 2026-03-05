@@ -109,6 +109,14 @@ else
         -n ingress-nginx --timeout=120s
 fi
 
+# Ensure ingress-nginx pods are actually running (may need restart after scale-up)
+NGINX_READY=$(kubectl get pods -n ingress-nginx -l app.kubernetes.io/name=ingress-nginx --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l)
+if [[ "${NGINX_READY}" -eq 0 ]]; then
+    info "ingress-nginx pods not running, restarting..."
+    kubectl rollout restart deployment ingress-nginx-controller -n ingress-nginx
+    kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=ingress-nginx -n ingress-nginx --timeout=120s
+fi
+
 # Required environment variables
 : "${NVIDIA_API_KEY:?Set NVIDIA_API_KEY in .env or environment}"
 : "${NGC_API_KEY:?Set NGC_API_KEY in .env or environment (defaults to NVIDIA_API_KEY)}"

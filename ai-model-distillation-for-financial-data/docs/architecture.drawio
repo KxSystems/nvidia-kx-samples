@@ -225,27 +225,27 @@
           <mxGeometry x="1220" y="1090" width="120" height="70" as="geometry"/>
         </mxCell>
 
-        <!-- Parallel group label -->
-        <mxCell id="parallel_label" value="&lt;font style=&quot;font-size:9px;font-style:italic&quot;&gt;parallel (group)&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;fontSize=9;fontColor=#4a86c8;" vertex="1" parent="1">
+        <!-- Sequential pipeline label -->
+        <mxCell id="parallel_label" value="&lt;font style=&quot;font-size:9px;font-style:italic&quot;&gt;sequential (chain)&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;fontSize=9;fontColor=#4a86c8;" vertex="1" parent="1">
           <mxGeometry x="1395" y="1030" width="100" height="20" as="geometry"/>
         </mxCell>
 
-        <!-- Parallel branch A: Base Eval -->
-        <mxCell id="step4" value="&lt;b&gt;5a. Base Eval&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;20 samples&lt;br&gt;chat-completion&lt;br&gt;~4 min&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;fontSize=11;" vertex="1" parent="1">
+        <!-- Step 5a: Base Eval -->
+        <mxCell id="step4" value="&lt;b&gt;5a. Base Eval&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;F1-score eval&lt;br&gt;~4 min&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="1370" y="1045" width="120" height="60" as="geometry"/>
         </mxCell>
 
-        <!-- Parallel branch B: Backtest -->
-        <mxCell id="step4b" value="&lt;b&gt;5b. Backtest&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;KDB-X aj backtest&lt;br&gt;assessment&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;fontSize=11;" vertex="1" parent="1">
+        <!-- Step 5b: Generate Signals (base) + Backtest (base) -->
+        <mxCell id="step4b" value="&lt;b&gt;5b. Signals&lt;br&gt;+ Backtest&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;base model&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="1370" y="1115" width="120" height="60" as="geometry"/>
         </mxCell>
 
-        <!-- Parallel branch C: SFT → Custom Eval -->
+        <!-- Step 5c: SFT Train → Custom Eval -->
         <mxCell id="step5" value="&lt;b&gt;5c. SFT Train&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;2 epochs&lt;br&gt;batch_size=8&lt;br&gt;~6.5 min&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="1370" y="1185" width="120" height="60" as="geometry"/>
         </mxCell>
 
-        <mxCell id="step6" value="&lt;b&gt;5d. Cust Eval&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;20 samples&lt;br&gt;customized model&lt;br&gt;~3 min&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;fontSize=11;" vertex="1" parent="1">
+        <mxCell id="step6" value="&lt;b&gt;5d. Cust Eval&lt;br&gt;+ Signals&lt;br&gt;+ Backtest&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;customized&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="1520" y="1185" width="120" height="60" as="geometry"/>
         </mxCell>
 
@@ -269,29 +269,25 @@
           <mxGeometry relative="1" as="geometry"/>
         </mxCell>
 
-        <!-- NIM Deploy → parallel fan-out -->
+        <!-- NIM Deploy → Base Eval (sequential) -->
         <mxCell id="p34a" edge="1" source="step3" target="step4" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeWidth=2;strokeColor=#4a86c8;">
           <mxGeometry relative="1" as="geometry"/>
         </mxCell>
-        <mxCell id="p34b" edge="1" source="step3" target="step4b" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeWidth=2;strokeColor=#4a86c8;">
+        <!-- Base Eval → Signals + Backtest (base) -->
+        <mxCell id="p34b" edge="1" source="step4" target="step4b" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeWidth=2;strokeColor=#4a86c8;">
           <mxGeometry relative="1" as="geometry"/>
         </mxCell>
-        <mxCell id="p35" edge="1" source="step3" target="step5" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeWidth=2;strokeColor=#4a86c8;">
+        <!-- Signals + Backtest (base) → SFT Train -->
+        <mxCell id="p35" edge="1" source="step4b" target="step5" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeWidth=2;strokeColor=#4a86c8;">
           <mxGeometry relative="1" as="geometry"/>
         </mxCell>
 
-        <!-- SFT → Custom Eval (chained within parallel branch) -->
+        <!-- SFT → Cust Eval + Signals + Backtest (customized) -->
         <mxCell id="p56" edge="1" source="step5" target="step6" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeWidth=2;strokeColor=#4a86c8;">
           <mxGeometry relative="1" as="geometry"/>
         </mxCell>
 
-        <!-- Parallel fan-in → Shutdown -->
-        <mxCell id="p46b" edge="1" source="step4" target="step6b" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeWidth=2;strokeColor=#4a86c8;">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="p4b6b" edge="1" source="step4b" target="step6b" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeWidth=2;strokeColor=#4a86c8;">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
+        <!-- Cust Eval + Signals + Backtest (customized) → Shutdown -->
         <mxCell id="p66b" edge="1" source="step6" target="step6b" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeWidth=2;strokeColor=#4a86c8;">
           <mxGeometry relative="1" as="geometry"/>
         </mxCell>

@@ -12,20 +12,25 @@ The developer example uses a **Directed Acyclic Graph (DAG)** of Celery tasks to
 graph TD
     A[Initialize Workflow] --> B[Create Datasets + Enrich]
     B --> C[Deploy NIM]
-    C --> D[Run Base Evaluations]
-    C --> E[Start Customization]
-    C --> F2[Run Backtest Assessment]
+    C --> D[Run Base Eval]
+    D --> D2[Generate Signals — base]
+    D2 --> D3[Run Backtest — base]
+    D3 --> E[Start Customization]
     E --> F[Run Customization Eval]
-    D & F & F2 --> G[Shutdown Deployments]
+    F --> F2[Generate Signals — customized]
+    F2 --> F3[Run Backtest — customized]
+    F3 --> G[Shutdown Deployments]
     G --> H[Finalize Results]
 ```
+
+The pipeline runs **fully sequentially** per NIM. Each model (base and customized) goes through evaluation, signal generation, and backtesting in order — ensuring that backtest always has signals to work with.
 
 ## Task Definitions and Dependencies
 
 ### 1. **`initialize_workflow`**
 **Purpose**: Sets up the job run, validates configuration, and prepares the job for execution.
 
-**Source**: `src/tasks/tasks.py:105`
+**Source**: `src/tasks/tasks.py`
 
 **Key Operations**:
 - Validates workload_id and client_id
@@ -46,7 +51,7 @@ run_nim_workflow_dag.delay(
 ### 2. **`create_datasets`** (with enrichment)
 **Purpose**: Extracts data from KDB-X, creates training/evaluation datasets, and enriches training records with market-data features.
 
-**Source**: `src/tasks/tasks.py:195`
+**Source**: `src/tasks/tasks.py`
 
 **Key Operations**:
 - Queries KDB-X for logged interactions
@@ -166,7 +171,7 @@ The developer example supports two methods for selecting in-context learning exa
 ### 3. **`spin_up_nim`**
 **Purpose**: Deploys a NIM model and waits for readiness
 
-**Source**: `src/tasks/tasks.py:383`
+**Source**: `src/tasks/tasks.py`
 
 **Key Operations**:
 - Deploys NIM with specified configuration
@@ -179,7 +184,7 @@ The developer example supports two methods for selecting in-context learning exa
 ### 4. **`run_base_eval`**
 **Purpose**: Runs evaluations against deployed NIMs using F1-score metrics.
 
-**Source**: `src/tasks/tasks.py:511`
+**Source**: `src/tasks/tasks.py`
 
 **Key Operations**:
 - Executes base evaluations on held-out test data
@@ -189,10 +194,28 @@ The developer example supports two methods for selecting in-context learning exa
 **Dependencies**: `spin_up_nim`
 
 
-### 5. **`start_customization`**
+### 5. **`generate_signals`**
+**Purpose**: Calls the deployed NIM to generate trading signals from evaluation records, then writes them to the KDB-X `signals` table.
+
+**Source**: `src/tasks/tasks.py`
+
+**Key Operations**:
+- Fetches evaluation records from KDB-X via `RecordExporter`
+- Calls the NIM `/v1/chat/completions` endpoint for each record
+- Parses model responses to extract a trading direction (BUY/SELL/HOLD)
+- Extracts ticker symbols from records using `kdbx.enrichment.extract_sym_from_record`
+- Writes signals in batch to the `signals` table via `kdbx.signals.write_signals_batch`
+
+**Dependencies**: `run_base_eval` (for base model) or `run_customization_eval` (for customized model)
+
+**Parameters**:
+- `model_type="base"` — uses the base NIM model name
+- `model_type="customized"` — uses the customized model name from `previous_result.customization.model_name`
+
+### 6. **`start_customization`**
 **Purpose**: Initiates fine-tuning of candidate models using production data.
 
-**Source**: `src/tasks/tasks.py:764`
+**Source**: `src/tasks/tasks.py`
 
 **Key Operations**:
 - Creates customization jobs in NeMo Customizer
@@ -200,17 +223,17 @@ The developer example supports two methods for selecting in-context learning exa
 - Monitors training progress
 - Handles training failures and retries
 
-**Dependencies**: `spin_up_nim` (runs in parallel with `run_base_eval` and `run_backtest_assessment`)
+**Dependencies**: `run_backtest_assessment` (base) — runs after the base model's backtest completes
 
 **Customization Features**:
 - **LoRA Fine-tuning**: Parameter-efficient training
 - **Multi-GPU Support**: Distributed training across multiple GPUs
 - **Progress Monitoring**: Real-time training progress tracking
 
-### 6. **`run_customization_eval`**
+### 7. **`run_customization_eval`**
 **Purpose**: Evaluates fine-tuned models against base evaluation datasets using F1-score metrics.
 
-**Source**: `src/tasks/tasks.py:911`
+**Source**: `src/tasks/tasks.py`
 
 **Key Operations**:
 - Deploys customized models
@@ -219,36 +242,42 @@ The developer example supports two methods for selecting in-context learning exa
 
 **Dependencies**: `start_customization`
 
-### 7. **`run_backtest_assessment`**
+### 8. **`run_backtest_assessment`**
 **Purpose**: Evaluates the model's trading signals using a vectorised KDB-X backtest.
 
-**Source**: `src/tasks/tasks.py:962`
+**Source**: `src/tasks/tasks.py`
 
 **Key Operations**:
 - Checks if signals exist for the model in the `signals` table
 - Skips if signal count is below `backtest_config.min_signals` (default 10)
-- Calls `kdbx/backtest.py:run_backtest()` -- vectorised `aj` join for entry/exit prices
+- Calls `kdbx/backtest.py:run_backtest()` — vectorised `aj` join for entry/exit prices
 - Stores backtest evaluation results (Sharpe, drawdown, win rate, etc.) in the `evaluations` table with `eval_type="backtest-eval"`
 - Configurable: `cost_bps` (transaction cost), `min_signals` threshold
 
-**Dependencies**: `spin_up_nim` (runs in parallel with `run_base_eval` and `start_customization`)
+**Dependencies**: `generate_signals` — runs immediately after signal generation for each model
 
-### 8. **`shutdown_deployment`**
+**Parameters**:
+- `model_type="base"` — backtests signals from the base model
+- `model_type="customized"` — backtests signals from the customized model
+
+The backtest runs **twice** per flywheel run: once for the base model and once for the customized model, allowing direct comparison of trading performance before and after fine-tuning.
+
+### 9. **`shutdown_deployment`**
 **Purpose**: Gracefully shuts down NIM deployments to free resources.
 
-**Source**: `src/tasks/tasks.py:1064`
+**Source**: `src/tasks/tasks.py`
 
 **Key Operations**:
 - Marks the NIM as completed by updating deployment status in database
 - Stops the NIM deployments
 - Preserves evaluation results and model artifacts
 
-**Dependencies**: All parallel tasks (`run_base_eval`, `run_backtest_assessment`, `run_customization_eval`) must complete
+**Dependencies**: `run_backtest_assessment` (customized) — the last task in the sequential chain
 
-### 9. **`finalize_flywheel_run`**
+### 10. **`finalize_flywheel_run`**
 **Purpose**: Aggregates results and marks the job as complete.
 
-**Source**: `src/tasks/tasks.py:1143`
+**Source**: `src/tasks/tasks.py`
 
 **Key Operations**:
 - Updates job status to `COMPLETED`

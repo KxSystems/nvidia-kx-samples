@@ -27,22 +27,28 @@ _db: KDBXDatabase | None = None
 
 
 def get_db() -> KDBXDatabase:
-    """Get the KDB-X database instance."""
+    """Get the KDB-X database instance, initializing lazily if needed."""
     global _db
     if _db is None:
-        raise RuntimeError("Database not initialized. Call init_db() first.")
+        init_db()
     return _db
 
 
-def init_db() -> KDBXDatabase:
-    """Initialize KDB-X connection and create tables."""
+def init_db() -> KDBXDatabase | None:
+    """Initialize KDB-X connection and create tables.
+
+    Returns the database instance on success, or ``None`` if KDB-X is
+    unreachable after all retry attempts.  This allows Celery workers to
+    start even when KDB-X is not yet ready — ``get_db()`` will retry on
+    the next task invocation.
+    """
     global _db
 
     # Return existing instance if available
     if _db is not None:
         return _db
 
-    for attempt in range(30):
+    for attempt in range(60):
         try:
             with pykx_connection() as q:
                 q("1+1")  # lightweight health check
@@ -51,15 +57,15 @@ def init_db() -> KDBXDatabase:
             _db = KDBXDatabase()
             return _db
         except Exception:
-            if attempt == 29:
-                msg = "Could not connect to KDB-X after 30 attempts"
-                logger.error(msg)
-                raise RuntimeError(msg)
+            if attempt == 59:
+                logger.warning(
+                    "Could not connect to KDB-X after 60 attempts; "
+                    "will retry on next request"
+                )
+                return None
             time.sleep(1)
 
-    msg = "KDB-X did not become healthy in time"
-    logger.error(msg)
-    raise RuntimeError(msg)
+    return None
 
 
 def close_db() -> None:

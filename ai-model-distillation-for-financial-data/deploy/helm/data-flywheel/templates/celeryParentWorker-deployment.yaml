@@ -6,6 +6,8 @@ metadata:
   name: {{ .Values.foundationalFlywheelServer.deployments.celeryParentWorker.fullnameOverride }}-deployment
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: {{ .Values.foundationalFlywheelServer.deployments.celeryParentWorker.fullnameOverride }}-deployment
