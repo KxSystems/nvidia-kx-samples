@@ -174,24 +174,43 @@ def load_parquet_data(parquet_path: str) -> dict[str, int]:
     # Sort by sym+timestamp so s# (sorted attribute) succeeds and aj gets
     # optimal performance (sym ascending, timestamp ascending within each sym)
     ticks = ticks.sort_values(["sym", "timestamp"]).reset_index(drop=True)
-    # category dtype → kx.toq() produces symbol vector (not char vectors)
-    ticks["sym"] = ticks["sym"].astype("category")
 
     # --- order_book ---
     book = df[_BOOK_COLS].copy()
     book = book.sort_values(["sym", "timestamp"]).reset_index(drop=True)
-    book["sym"] = book["sym"].astype("category")
 
     with pykx_connection() as q:
-        # Batch insert market_ticks
-        q("{[t] `market_ticks insert t}", kx.toq(ticks))
+        # Batch insert market_ticks using typed vectors (unlicensed IPC mode)
+        q(
+            "{[s;ts;o;h;l;c;v;vw;tc;src] `market_ticks insert flip `sym`timestamp`open`high`low`close`volume`vwap`trade_count`source!(s;ts;o;h;l;c;v;vw;tc;src)}",
+            kx.SymbolVector(ticks["sym"].tolist()),
+            kx.TimestampVector(ticks["timestamp"].tolist()),
+            kx.toq(ticks["open"].values),
+            kx.toq(ticks["high"].values),
+            kx.toq(ticks["low"].values),
+            kx.toq(ticks["close"].values),
+            kx.toq(ticks["volume"].values),
+            kx.toq(ticks["vwap"].values),
+            kx.toq(ticks["trade_count"].values),
+            kx.SymbolVector(ticks["source"].tolist()),
+        )
         # Apply sorted attribute on sym for fast aj lookups
         q("update `s#sym from `market_ticks")
         tick_count = int(q("count market_ticks").py())
         logger.info("Inserted %d rows into market_ticks", tick_count)
 
-        # Batch insert order_book
-        q("{[t] `order_book insert t}", kx.toq(book))
+        # Batch insert order_book using typed vectors (unlicensed IPC mode)
+        q(
+            "{[s;ts;bp;bs;ap;as;m;sp] `order_book insert flip `sym`timestamp`bid_price`bid_size`ask_price`ask_size`mid`spread!(s;ts;bp;bs;ap;as;m;sp)}",
+            kx.SymbolVector(book["sym"].tolist()),
+            kx.TimestampVector(book["timestamp"].tolist()),
+            kx.toq(book["bid_price"].values),
+            kx.toq(book["bid_size"].values),
+            kx.toq(book["ask_price"].values),
+            kx.toq(book["ask_size"].values),
+            kx.toq(book["mid"].values),
+            kx.toq(book["spread"].values),
+        )
         q("update `s#sym from `order_book")
         book_count = int(q("count order_book").py())
         logger.info("Inserted %d rows into order_book", book_count)

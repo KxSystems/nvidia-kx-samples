@@ -14,9 +14,12 @@
 # limitations under the License.
 import os
 import time
+import uuid
 from collections.abc import Callable
 from datetime import datetime
 from typing import Any
+
+import requests
 
 from bson import ObjectId
 from celery import Celery, chain, group, signals
@@ -958,8 +961,115 @@ def run_customization_eval(previous_result: TaskResult) -> TaskResult:
         return previous_result
 
 
+def _parse_direction(response_text: str) -> str:
+    """Extract trading direction from model response text.
+
+    Performs case-insensitive keyword search for BUY/SELL/HOLD.
+    Returns ``"HOLD"`` if none found.
+    """
+    upper = response_text.upper()
+    if "BUY" in upper:
+        return "BUY"
+    if "SELL" in upper:
+        return "SELL"
+    if "HOLD" in upper:
+        return "HOLD"
+    return "HOLD"
+
+
+@celery_app.task(name="tasks.generate_signals", pydantic=True)
+def generate_signals(previous_result: TaskResult, model_type: str = "base") -> TaskResult:
+    """Generate trading signals by running eval records through the NIM and writing to KDB-X."""
+    if _should_skip_stage(previous_result, "generate_signals"):
+        return previous_result
+    if not settings.backtest_config.enabled:
+        return previous_result
+    if _check_cancellation(previous_result.flywheel_run_id, raise_error=False):
+        if previous_result and not previous_result.error:
+            previous_result.error = (
+                f"Task cancelled for flywheel run {previous_result.flywheel_run_id}"
+            )
+        return previous_result
+
+    from kdbx.enrichment import extract_sym_from_record
+    from kdbx.signals import write_signals_batch
+
+    try:
+        # Determine model name based on model_type
+        if model_type == "customized":
+            if not previous_result.customization or not previous_result.customization.model_name:
+                logger.info("No customized model available, skipping signal generation")
+                return previous_result
+            model_name = previous_result.customization.model_name
+        else:
+            model_name = previous_result.nim.target_model_for_evaluation()
+
+        # Fetch eval records
+        split_config = (
+            previous_result.data_split_config
+            if previous_result.data_split_config
+            else settings.data_split_config
+        )
+        records = RecordExporter().get_records(
+            previous_result.client_id,
+            previous_result.workload_id,
+            split_config,
+        )
+
+        nim_url = f"{settings.nmp_config.nim_base_url}/v1/chat/completions"
+        signals_batch: list[dict] = []
+
+        for rec in records:
+            # Build chat messages from the record
+            messages = rec.get("request", {}).get("messages") if isinstance(rec.get("request"), dict) else None
+            if not messages:
+                continue
+
+            try:
+                resp = requests.post(
+                    nim_url,
+                    json={"model": model_name, "messages": messages},
+                    timeout=60,
+                )
+                resp.raise_for_status()
+                content = resp.json()["choices"][0]["message"]["content"]
+            except Exception as e:
+                logger.warning("Signal generation request failed for record: %s", e)
+                continue
+
+            direction = _parse_direction(content)
+            sym = extract_sym_from_record(rec, settings.enrichment_config)
+
+            if not sym:
+                continue
+
+            signals_batch.append({
+                "signal_id": str(uuid.uuid4()),
+                "timestamp": datetime.utcnow(),
+                "sym": sym,
+                "direction": direction,
+                "confidence": 0.0,
+                "model_id": model_name,
+                "rationale": content,
+            })
+
+        if signals_batch:
+            write_signals_batch(signals_batch)
+            logger.info(
+                "Generated %d signals for model %s (%s)",
+                len(signals_batch), model_name, model_type,
+            )
+        else:
+            logger.info("No signals generated for model %s (%s)", model_name, model_type)
+
+    except Exception as e:
+        logger.error("Signal generation failed (non-fatal): %s", e)
+
+    return previous_result
+
+
 @celery_app.task(name="tasks.run_backtest_assessment", pydantic=True)
-def run_backtest_assessment(previous_result: TaskResult) -> TaskResult:
+def run_backtest_assessment(previous_result: TaskResult, model_type: str = "base") -> TaskResult:
     """Run backtest using signals from the signals table."""
     if _should_skip_stage(previous_result, "run_backtest_assessment"):
         return previous_result
@@ -977,7 +1087,12 @@ def run_backtest_assessment(previous_result: TaskResult) -> TaskResult:
     import pykx as kx
 
     start_time = datetime.utcnow()
-    model_id = previous_result.nim.model_name
+
+    # Select model_id based on model_type
+    if model_type == "customized" and previous_result.customization and previous_result.customization.model_name:
+        model_id = previous_result.customization.model_name
+    else:
+        model_id = previous_result.nim.model_name
 
     nim_run = db_manager.find_nim_run(
         previous_result.flywheel_run_id,
@@ -1065,17 +1180,22 @@ def shutdown_deployment(previous_results: list[TaskResult] | TaskResult) -> Task
     """Shutdown the NIM deployment.
 
     Args:
-        previous_results: Either a single ``TaskResult`` or a list of them produced by a ``group``.
+        previous_results: A single ``TaskResult`` (sequential DAG) or a list (legacy ``group``).
     """
     # This task will spin down the NIM deployment.
     # It will also mark the NIM run as completed.
     previous_result: TaskResult | None = None
     try:
-        previous_result = _extract_previous_result(
-            previous_results,
-            validator=lambda r: getattr(r, "nim", None) is not None,
-            error_msg="No valid TaskResult with NIM config found in results",
-        )
+        # Sequential DAG passes a single TaskResult; legacy group passes a list.
+        if isinstance(previous_results, TaskResult):
+            previous_result = previous_results
+            assert previous_result.nim is not None, "TaskResult missing NIM config"
+        else:
+            previous_result = _extract_previous_result(
+                previous_results,
+                validator=lambda r: getattr(r, "nim", None) is not None,
+                error_msg="No valid TaskResult with NIM config found in results",
+            )
         # Mark the NIM run as completed first
         # This will ensure that the NIM run is marked as completed
         # even if the deployment is not shut down in case if the llm judge is same as the NIM.
@@ -1249,14 +1369,13 @@ def run_nim_workflow_dag(
         # For each NIM, create a chain: spin_up_nim -> parallel_evals
         nim_chain = chain(
             spin_up_nim.s(nim_config=nim.model_dump()),  # Convert NIMConfig to dict
-            group(
-                run_base_eval.s(),
-                run_backtest_assessment.s(),
-                chain(
-                    start_customization.s(),
-                    run_customization_eval.s(),
-                ),
-            ),
+            run_base_eval.s(),
+            generate_signals.s(model_type="base"),
+            run_backtest_assessment.s(model_type="base"),
+            start_customization.s(),
+            run_customization_eval.s(),
+            generate_signals.s(model_type="customized"),
+            run_backtest_assessment.s(model_type="customized"),
             shutdown_deployment.s(),
         )
         nim_chains.append(nim_chain)
