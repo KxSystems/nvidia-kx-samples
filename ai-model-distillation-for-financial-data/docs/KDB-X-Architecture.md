@@ -125,6 +125,14 @@ Enriches training records with point-in-time market context using KDB-X as-of jo
 - Features added: close, vwap, high, low, volume (from `market_ticks`) + bid_price, ask_price, spread, mid (from `order_book`)
 - Used during `create_datasets` to add market context to training pairs
 
+### `kdbx/labeling.py` — Market-Return Training Data Labeling
+
+Labels training records that have empty responses with objective BUY/SELL/HOLD directions computed from next-day market returns:
+- `compute_return_labels_batch(syms, timestamps, threshold_bps)` — batch `aj` query against `market_ticks` to get entry price at event time and exit price 1 day later; computes return percentage and classifies as BUY (> +threshold), SELL (< -threshold), or HOLD
+- `generate_template_rationale(direction, sym, return_pct, entry_price, exit_price)` — produces rationale strings like `"BUY — AAPL next-day return +1.50% ($185.50 → $188.28)"`
+- Used during `create_datasets` to populate empty `response.choices[0].message.content` fields before LoRA fine-tuning
+- Returns `direction=None` when market data is missing (record skipped gracefully)
+
 ### `kdbx/signals.py` — Batch Signal Writer
 
 Writes model trading signals to the KDB-X `signals` table using PyKX IPC:
@@ -144,7 +152,7 @@ Runs financial backtests using KDB-X as-of joins (`aj`):
 
 ### `kdbx/market_tables.py` — Market Table DDL
 
-Defines 4 financial market tables: `market_ticks`, `order_book`, `signals`, `backtest_results`. Includes a Parquet loader for bulk-inserting market data.
+Defines 4 financial market tables: `market_ticks`, `order_book`, `signals`, `backtest_results`. Includes a Parquet loader for bulk-inserting market data. After each data load, tables are sorted in-place with `` `sym`timestamp xasc `` to ensure correct `aj` (as-of join) behaviour.
 
 ### `kdbx/connection.py` — Connection Management
 
@@ -202,10 +210,11 @@ Data is persisted to a 50Gi EBS volume (`kdbai-storage` StorageClass, gp3).
 Phase 3 integrates financial analytics into the flywheel DAG:
 
 1. **Market-data enrichment** in `create_datasets` — uses `aj` (as-of join) to add point-in-time OHLCV + order book features (close, vwap, high, low, volume, bid, ask, spread, mid) to training records
-2. **Signal generation** — new Celery task (`generate_signals`) runs after each evaluation (base and customized), calling the deployed NIM with eval records and writing BUY/SELL/HOLD signals to the `signals` table via `kdbx/signals.py`
-3. **Backtest assessment** — `run_backtest_assessment` runs after each signal generation step, producing `backtest-eval` evaluations with Sharpe/drawdown/return metrics for both the base and customized models
-4. **Sequential DAG** — the pipeline runs fully sequentially: `base_eval → generate_signals(base) → backtest(base) → customization → cust_eval → generate_signals(customized) → backtest(customized)`
-5. **New API endpoints** — `POST /api/backtest` (ad-hoc) and `GET /api/market-status` (table stats)
-6. **`enrichment_stats`** — persisted on `flywheel_runs`, surfaced in job detail responses
+2. **Market-return labeling** in `create_datasets` — labels records with empty responses using next-day market returns from `market_ticks` via `kdbx/labeling.py`, producing BUY/SELL/HOLD labels with template rationale for fine-tuning
+3. **Signal generation** — Celery task (`generate_signals`) runs after each evaluation (base and customized), calling the deployed NIM with eval records and writing BUY/SELL/HOLD signals to the `signals` table via `kdbx/signals.py`; uses original event timestamps for accurate backtesting
+4. **Backtest assessment** — `run_backtest_assessment` runs after each signal generation step, producing `backtest-eval` evaluations with Sharpe/drawdown/return metrics for both the base and customized models
+5. **Sequential DAG** — the pipeline runs fully sequentially: `base_eval → generate_signals(base) → backtest(base) → customization → cust_eval → generate_signals(customized) → backtest(customized)`
+6. **New API endpoints** — `POST /api/backtest` (ad-hoc) and `GET /api/market-status` (table stats)
+7. **`enrichment_stats`** — persisted on `flywheel_runs`, surfaced in job detail responses
 
 The `flywheel_runs` table now includes an `enrichment_stats` column (general list, JSON-serialized) tracking records enriched, features added, and enrichment time.

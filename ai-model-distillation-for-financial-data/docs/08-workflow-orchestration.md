@@ -48,8 +48,8 @@ run_nim_workflow_dag.delay(
 )
 ```
 
-### 2. **`create_datasets`** (with enrichment)
-**Purpose**: Extracts data from KDB-X, creates training/evaluation datasets, and enriches training records with market-data features.
+### 2. **`create_datasets`** (with enrichment and labeling)
+**Purpose**: Extracts data from KDB-X, creates training/evaluation datasets, enriches training records with market-data features, and labels records with empty responses using market returns.
 
 **Source**: `src/tasks/tasks.py`
 
@@ -60,6 +60,7 @@ run_nim_workflow_dag.delay(
 - Applies data split configuration
 - Uploads datasets to NeMo Data Service
 - Runs market-data enrichment on training records (see below)
+- Runs market-return labeling on records with empty responses (see below)
 - Persists enrichment statistics (`records_enriched`, `features_added`, `enrichment_time_seconds`) to `flywheel_runs.enrichment_stats`
 
 **Dependencies**: `initialize_workflow`
@@ -145,6 +146,20 @@ flowchart LR
 
 **Configuration.** See [Enrichment Configuration](03-configuration.md#enrichment-configuration) for all options (`enabled`, `sym_field`, `sym_extraction`, `default_sym`).
 
+#### Market-Return Labeling for Training Data
+
+After enrichment, records with **empty** `response.choices[0].message.content` are labeled using next-day market returns from `market_ticks`. This is critical for fine-tuning: without labeled responses, the customized model learns to output nothing and produces 100% HOLD signals.
+
+**How it works:**
+1. For each record with an empty response, the pipeline extracts the ticker (`sym`) and event timestamp
+2. A KDB-X as-of join (`aj`) against `market_ticks` finds the close price at event time (entry) and 1 day later (exit)
+3. The next-day return determines the label: return > +threshold → BUY, < -threshold → SELL, else HOLD (threshold is configurable via `signal_config.labeling.return_threshold_bps`, default 50 bps = 0.5%)
+4. The response content is populated with a template rationale: `"BUY — AAPL next-day return +1.50% ($185.50 → $188.28)"`
+
+Records with existing (non-empty) response content are never overwritten.
+
+**Configuration.** See [Signal Generation Configuration](03-configuration.md#signal-generation-configuration) for all labeling options.
+
 #### ICL Example Selection Methods
 
 The developer example supports two methods for selecting in-context learning examples:
@@ -201,9 +216,11 @@ The developer example supports two methods for selecting in-context learning exa
 
 **Key Operations**:
 - Fetches evaluation records from KDB-X via `RecordExporter`
+- Prepends a configurable system prompt to each NIM request (from `signal_config.system_prompt`), unless the record already has a system message
 - Calls the NIM `/v1/chat/completions` endpoint for each record
 - Parses model responses to extract a trading direction (BUY/SELL/HOLD)
 - Extracts ticker symbols from records using `kdbx.enrichment.extract_sym_from_record`
+- Uses the original event timestamp from the record (not wall-clock time) for accurate backtesting
 - Writes signals in batch to the `signals` table via `kdbx.signals.write_signals_batch`
 
 **Dependencies**: `run_base_eval` (for base model) or `run_customization_eval` (for customized model)

@@ -51,7 +51,9 @@ flowchart LR
 
 1. **Signal generation**: After each evaluation (base and customized), the `generate_signals` task calls the deployed NIM with the evaluation records and parses each response to extract a trading direction (BUY/SELL/HOLD). These signals are written to the KDB-X `signals` table with a timestamp, ticker symbol, model ID, and the model's rationale.
 
-2. **As-of join (`aj`)**: KDB-X's temporal join matches each signal to the most recent `close` price from `market_ticks` at the time the signal was generated, and again 1 day later for the exit price. This prevents look-ahead bias — the backtest only uses data that would have been available in real time.
+2. **As-of join (`aj`)**: KDB-X's temporal join matches each signal to the most recent `close` price from `market_ticks` at the time the signal was generated, and again 1 day later for the exit price. This prevents look-ahead bias — the backtest only uses data that would have been available in real time. Signals use the original event timestamp from the training record (not the time the signal was generated), ensuring accurate temporal alignment with market data.
+
+   > **Important**: The `market_ticks` table must be sorted by `sym` then `timestamp` for `aj` to return correct results. The data loaders (`market_tables.py`, `load_alpaca_data.py`) apply `` `sym`timestamp xasc `market_ticks `` after each data load to ensure correct sort order.
 
 3. **Trade simulation**: For each signal, the system enters a position at the entry price and exits at the close price 1 day later. Transaction costs are applied (default: 5 basis points round-trip).
 

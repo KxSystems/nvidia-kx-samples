@@ -66,6 +66,38 @@ Example Helm values file for NeMo Microservices when deploying with minikube for
 - Pre-configures data-store, customizer targets (Llama 3.2 1B/3B, Llama 3.1 8B), evaluator, and ingress.
 - Used with `deploy-short.sh` or manual `helm install` commands.
 
+### `load_alpaca_data.py`
+
+Fetches real market data from Alpaca and loads it into KDB-X for POC and production use.
+
+- Downloads historical OHLCV bars from the Alpaca Data API
+- Derives order book data (bid/ask) from bar data with realistic spreads
+- Optionally fetches news headlines and formats them as training records for the `flywheel_logs` table
+- Supports Parquet-only mode (no KDB-X connection required)
+- Sorts `market_ticks` and `order_book` by `sym,timestamp` after loading for correct `aj` lookups
+
+**Environment variables:**
+- `ALPACA_API_KEY` — Alpaca API key ID (required)
+- `ALPACA_SECRET_KEY` — Alpaca API secret key (required)
+- `KDBX_ENDPOINT` — host:port of KDB-X (required unless `--parquet-only`)
+
+**Usage:**
+```bash
+# Save Parquet only (no KDB-X needed)
+ALPACA_API_KEY=xxx ALPACA_SECRET_KEY=yyy \
+    python scripts/load_alpaca_data.py --symbol AAPL --parquet-only
+
+# Save Parquet + load into KDB-X
+ALPACA_API_KEY=xxx ALPACA_SECRET_KEY=yyy KDBX_ENDPOINT=localhost:8082 \
+    python scripts/load_alpaca_data.py --symbol AAPL
+
+# Include news headlines (for flywheel_logs)
+ALPACA_API_KEY=xxx ALPACA_SECRET_KEY=yyy KDBX_ENDPOINT=localhost:8082 \
+    python scripts/load_alpaca_data.py --symbol AAPL --with-news
+```
+
+**Arguments:** `--symbol` (default: AAPL), `--days` (default: 365), `--timeframe` (default: 1Day), `--parquet-only`, `--with-news`, `--news-limit` (default: 200), `--out-dir` (default: data/alpaca).
+
 ### `generate_openapi.py`
 
 Python script to generate the OpenAPI specification for the API.
