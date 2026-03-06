@@ -194,8 +194,8 @@ def load_parquet_data(parquet_path: str) -> dict[str, int]:
             kx.toq(ticks["trade_count"].values),
             kx.SymbolVector(ticks["source"].tolist()),
         )
-        # Apply sorted attribute on sym for fast aj lookups
-        q("update `s#sym from `market_ticks")
+        # Sort in-place by sym,timestamp for correct aj lookups
+        q("`sym`timestamp xasc `market_ticks")
         tick_count = int(q("count market_ticks").py())
         logger.info("Inserted %d rows into market_ticks", tick_count)
 
@@ -211,7 +211,7 @@ def load_parquet_data(parquet_path: str) -> dict[str, int]:
             kx.toq(book["mid"].values),
             kx.toq(book["spread"].values),
         )
-        q("update `s#sym from `order_book")
+        q("`sym`timestamp xasc `order_book")
         book_count = int(q("count order_book").py())
         logger.info("Inserted %d rows into order_book", book_count)
 

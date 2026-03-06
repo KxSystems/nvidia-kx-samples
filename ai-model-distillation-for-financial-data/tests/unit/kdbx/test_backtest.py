@@ -76,6 +76,16 @@ class TestBacktestQStrings:
 
         assert "$[" in _BACKTEST_Q, "Backtest q should use $[cond;...] ternary"
 
+    def test_q_filters_hold_signals(self):
+        from kdbx.backtest import _BACKTEST_Q, _BACKTEST_UNIVERSE_Q
+
+        assert "direction in `BUY`SELL" in _BACKTEST_Q, (
+            "Base q must filter out HOLD signals"
+        )
+        assert "direction in `BUY`SELL" in _BACKTEST_UNIVERSE_Q, (
+            "Universe q must filter out HOLD signals"
+        )
+
     def test_q_does_not_contain_user_values(self):
         """The q string should not embed any model_id or cost values."""
         from kdbx.backtest import _BACKTEST_Q

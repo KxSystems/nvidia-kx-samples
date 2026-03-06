@@ -265,6 +265,44 @@ def create_datasets(previous_result: TaskResult) -> TaskResult:
                         rec.pop("_enrich_sym", None)
                         rec.pop("_enrich_ts", None)
 
+        # --- Market-return labeling ---
+        if settings.signal_config.labeling.enabled:
+            from kdbx.labeling import compute_return_labels_batch, generate_template_rationale
+            from kdbx.enrichment import extract_sym_from_record
+
+            labelable = []
+            for rec in records:
+                if not isinstance(rec, dict):
+                    continue
+                sym = extract_sym_from_record(rec, settings.enrichment_config)
+                ts = rec.get(settings.enrichment_config.timestamp_field)
+                content = (rec.get("response", {}).get("choices", [{}])[0]
+                           .get("message", {}).get("content", ""))
+                if sym and ts and not content:
+                    labelable.append((rec, sym, ts))
+
+            if labelable:
+                try:
+                    labels = compute_return_labels_batch(
+                        [s for _, s, _ in labelable],
+                        [t for _, _, t in labelable],
+                        settings.signal_config.labeling.return_threshold_bps,
+                    )
+                    labeled_count = 0
+                    for (rec, sym, _), label in zip(labelable, labels):
+                        if label["direction"] is None:
+                            continue
+                        rationale = generate_template_rationale(
+                            label["direction"], sym,
+                            label["return_pct"], label["entry_price"], label["exit_price"],
+                        )
+                        rec["response"]["choices"][0]["message"]["content"] = rationale
+                        labeled_count += 1
+                    logger.info("Labeled %d/%d records with market-return directions",
+                                labeled_count, len(labelable))
+                except Exception as e:
+                    logger.warning("Labeling failed (non-fatal): %s", e)
+
         # The workload type is identified based on the records.
         # This is used to determine the type of evaluation to be run.
         # Config can override auto-detection with explicit workload_type setting
@@ -961,19 +999,30 @@ def run_customization_eval(previous_result: TaskResult) -> TaskResult:
         return previous_result
 
 
+_BUY_KEYWORDS = [
+    "BUY", "BULLISH", "LONG", "UPGRADE", "BEAT",
+    "OUTPERFORM", "OVERWEIGHT", "POSITIVE", "ACCUMULATE",
+]
+_SELL_KEYWORDS = [
+    "SELL", "BEARISH", "SHORT", "DOWNGRADE", "MISS",
+    "UNDERPERFORM", "UNDERWEIGHT", "NEGATIVE", "REDUCE",
+    "CRASH", "DECLINE",
+]
+
+
 def _parse_direction(response_text: str) -> str:
     """Extract trading direction from model response text.
 
-    Performs case-insensitive keyword search for BUY/SELL/HOLD.
-    Returns ``"HOLD"`` if none found.
+    Performs case-insensitive keyword search against financial sentiment
+    terms.  Returns ``"HOLD"`` if no actionable keyword is found.
     """
     upper = response_text.upper()
-    if "BUY" in upper:
-        return "BUY"
-    if "SELL" in upper:
-        return "SELL"
-    if "HOLD" in upper:
-        return "HOLD"
+    for kw in _BUY_KEYWORDS:
+        if kw in upper:
+            return "BUY"
+    for kw in _SELL_KEYWORDS:
+        if kw in upper:
+            return "SELL"
     return "HOLD"
 
 
@@ -1025,6 +1074,10 @@ def generate_signals(previous_result: TaskResult, model_type: str = "base") -> T
             if not messages:
                 continue
 
+            # Inject system prompt for trading direction classification
+            if not messages or messages[0].get("role") != "system":
+                messages = [{"role": "system", "content": settings.signal_config.system_prompt}] + messages
+
             try:
                 resp = requests.post(
                     nim_url,
@@ -1043,9 +1096,13 @@ def generate_signals(previous_result: TaskResult, model_type: str = "base") -> T
             if not sym:
                 continue
 
+            # Use original event timestamp for backtesting; fall back to now
+            event_ts = rec.get(settings.enrichment_config.timestamp_field)
+            sig_ts = datetime.fromisoformat(event_ts) if event_ts else datetime.utcnow()
+
             signals_batch.append({
                 "signal_id": str(uuid.uuid4()),
-                "timestamp": datetime.utcnow(),
+                "timestamp": sig_ts,
                 "sym": sym,
                 "direction": direction,
                 "confidence": 0.0,
