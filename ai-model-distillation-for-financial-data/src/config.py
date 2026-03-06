@@ -100,6 +100,26 @@ class BacktestConfig(BaseModel):
     min_signals: int = 10
 
 
+class LabelingConfig(BaseModel):
+    """Config for market-return-based training data labeling."""
+
+    enabled: bool = True
+    return_threshold_bps: float = 50.0  # +/- 0.5% → BUY/SELL, else HOLD
+    horizon: str = "1D"  # next-day return lookforward
+
+
+class SignalConfig(BaseModel):
+    """Config for trading signal generation."""
+
+    system_prompt: str = (
+        "You are a financial trading signal generator. "
+        "Analyze the given financial news headline and respond with exactly one of: BUY, SELL, or HOLD. "
+        "Follow your recommendation with a brief one-sentence rationale. "
+        "Example: BUY — Earnings beat expectations, indicating strong growth momentum."
+    )
+    labeling: LabelingConfig = Field(default_factory=LabelingConfig)
+
+
 class TrainingConfig(BaseModel):
     training_type: str = Field(default="sft", description="Training type")
     finetuning_type: str = Field(default="lora", description="Finetuning type")
@@ -370,6 +390,7 @@ class Settings(BaseSettings):
     llm_judge_config: LLMJudgeConfig | None = None  # Optional, only needed for tool-calling-judge evaluation
     enrichment_config: EnrichmentConfig = Field(default_factory=EnrichmentConfig)
     backtest_config: BacktestConfig = Field(default_factory=BacktestConfig)
+    signal_config: SignalConfig = Field(default_factory=SignalConfig)
 
     @model_validator(mode="after")
     def validate_nims_not_empty(self) -> "Settings":
@@ -421,6 +442,11 @@ class Settings(BaseSettings):
                 if "backtest_config" in config_data
                 else BacktestConfig()
             )
+            signal_raw = config_data.get("signal_config", {})
+            labeling_raw = signal_raw.pop("labeling", None)
+            signal_config = SignalConfig(**signal_raw) if signal_raw else SignalConfig()
+            if labeling_raw:
+                signal_config.labeling = LabelingConfig(**labeling_raw)
 
             # Deduplicate NIMs by model_name
             # we should have only unique NIMs in the config
@@ -449,6 +475,7 @@ class Settings(BaseSettings):
                 llm_judge_config=llm_judge_config,
                 enrichment_config=enrichment_config,
                 backtest_config=backtest_config,
+                signal_config=signal_config,
             )
 
 

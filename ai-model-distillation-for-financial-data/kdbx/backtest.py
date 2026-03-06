@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 _BACKTEST_Q = """\
 {[mid;cost]
-  sigs: select from signals where model_id = mid;
+  sigs: select from signals where model_id = mid, direction in `BUY`SELL;
   entry: aj[`sym`timestamp; sigs;
     select sym, timestamp, entry_price:close from market_ticks];
   exits: aj[`sym`timestamp;
@@ -65,7 +65,7 @@ _BACKTEST_Q = """\
 
 _BACKTEST_UNIVERSE_Q = """\
 {[mid;cost;syms]
-  sigs: select from signals where model_id = mid, sym in syms;
+  sigs: select from signals where model_id = mid, sym in syms, direction in `BUY`SELL;
   entry: aj[`sym`timestamp; sigs;
     select sym, timestamp, entry_price:close from market_ticks];
   exits: aj[`sym`timestamp;

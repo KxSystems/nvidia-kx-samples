@@ -29,7 +29,7 @@ export AWS_REGION="${AWS_REGION:-us-west-2}"
 export AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-$(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo "")}"
 export EKS_CLUSTER_NAME="${EKS_CLUSTER_NAME:-data-flywheel-dev}"
 export ECR_REPO_NAME="${ECR_REPO_NAME:-data-flywheel-server}"
-export IMAGE_TAG="${IMAGE_TAG:-0.5.1}"
+export IMAGE_TAG="${IMAGE_TAG:-0.5.6}"
 export ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 export ECR_IMAGE="${ECR_REGISTRY}/${ECR_REPO_NAME}:${IMAGE_TAG}"
 

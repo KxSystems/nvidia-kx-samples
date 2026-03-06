@@ -102,6 +102,18 @@ backtest_config:
   cost_bps: 5.0
   min_signals: 10
 
+# Signal generation: system prompt for trading direction classification
+signal_config:
+  system_prompt: >-
+    You are a financial trading signal generator.
+    Analyze the given financial news headline and respond with exactly one of: BUY, SELL, or HOLD.
+    Follow your recommendation with a brief one-sentence rationale.
+    Example: BUY — Earnings beat expectations, indicating strong growth momentum.
+  labeling:
+    enabled: true
+    return_threshold_bps: 50.0
+    horizon: "1D"
+
 # Training config:
 # Customization config with default values
 training_config:

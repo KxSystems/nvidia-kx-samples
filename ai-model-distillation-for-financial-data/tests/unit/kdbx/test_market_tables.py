@@ -255,10 +255,10 @@ class TestLoadParquetData:
             load_parquet_data("/fake/path.parquet")
 
         q_calls = [c.args[0] for c in mock_q.call_args_list]
-        sorted_calls = [c for c in q_calls if "`s#sym" in c]
+        xasc_calls = [c for c in q_calls if "xasc" in c]
         # One for market_ticks, one for order_book
-        assert len(sorted_calls) == 2, \
-            "Should apply `s#sym to both market_ticks and order_book"
+        assert len(xasc_calls) == 2, \
+            "Should xasc sort both market_ticks and order_book"
 
     def test_returns_row_counts(self, mock_q):
         from kdbx.market_tables import load_parquet_data
