@@ -640,6 +640,31 @@ Enrichment adds 9 market context fields to each record: `market_close`, `market_
 
 > **📖 For details on enriched fields and the as-of join pipeline:** See [Workflow Orchestration — Market Data Enrichment](08-workflow-orchestration.md#how-market-data-enriches-student-model-training)
 
+## Signal Generation Configuration
+
+The `signal_config` section controls trading signal generation and training data labeling:
+
+```yaml
+signal_config:
+  system_prompt: >-
+    You are a financial trading signal generator.
+    Given a financial news headline or market event, respond with a clear
+    trading signal: BUY, SELL, or HOLD, followed by a brief rationale.
+  labeling:
+    enabled: true
+    return_threshold_bps: 50.0
+    horizon: "1D"
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `system_prompt` | System prompt prepended to NIM requests during signal generation | (see config.yaml) |
+| `labeling.enabled` | Enable market-return-based labeling for training records with empty responses | true |
+| `labeling.return_threshold_bps` | Threshold in basis points for BUY/SELL/HOLD classification. Returns above +threshold are BUY, below -threshold are SELL, otherwise HOLD | 50.0 |
+| `labeling.horizon` | Return lookforward period for label computation | "1D" |
+
+**Training data labeling**: When enabled, records with empty `response.choices[0].message.content` are automatically labeled using next-day market returns from `market_ticks` via KDB-X as-of joins. This produces objective ground-truth labels (BUY/SELL/HOLD) with template rationale strings (e.g., `"BUY — AAPL next-day return +1.50% ($185.50 → $188.28)"`). Labels are computed in-memory during `create_datasets` and flow directly into NeMo Customizer training data.
+
 ## Backtest Configuration
 
 The `backtest_config` section controls the financial backtesting evaluation:
