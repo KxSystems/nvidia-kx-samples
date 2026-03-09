@@ -108,6 +108,7 @@ Backtest evaluation catches these failure modes before deployment, giving you co
 ---
 
 **Related documentation:**
+- [Financial Analytics Pipeline](financial-analytics-pipeline.md) — step-by-step technical deep dive into enrichment, labeling, signal generation, and backtesting
 - [Evaluation Types and Metrics](06-evaluation-types-and-metrics.md) — full reference for all three evaluation types
 - [Architecture Overview](01-architecture.md) — how backtesting fits into the overall system
 - [Configuration Guide](03-configuration.md) — configuring backtest parameters

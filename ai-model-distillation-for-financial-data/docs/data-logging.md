@@ -230,6 +230,7 @@ Once data is logged to KDB-X, the developer example can:
 
 ## Additional Resources
 
+- [Financial Analytics Pipeline](financial-analytics-pipeline.md) — how `flywheel_logs` records flow through enrichment, labeling, signal generation, and backtesting
 - [Instrumenting an application (README)](../README.md#2instrumenting-an-application)
 - [PyKX Documentation](https://code.kx.com/pykx/)
 - [Data Validation Guide](dataset-validation.md)

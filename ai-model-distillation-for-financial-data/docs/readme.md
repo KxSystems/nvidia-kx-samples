@@ -73,6 +73,7 @@ Welcome to the AI Model Distillation for Financial Data developer example docume
 |----------|---------|--------------|
 | **[Evaluation Types and Metrics](06-evaluation-types-and-metrics.md)** | Understanding results | Interpreting model performance |
 | **[Financial Backtesting](financial-backtesting.md)** | Why NLP accuracy isn't enough | Understanding financial validation of model signals |
+| **[Financial Analytics Pipeline](financial-analytics-pipeline.md)** | Step-by-step deep dive into enrichment, labeling, signals, and backtesting | Understanding the full financial data flow |
 | **[KDB-X Architecture](KDB-X-Architecture.md)** | Data layer internals and design | Understanding KDB-X schema, compat shim, vector search |
 | **[Task Orchestration](08-workflow-orchestration.md)** | Workflow internals | Debugging, customizing workflows |
 | **[NeMo Platform Integration](09-nemo-platform-integration.md)** | Advanced NeMo features | Deep NeMo customization |
@@ -119,8 +120,9 @@ Welcome to the AI Model Distillation for Financial Data developer example docume
 ### 🔬 Research & Development
 1. [NeMo Platform Integration](09-nemo-platform-integration.md) *(advanced features)*
 2. [Task Orchestration](08-workflow-orchestration.md) *(workflow customization)*
-3. [Evaluation Types and Metrics](06-evaluation-types-and-metrics.md) *(interpret results)*
-4. [API Reference](07-api-reference.md) *(programmatic access)*
+3. [Financial Analytics Pipeline](financial-analytics-pipeline.md) *(enrichment, labeling, signals, backtesting deep dive)*
+4. [Evaluation Types and Metrics](06-evaluation-types-and-metrics.md) *(interpret results)*
+5. [API Reference](07-api-reference.md) *(programmatic access)*
 
 ---
 
