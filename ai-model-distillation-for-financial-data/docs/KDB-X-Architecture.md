@@ -218,3 +218,5 @@ Phase 3 integrates financial analytics into the flywheel DAG:
 7. **`enrichment_stats`** — persisted on `flywheel_runs`, surfaced in job detail responses
 
 The `flywheel_runs` table now includes an `enrichment_stats` column (general list, JSON-serialized) tracking records enriched, features added, and enrichment time.
+
+For a step-by-step walkthrough of each stage (enrichment, labeling, signal generation, backtesting) with q queries and data flow diagrams, see [Financial Analytics Pipeline](financial-analytics-pipeline.md).

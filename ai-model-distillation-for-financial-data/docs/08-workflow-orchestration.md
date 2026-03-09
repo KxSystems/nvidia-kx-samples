@@ -491,3 +491,10 @@ with kx.SyncQConnection(host="localhost", port=8082) as conn:
     conn("update status:`failed, error:`$\"Timeout recovery\" from `flywheel_runs where status=`running, started_at<cutoff_time")
 ```
 
+---
+
+**Related documentation:**
+- [Financial Analytics Pipeline](financial-analytics-pipeline.md) — step-by-step walkthrough of enrichment, labeling, signal generation, and backtesting
+- [Financial Backtesting](financial-backtesting.md) — why NLP accuracy alone isn't enough for financial models
+- [Configuration Guide](03-configuration.md) — configuring workflow parameters
+

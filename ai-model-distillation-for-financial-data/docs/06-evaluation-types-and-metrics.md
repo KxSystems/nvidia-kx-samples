@@ -53,7 +53,7 @@ Backtest evaluation runs a vectorised backtest in KDB-X using as-of joins (`aj`)
 
 > **Note:** The backtest uses a 1-day hold period and configurable transaction costs (default 5 bps). Signals are joined to market data via `aj` (as-of join) on `sym` and `timestamp` to get entry prices, then shifted +1 day for exit prices.
 
-For a deeper discussion of why NLP accuracy alone isn't sufficient for financial models and how backtest evaluation closes that gap, see [Financial Backtesting: Why NLP Accuracy Isn't Enough](financial-backtesting.md).
+For a deeper discussion of why NLP accuracy alone isn't sufficient for financial models and how backtest evaluation closes that gap, see [Financial Backtesting: Why NLP Accuracy Isn't Enough](financial-backtesting.md). For a step-by-step technical walkthrough of the enrichment, labeling, signal generation, and backtesting pipeline, see [Financial Analytics Pipeline](financial-analytics-pipeline.md).
 
 ## Metrics
 
