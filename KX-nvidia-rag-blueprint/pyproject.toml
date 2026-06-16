@@ -1,6 +1,6 @@
 [project]
 name = "nvidia_rag"
-version = "2.3.0.dev"
+version = "2.4.0"
 description = "This blueprint serves as a reference solution for a foundational Retrieval Augmented Generation (RAG) pipeline."
 readme = "README.md"
 license = "Apache-2.0"
@@ -77,6 +77,9 @@ ingest = [
 kdbai = [
     "kdbai-client>=1.0.0",
 ]
+kdbx = [
+    "pykx>=3.1,<4.0",
+]
 all = [
     "langchain-openai==0.2.8",
     "overrides==7.7.0",
@@ -93,6 +96,7 @@ all = [
     "azure-storage-blob>=12.26.0",
     "pyarrow>=21.0.0",
     "kdbai-client>=1.0.0",
+    "pykx>=3.1,<4.0",
 ]
 
 [tool.uv.sources]
@@ -110,6 +114,9 @@ where = ["src"]
 "nvidia_rag.rag_server" = ["*.yaml"]
 # Include the filter grammar file in utils
 "nvidia_rag.utils" = ["*.lark"]
+# No package data for kdbx — kdbx-init.q is a server artifact shipped with the
+# helm chart (deploy/helm/nvidia-blueprint-rag/files/kdbx/kdbx-init.q), not
+# bundled in the Python wheel.
 
 [project.urls]
 Homepage = "https://github.com/NVIDIA-AI-Blueprints/rag"

@@ -2,7 +2,7 @@ services:
 
   nim-llm:
     container_name: nim-llm-ms
-    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.13.1
+    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.15.5
     volumes:
     - ${MODEL_DIRECTORY:-/tmp}:/opt/nim/.cache
     user: "${USERID}"
@@ -30,7 +30,7 @@ services:
 
   nemoretriever-embedding-ms:
     container_name: nemoretriever-embedding-ms
-    image: nvcr.io/nim/nvidia/llama-3.2-nv-embedqa-1b-v2:1.10.0
+    image: nvcr.io/nim/nvidia/llama-nemotron-embed-1b-v2:1.13.0
     volumes:
     - ${MODEL_DIRECTORY:-/tmp}:/opt/nim/.cache
     ports:
@@ -60,7 +60,7 @@ services:
 
   nemoretriever-ranking-ms:
     container_name: nemoretriever-ranking-ms
-    image: nvcr.io/nim/nvidia/llama-3.2-nv-rerankqa-1b-v2:1.8.0
+    image: nvcr.io/nim/nvidia/llama-nemotron-rerank-1b-v2:1.10.0
     volumes:
     - ${MODEL_DIRECTORY:-/tmp}:/opt/nim/.cache
     ports:
@@ -86,7 +86,7 @@ services:
     profiles: ["local"]
 
   page-elements:
-    image: ${YOLOX_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-page-elements-v2}:${YOLOX_TAG:-1.5.0}
+    image: ${YOLOX_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-page-elements-v2}:${YOLOX_TAG:-1.6.0}
     ports:
       - "8000:8000"
       - "8001:8001"
@@ -123,7 +123,7 @@ services:
     profiles: ["local"]
 
   graphic-elements:
-    image: ${YOLOX_GRAPHIC_ELEMENTS_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-graphic-elements-v1}:${YOLOX_GRAPHIC_ELEMENTS_TAG:-1.5.0}
+    image: ${YOLOX_GRAPHIC_ELEMENTS_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-graphic-elements-v1}:${YOLOX_GRAPHIC_ELEMENTS_TAG:-1.6.0}
     ports:
       - "8003:8000"
       - "8004:8001"
@@ -149,7 +149,7 @@ services:
     profiles: ["local"]
 
   table-structure:
-    image: ${YOLOX_TABLE_STRUCTURE_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-table-structure-v1}:${YOLOX_TABLE_STRUCTURE_TAG:-1.5.0}
+    image: ${YOLOX_TABLE_STRUCTURE_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-table-structure-v1}:${YOLOX_TABLE_STRUCTURE_TAG:-1.6.0}
     ports:
       - "8006:8000"
       - "8007:8001"
@@ -250,7 +250,7 @@ services:
       ##===Embedding Model specific configurations===
       # url on which embedding model is hosted. If "", Nvidia hosted API is used
       APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemoretriever-embedding-ms:8000"}
-      APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-3.2-nv-embedqa-1b-v2}
+      APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-nemotron-embed-1b-v2}
       APP_EMBEDDINGS_DIMENSIONS: ${APP_EMBEDDINGS_DIMENSIONS:-2048}
 
       ##===NV-Ingest Connection Configurations=======
@@ -274,7 +274,7 @@ services:
       APP_NVINGEST_SEGMENTAUDIO: ${APP_NVINGEST_SEGMENTAUDIO:-False} # Enable audio segmentation for NV Ingest
 
       ##===NV-Ingest Caption Model configurations====
-      APP_NVINGEST_CAPTIONMODELNAME: ${APP_NVINGEST_CAPTIONMODELNAME:-"nvidia/llama-3.1-nemotron-nano-vl-8b-v1"}
+      APP_NVINGEST_CAPTIONMODELNAME: ${APP_NVINGEST_CAPTIONMODELNAME:-"nvidia/nemotron-nano-12b-v2-vl"}
       # Incase of nvidia-hosted caption model, use the endpoint url as - https://integrate.api.nvidia.com/v1
       APP_NVINGEST_CAPTIONENDPOINTURL: ${APP_NVINGEST_CAPTIONENDPOINTURL:-"http://vlm-ms:8000/v1/chat/completions"}
 
@@ -393,7 +393,7 @@ services:
       - YOLOX_TABLE_STRUCTURE_INFER_PROTOCOL=${YOLOX_TABLE_STRUCTURE_INFER_PROTOCOL:-grpc}
       # Incase of nvidia-hosted caption model, use the endpoint url as - https://integrate.api.nvidia.com/v1/chat/completions
       - VLM_CAPTION_ENDPOINT=${VLM_CAPTION_ENDPOINT:-http://vlm-ms:8000/v1/chat/completions}
-      - VLM_CAPTION_MODEL_NAME=${VLM_CAPTION_MODEL_NAME:-nvidia/llama-3.1-nemotron-nano-vl-8b-v1}
+      - VLM_CAPTION_MODEL_NAME=${VLM_CAPTION_MODEL_NAME:-nvidia/nemotron-nano-12b-v2-vl}
       - MODEL_PREDOWNLOAD_PATH=${MODEL_PREDOWNLOAD_PATH:-/workspace/models/}
     healthcheck:
       test: curl --fail http://nv-ingest-ms-runtime:7670/v1/health/ready || exit 1
@@ -461,18 +461,18 @@ services:
       ##===Embedding Model specific configurations===
       # url on which embedding model is hosted. If "", Nvidia hosted API is used
       APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemoretriever-embedding-ms:8000"}
-      APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-3.2-nv-embedqa-1b-v2}
+      APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-nemotron-embed-1b-v2}
 
       ##===Reranking Model specific configurations===
       # url on which ranking model is hosted. If "", Nvidia hosted API is used
       APP_RANKING_SERVERURL: ${APP_RANKING_SERVERURL-"nemoretriever-ranking-ms:8000"}
-      APP_RANKING_MODELNAME: ${APP_RANKING_MODELNAME:-"nvidia/llama-3.2-nv-rerankqa-1b-v2"}
+      APP_RANKING_MODELNAME: ${APP_RANKING_MODELNAME:-"nvidia/llama-nemotron-rerank-1b-v2"}
       ENABLE_RERANKER: ${ENABLE_RERANKER:-True}
 
       ##===VLM Model specific configurations===
       ENABLE_VLM_INFERENCE: ${ENABLE_VLM_INFERENCE:-false}
       APP_VLM_SERVERURL: ${APP_VLM_SERVERURL-"http://vlm-ms:8000/v1"}
-      APP_VLM_MODELNAME: ${APP_VLM_MODELNAME:-"nvidia/llama-3.1-nemotron-nano-vl-8b-v1"}
+      APP_VLM_MODELNAME: ${APP_VLM_MODELNAME:-"nvidia/nemotron-nano-12b-v2-vl"}
 
       NVIDIA_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
 
@@ -711,7 +711,7 @@ services:
 
   content-safety:
     container_name: llama-3.1-nemoguard-8b-content-safety
-    image: nvcr.io/nim/nvidia/llama-3.1-nemoguard-8b-content-safety:1.0.0
+    image: nvcr.io/nim/nvidia/llama-3.1-nemoguard-8b-content-safety:1.10.1
     environment:
       - NGC_API_KEY=${NGC_API_KEY}
       - NIM_SERVED_MODEL_NAME=llama-3.1-nemoguard-8b-content-safety
@@ -737,7 +737,7 @@ services:
 
   topic-control:
     container_name: llama-3.1-nemoguard-8b-topic-control
-    image: nvcr.io/nim/nvidia/llama-3.1-nemoguard-8b-topic-control:1.0.0
+    image: nvcr.io/nim/nvidia/llama-3.1-nemoguard-8b-topic-control:1.10.1
     environment:
       - NGC_API_KEY=${NGC_API_KEY}
       - NIM_SERVED_MODEL_NAME=llama-3.1-nemoguard-8b-topic-control

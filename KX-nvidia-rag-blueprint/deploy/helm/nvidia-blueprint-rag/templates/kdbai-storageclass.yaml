@@ -1,11 +1,20 @@
-{{- if .Values.kdbai.enabled }}
-{{- if and .Values.kdbai.storageClass .Values.kdbai.storageClass.create }}
+{{/*
+KDB.AI / KDB-X Storage Class with WaitForFirstConsumer binding.
+Both backends default to `rag-storage` for their PVCs (redis, minio,
+ingestor, the VDB itself), so the SC must be created whenever either is
+enabled — was kdbai.enabled-only, which broke the kdbx-only path.
+*/}}
+{{- if and (or .Values.kdbai.enabled .Values.kdbx.enabled) .Values.kdbai.storageClass .Values.kdbai.storageClass.create }}
 # KDB.AI Storage Class with WaitForFirstConsumer
 # Prevents volume scheduling issues when nodes scale up/down
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: {{ .Values.kdbai.storageClass.name | default "kdbai-storage" }}
+  name: {{ .Values.kdbai.storageClass.name | default "rag-storage" }}
+  {{- if .Values.kdbai.storageClass.isDefault }}
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+  {{- end }}
   labels:
     {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
     app.kubernetes.io/component: kdbai
@@ -16,6 +25,5 @@ allowVolumeExpansion: {{ .Values.kdbai.storageClass.allowVolumeExpansion | defau
 {{- if .Values.kdbai.storageClass.parameters }}
 parameters:
   {{- toYaml .Values.kdbai.storageClass.parameters | nindent 2 }}
-{{- end }}
 {{- end }}
 {{- end }}

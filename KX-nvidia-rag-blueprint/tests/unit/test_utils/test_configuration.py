@@ -147,7 +147,7 @@ class TestEmbeddingConfig:
         """Test default configuration values."""
         config = EmbeddingConfig.from_dict({})
 
-        assert config.model_name == "nvidia/llama-3.2-nv-embedqa-1b-v2"
+        assert config.model_name == "nvidia/llama-nemotron-embed-1b-v2"
         assert config.model_engine == "nvidia-ai-endpoints"
         assert config.dimensions == 2048
         assert config.server_url == ""
@@ -160,7 +160,7 @@ class TestRankingConfig:
         """Test default configuration values."""
         config = RankingConfig.from_dict({})
 
-        assert config.model_name == "nvidia/llama-3.2-nv-rerankqa-1b-v2"
+        assert config.model_name == "nvidia/llama-nemotron-rerank-1b-v2"
         assert config.model_engine == "nvidia-ai-endpoints"
         assert config.server_url == ""
         assert config.enable_reranker is True
@@ -243,7 +243,7 @@ class TestNvIngestConfig:
         assert config.tokenizer == "intfloat/e5-large-unsupervised"
         assert config.chunk_size == 1024
         assert config.chunk_overlap == 150
-        assert config.caption_model_name == "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"
+        assert config.caption_model_name == "nvidia/nemotron-nano-12b-v2-vl"
         assert config.caption_endpoint_url == "https://integrate.api.nvidia.com/v1/chat/completions"
         assert config.enable_pdf_splitter is True
 

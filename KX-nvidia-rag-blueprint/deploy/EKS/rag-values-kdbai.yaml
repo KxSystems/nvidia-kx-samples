@@ -15,7 +15,7 @@
 #
 #      Optional: To build custom images:
 #      export REGISTRY=<your-registry>
-#      export TAG=2.3.4
+#      export TAG=2.4.0
 #      docker buildx build --platform linux/amd64 \
 #        -t ${REGISTRY}/rag-server-kdbai:${TAG} \
 #        -f src/nvidia_rag/rag_server/Dockerfile --push .
@@ -78,13 +78,18 @@
 # Uses the same credentials as the KDB.AI image (kdbai-registry-secret).
 image:
   repository: portal.dl.kx.com/rag-server-kdbai
-  tag: "2.3.4"
+  tag: "2.4.0"
   pullPolicy: Always
 
 
 # =============================================================================
 # KDB.AI Vector Database Configuration
 # =============================================================================
+# The chart now defaults to KDB-X, so this overlay must explicitly disable it to
+# select KDB.AI (the two backends are mutually exclusive).
+kdbx:
+  enabled: false
+
 kdbai:
   enabled: true
   fullnameOverride: kdbai
@@ -143,13 +148,18 @@ kdbai:
     enabled: true
     size: 50Gi
     # Use the custom storage class with WaitForFirstConsumer
-    storageClass: "kdbai-storage"
+    storageClass: "rag-storage"
 
   # Storage class with WaitForFirstConsumer binding mode
   # Fixes volume scheduling issues when nodes scale up/down in EKS
   storageClass:
     create: true
-    name: "kdbai-storage"
+    name: "rag-storage"
+    # Do NOT set isDefault: true here. EKS often has gp2 already marked default;
+    # adding a second default would cause "multiple default StorageClasses" and
+    # leave PVCs unbound. Instead, all chart-managed PVCs below explicitly set
+    # storageClassName: rag-storage.
+    isDefault: false
     volumeBindingMode: WaitForFirstConsumer
     reclaimPolicy: Delete
     allowVolumeExpansion: true
@@ -168,6 +178,11 @@ minio:
   image:
     repository: minio/minio
     tag: "RELEASE.2025-09-07T16-13-09Z"
+  # SECURITY: these are dev/test defaults. MinIO holds extracted multimodal content
+  # (images/tables pulled from your documents). For any non-throwaway deployment,
+  # override them at install time, e.g.:
+  #   --set minio.auth.rootUser=<user> --set minio.auth.rootPassword=<strong-password>
+  # (or wire an existing Secret), and do NOT commit real credentials here.
   auth:
     rootUser: "minioadmin"
     rootPassword: "minioadmin"
@@ -175,6 +190,7 @@ minio:
   persistence:
     enabled: true
     size: 50Gi
+    storageClass: "rag-storage"
   resources:
     requests:
       memory: "512Mi"
@@ -233,13 +249,16 @@ envVars:
 ingestor-server:
   image:
     repository: portal.dl.kx.com/ingestor-server-kdbai
-    tag: "2.3.4"
+    tag: "2.4.0"
     pullPolicy: Always
   resources:
     limits:
       memory: "12Gi"
     requests:
       memory: "8Gi"
+  persistence:
+    enabled: true
+    storageClass: "rag-storage"
   envVars:
     # Vector Store - KDB.AI
     APP_VECTORSTORE_URL: "http://kdbai:8082"
@@ -255,8 +274,11 @@ ingestor-server:
     APP_VECTORSTORE_ENABLEGPUINDEX: "True"
     APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
 
-    # Test multi-batch CAGRA extend fix (set to "false" to test, "true" for workaround)
-    KDBAI_CAGRA_SINGLE_BATCH: "false"
+    # Default to the single-batch workaround: cuVS 1.8.2's cuvsCagraBuild() can crash
+    # on multi-batch inserts of the 2048-dim embedding vectors this blueprint uses.
+    # Set to "false" only to test the multi-batch extend path on a pinned/known-good
+    # cuVS image.
+    KDBAI_CAGRA_SINGLE_BATCH: "true"
 
     # MinIO endpoint - standalone MinIO
     MINIO_ENDPOINT: "rag-minio:9000"
@@ -269,6 +291,10 @@ ingestor-server:
 # NV-Ingest Configuration
 # =============================================================================
 nv-ingest:
+  # Propagate storage class to sub-sub-chart redis PVC
+  redis:
+    global:
+      storageClass: "rag-storage"
   otelEnabled: false
   resources:
     limits:

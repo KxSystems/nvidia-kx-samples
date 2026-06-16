@@ -4,6 +4,9 @@
 -->
 # Deploy NVIDIA RAG Blueprint on Kubernetes with Helm
 
+> [!IMPORTANT]
+> **This document references the upstream NGC-hosted chart tgz**, which still includes Milvus and Elasticsearch support. In this KX fork, the Helm chart supports **KDB.AI** and **KDB-X** as vector database backends and is built from this repository's source. For the fork's recommended install flow, follow [`change-vectordb-kdbai.md` → Quick Deploy](change-vectordb-kdbai.md#quick-deploy-this-fork) (KDB.AI) or [`change-vectordb-kdbx.md`](change-vectordb-kdbx.md) (KDB-X). The upstream-chart commands below still work for users who want the multi-VDB upstream version.
+
 Use the following documentation to deploy the [NVIDIA RAG Blueprint](readme.md) on a Kubernetes cluster by using Helm.
 
 - To deploy the Helm chart with MIG support, refer to [RAG Deployment with MIG Support](./mig-deployment.md).
@@ -76,6 +79,8 @@ To deploy End-to-End RAG Server and Ingestor Server, use the following procedure
     > Refer to [NIM Model Profile Configuration](model-profiles.md) to set NIM LLM profile according to the GPU type and count.
     > Set the profile explicitly to avoid any errors with NIM LLM pod deployment.
 
+> [!CAUTION]
+> `kdbx.useCuvs=true` alone is not sufficient for GPU CAGRA. Both `rag-server` and `ingestor` must also receive `APP_VECTORSTORE_ENABLEGPUINDEX=True` and `APP_VECTORSTORE_ENABLEGPUSEARCH=True` via `envVars`. Without these, the adapter silently creates HNSW collections instead of CAGRA.
 
 ## Verify a Deployment
 
@@ -101,7 +106,7 @@ To verify a deployment, use the following procedure.
     rag-nemoretriever-table-structure-v1-748df88f86-z7mwb       1/1     Running   0             23m
     rag-nim-llm-0                                               1/1     Running   0             23m
     rag-nv-ingest-75cdb75c48-kbr7r                              1/1     Running   0             23m
-    rag-nvidia-nim-llama-32-nv-embedqa-1b-v2-5b6dc664d8-8flpd   1/1     Running   0             23m
+    rag-nvidia-nim-llama-nemotron-embed-1b-v2-5b6dc664d8-8flpd  1/1     Running   0             23m
     rag-opentelemetry-collector-558b89885-c7c8j                 1/1     Running   0             23m
     rag-redis-master-0                                          1/1     Running   0             23m
     rag-redis-replicas-0                                        1/1     Running   0             23m
@@ -193,7 +198,7 @@ helm uninstall rag -n rag
 
     - **NIM LLM** – To enable persistence for NIM LLM, refer to [NIM LLM](https://docs.nvidia.com/nim/large-language-models/latest/deploy-helm.html#storage). Update the required fields in the `nim-llm` section of the ***values.yaml*** file.
 
-    - **Nemo Retriever** – To enable persistence for Nemo Retriever embedding, refer to [Nemo Retriever Text Embedding](https://docs.nvidia.com/nim/nemo-retriever/text-embedding/latest/deploying.html#storage). Update the required fields in the `nvidia-nim-llama-32-nv-embedqa-1b-v2` section of the ***values.yaml*** file.
+    - **Nemo Retriever** – To enable persistence for Nemo Retriever embedding, refer to [Nemo Retriever Text Embedding](https://docs.nvidia.com/nim/nemo-retriever/text-embedding/latest/deploying.html#storage). Update the required fields in the `nvidia-nim-llama-nemotron-embed-1b-v2` section of the ***values.yaml*** file.
 
     - **Nemo Retriever reranking** – To enable persistence for Nemo Retriever reranking, refer to [Nemo Retriever Text Reranking](https://docs.nvidia.com/nim/nemo-retriever/text-reranking/latest/deploying.html#storage). Update the required fields in the `text-reranking-nim` section of the ***values.yaml*** file.
 
@@ -215,6 +220,7 @@ For troubleshooting issues with Helm deployment, refer to [Troubleshooting](trou
 
 - [NVIDIA RAG Blueprint Documentation](readme.md)
 - [KDB.AI Deployment Guide](change-vectordb-kdbai.md) - Full KDB.AI configuration and troubleshooting
+- [Configure KDB-X as Your Vector Database](change-vectordb-kdbx.md)
 - [Best Practices for Common Settings](accuracy_perf.md)
 - [RAG Pipeline Debugging Guide](debugging.md)
 - [Troubleshoot](troubleshooting.md)

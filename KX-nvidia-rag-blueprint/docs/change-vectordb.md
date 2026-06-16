@@ -4,6 +4,17 @@
 -->
 # Configure Elasticsearch as Your Vector Database for NVIDIA RAG Blueprint
 
+> [!IMPORTANT]
+> **This page does not apply to the KX fork (kx-nvidia-rag).** The KX fork's Helm chart has had Elasticsearch and Milvus support removed. The supported deployable vector databases are **KDB.AI** and **KDB-X**. The Python implementations under `src/nvidia_rag/utils/vdb/{milvus,elasticsearch}/` remain in the codebase for reference but cannot be deployed via the Helm chart shipped here.
+>
+> For KDB.AI deployment, see [`docs/change-vectordb-kdbai.md`](change-vectordb-kdbai.md).
+>
+> For KDB-X (bare kdb+ BYO endpoint) deployment, see [`docs/change-vectordb-kdbx.md`](change-vectordb-kdbx.md).
+>
+> The content below is preserved verbatim from the upstream NVIDIA RAG Blueprint for reference only.
+>
+> ---
+
 The [NVIDIA RAG Blueprint](readme.md) supports multiple vector database backends including [Milvus](https://milvus.io/docs), [Elasticsearch](https://www.elastic.co/elasticsearch/vector-database), and [KDB.AI](https://kdb.ai).
 Elasticsearch provides robust search capabilities and can be used as an alternative to Milvus for storing and retrieving document embeddings.
 
@@ -71,31 +82,18 @@ If you're using Helm for deployment, use the following steps to configure Elasti
 > [!NOTE]
 > **Performance Consideration**: Slow VDB upload is observed in Helm deployments for Elasticsearch (ES). For more details, refer to the [troubleshooting documentation](./troubleshooting.md).
 
-### Option A: Use the Pre-configured Values File (Recommended)
-
-Use the provided [`values-elasticsearch.yaml`](../deploy/helm/nvidia-blueprint-rag/values-elasticsearch.yaml) overlay file.
-
-From the repository root directory:
-
-```bash
-cd <repo-root>
-
-# Create namespace if it doesn't exist
-kubectl create namespace rag --dry-run=client -o yaml | kubectl apply -f -
-
-helm upgrade --install rag deploy/helm/nvidia-blueprint-rag \
-  --namespace rag \
-  -f deploy/helm/nvidia-blueprint-rag/values-elasticsearch.yaml \
-  --dependency-update \
-  --timeout 20m
-```
+> [!NOTE]
+> This KX fork ships KDB.AI and KDB-X as the supported Helm backends and does
+> not bundle a pre-built `values-elasticsearch.yaml` overlay. To use
+> Elasticsearch, configure it manually in `values.yaml` as shown below (the
+> Elasticsearch adapter remains available in the codebase).
 
 > [!IMPORTANT]
 > Always specify the `--namespace` flag. Without it, Helm deploys to the `default` namespace which is not recommended for production workloads.
 
-### Option B: Manual Configuration
+### Manual Configuration
 
-If you need to customize the configuration, modify your values file directly:
+Modify your values file directly:
 
 1. Configure Elasticsearch as the vector database in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml).
 
@@ -296,6 +294,8 @@ Use the following steps to create and use your own custom database operators.
 
     For a concrete, working example, see `src/nvidia_rag/utils/vdb/elasticsearch/elastic_vdb.py` and `notebooks/building_rag_vdb_operator.ipynb`.
 
+    > **Note (KX fork):** The working reference implementations in this fork are `src/nvidia_rag/utils/vdb/kdbai/kdbai_vdb.py` (KDB.AI, default) and `src/nvidia_rag/utils/vdb/kdbx/kdbx_vdb.py` (KDB-X BYO endpoint). `elastic_vdb.py` is retained for upstream reference only and cannot be deployed via the Helm chart.
+
 ## Integrate Custom Vector Database Into NVIDIA RAG Servers (Docker Mode)
 
 Before proceeding in server mode, go through the Implementation Steps above to implement and validate your operator.
@@ -356,7 +356,8 @@ Follow these steps to add your custom vector database to the NVIDIA RAG servers 
     Or, you may edit the files locally to show your custom value. Search for `APP_VECTORSTORE_NAME` and adjust defaults if desired:
     ```yaml
     # Type of vectordb used to store embedding (supports "milvus", "elasticsearch", or a custom value like "your_custom_vdb")
-    APP_VECTORSTORE_NAME: ${APP_VECTORSTORE_NAME:-"milvus"}
+    # Note (KX fork): default is "kdbai" (KDB.AI) or "kdbx" (KDB-X). "milvus" and "elasticsearch" are not deployable here.
+    APP_VECTORSTORE_NAME: ${APP_VECTORSTORE_NAME:-"kdbai"}
     # URL on which vectorstore is hosted
     APP_VECTORSTORE_URL: ${APP_VECTORSTORE_URL:-http://your-custom-vdb:1234}
     ```

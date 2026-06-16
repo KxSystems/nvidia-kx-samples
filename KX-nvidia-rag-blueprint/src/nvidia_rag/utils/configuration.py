@@ -190,7 +190,7 @@ class NvIngestConfig(ConfigWizard):
     # Captioning Configuration Parameters
     caption_model_name: str = configfield(
         "caption_model_name",
-        default="nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
+        default="nvidia/nemotron-nano-12b-v2-vl",
         help_txt="NV Ingest Captioning model name",
     )
 
@@ -388,7 +388,7 @@ class EmbeddingConfig(ConfigWizard):
 
     model_name: str = configfield(
         "model_name",
-        default="nvidia/llama-3.2-nv-embedqa-1b-v2",
+        default="nvidia/llama-nemotron-embed-1b-v2",
         help_txt="The name of huggingface embedding model.",
     )
     model_engine: str = configfield(
@@ -417,7 +417,7 @@ class RankingConfig(ConfigWizard):
 
     model_name: str = configfield(
         "model_name",
-        default="nvidia/llama-3.2-nv-rerankqa-1b-v2",
+        default="nvidia/llama-nemotron-rerank-1b-v2",
         help_txt="The name of Ranking model.",
     )
     model_engine: str = configfield(
@@ -514,7 +514,7 @@ class VLMConfig(ConfigWizard):
     )
     model_name: str = configfield(
         "model_name",
-        default="nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
+        default="nvidia/nemotron-nano-12b-v2-vl",
         help_txt="The name of the VLM model",
     )
     enable_vlm_response_reasoning: bool = configfield(

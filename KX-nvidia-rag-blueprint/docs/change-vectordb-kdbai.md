@@ -983,8 +983,8 @@ kubectl create secret generic ngc-api \
   -n <your-namespace>
 
 # Restart affected pods
-kubectl delete pods -n <your-namespace> -l app.kubernetes.io/name=nvidia-nim-llama-32-nv-embedqa-1b-v2
-kubectl delete pods -n <your-namespace> -l app.kubernetes.io/name=nvidia-nim-llama-32-nv-rerankqa-1b-v2
+kubectl delete pods -n <your-namespace> -l app.kubernetes.io/name=nvidia-nim-llama-nemotron-embed-1b-v2
+kubectl delete pods -n <your-namespace> -l app.kubernetes.io/name=nvidia-nim-llama-nemotron-rerank-1b-v2
 ```
 
 #### Verify NGC Secrets Are Configured Correctly
@@ -1242,12 +1242,66 @@ Secret "sh.helm.release.v1.rag.v1" is invalid: data: Too long: must have at most
 mv deploy/helm/nvidia-blueprint-rag/*-backup ../
 ```
 
+---
+
+### VLM Inference Skipped: `'str' object has no attribute 'get'`
+
+**Symptoms:** With `ENABLE_VLM_INFERENCE=true` and a healthy `nim-vlm` pod, the rag-server logs show the VLM is *attempted* but never actually called:
+
+```
+INFO  rag_server.main: Calling VLM to analyze images cited in the context
+INFO  rag_server.vlm:  VLM Model Name: nvidia/nemotron-nano-12b-v2-vl
+INFO  rag_server.vlm:  Number of documents: 3
+WARNING rag_server.vlm: Failed to process document for image extraction: 'str' object has no attribute 'get'
+  File ".../rag_server/vlm.py", line 276, in analyze_images_from_context
+WARNING rag_server.vlm: Skipping VLM: no images extracted from context and no query images provided.
+INFO  rag_server.main: VLM response is empty.
+```
+
+**Root cause:** In `src/nvidia_rag/rag_server/vlm.py:analyze_images_from_context` (~line 276),
+`doc.metadata.get("content_metadata", {})` assumes `doc.metadata` is a dict, but with the
+KDB.AI VDB integration each retrieved document's `metadata` is delivered as a JSON-encoded
+**string** instead of a dict. Calling `.get()` on the string raises `AttributeError`, which
+is caught and silently skips the document for VLM extraction.
+
+The text-only RAG pipeline still works (LLM gets the retrieved text as context), but
+multimodal/VLM augmentation is silently disabled — answers won't include any vision-derived
+insight from extracted images/tables.
+
+**Validated:** EKS Phase B (2026-05-07) with `nemotron-nano-12b-v2-vl:1.6.0` on `g6e.4xlarge`,
+KDB.AI 1.8.2 cuVS, full RAG ingestion of multimodal PDFs containing table figures.
+
+**Workaround:** None at runtime — needs a code fix.
+
+**Fix sketch:** In `vlm.py:analyze_images_from_context`, normalize `doc.metadata` before
+access:
+
+```python
+import json
+md = doc.metadata if isinstance(doc.metadata, dict) else json.loads(doc.metadata or "{}")
+content_metadata = md.get("content_metadata", {})
+# ... rest unchanged but use `md` instead of `doc.metadata`
+```
+
+Apply the same `isinstance` guard for `doc.metadata.get("source", {})` and
+`doc.metadata.get("collection_name")` further down the function.
+
+**Related:** This is a KDB.AI VDB-specific issue; the Milvus path returns dict metadata
+directly so doesn't hit it. Worth propagating the fix to either:
+- `vlm.py` (defensive normalization, easiest), or
+- `kdbai_vdb.py` `similarity_search` (decode metadata once at the VDB boundary, more
+  invasive but cleaner — would also benefit other callers expecting dict metadata).
+
 
 ## Amazon EKS Deployment
 
 For Amazon EKS deployments, a pre-configured values file is available that combines KDB.AI with cloud-hosted NVIDIA AI endpoints.
 
 > [!NOTE]
+> **Streamlined deploy in this fork:** the Helm chart has been hardened so the long manual procedure below is now optional. You can deploy with a single `helm install` command — the chart creates the four required secrets, wires the NGC API key into rag-server / ingestor-server via `secretKeyRef`, attaches both `ngc-secret` and `kdbai-registry-secret` as pull secrets, and sets explicit storage classes on every PVC. See [Quick Deploy](#quick-deploy-this-fork) below.
+>
+> The original step-by-step procedure (Steps 1-10) is preserved unchanged for debugging / reproducibility, but Steps 3-4 (manual secret creation) and Step 8 (`kubectl set env`) are **no longer required** in fresh installs. Step 8 also has a known footgun — using `kubectl set env` creates a field-manager conflict that breaks subsequent `helm upgrade`s.
+>
 > **Development/Testing Configuration**: The provided EKS values file is configured for development and testing purposes with single replicas. For production deployments, you should:
 > - Increase replica counts for high availability
 > - Configure Horizontal Pod Autoscaling (HPA)
@@ -1255,6 +1309,37 @@ For Amazon EKS deployments, a pre-configured values file is available that combi
 > - Enable persistent storage with proper backup strategies
 > - Configure monitoring, alerting, and logging
 > - Review and harden security configurations
+
+### Quick Deploy (this fork)
+
+The chart creates secrets from values when `--set <name>.create=true` is passed. All four required secrets, the kdbai pull-secret wiring on rag-server/ingestor, NGC env vars, default storage class on PVCs, and `strategy: Recreate` on ingestor are handled by the chart itself — you only need to supply the credentials.
+
+```bash
+export NGC_API_KEY="nvapi-..."
+export KDBAI_REGISTRY_EMAIL="your-email@example.com"
+export KDBAI_REGISTRY_TOKEN="bearer-token-from-kx-email"
+export KDB_LICENSE_B64="..."
+
+kubectl create namespace rag --dry-run=client -o yaml | kubectl apply -f -
+
+helm dependency update deploy/helm/nvidia-blueprint-rag
+
+helm install rag deploy/helm/nvidia-blueprint-rag \
+  --namespace rag \
+  -f deploy/EKS/rag-values-kdbai.yaml \
+  --set imagePullSecret.password="${NGC_API_KEY}" \
+  --set ngcApiSecret.password="${NGC_API_KEY}" \
+  --set kdbai.imagePullSecret.create=true \
+  --set kdbai.imagePullSecret.email="${KDBAI_REGISTRY_EMAIL}" \
+  --set kdbai.imagePullSecret.token="${KDBAI_REGISTRY_TOKEN}" \
+  --set kdbai.licenseSecret.create=true \
+  --set kdbai.licenseSecret.licenseB64="${KDB_LICENSE_B64}" \
+  --timeout 30m
+```
+
+After ~10-15 min all 15 pods should be 1/1 Ready. To also enable NeMo Guardrails, see [`nemo-guardrails.md`](nemo-guardrails.md).
+
+The detailed step-by-step below is for reference (and is what the upstream chart requires).
 
 ### Prerequisites
 
@@ -1379,14 +1464,23 @@ rag-nemoretriever-graphic-elements-v1-...                    1/1     Running
 rag-nemoretriever-page-elements-v2-...                       1/1     Running
 rag-nemoretriever-table-structure-v1-...                     1/1     Running
 rag-nv-ingest-...                                            1/1     Running
-rag-nvidia-nim-llama-32-nv-embedqa-1b-v2-...                 1/1     Running
-rag-nvidia-nim-llama-32-nv-rerankqa-1b-v2-...                1/1     Running
+rag-nvidia-nim-llama-nemotron-embed-1b-v2-...                1/1     Running
+rag-nvidia-nim-llama-nemotron-rerank-1b-v2-...               1/1     Running
 rag-redis-master-0                                           1/1     Running
 rag-redis-replicas-0                                         1/1     Running
 rag-server-...                                               1/1     Running
 ```
 
 ### Step 8: Mount API Key to Application Pods
+
+> [!WARNING]
+> **In this fork, this step is no longer needed and is actively harmful.** The chart's `deployment.yaml` and `ingestor-server-deployment.yaml` templates now wire the three NGC keys (`NGC_API_KEY`, `NGC_CLI_API_KEY`, `NVIDIA_API_KEY`) via explicit `secretKeyRef` against the `ngc-api` secret. Running `kubectl set env --from=secret/ngc-api` creates a `before-first-apply` field-manager that fights subsequent `helm upgrade`s with errors like `"conflict with \"before-first-apply\" using apps/v1 .env[name=\"...\"].value"`. If you already ran this, clear it with:
+> ```bash
+> helm template rag deploy/helm/nvidia-blueprint-rag -n rag -f deploy/EKS/rag-values-kdbai.yaml \
+>   <same --set flags as install> --show-only templates/deployment.yaml | \
+>   kubectl apply --server-side --force-conflicts --field-manager=helm -f - -n rag
+> ```
+> Skip this step in fresh installs.
 
 The RAG server and ingestor server need access to the NGC API key for cloud-hosted LLM endpoints. Mount the secret to these deployments:
 
@@ -1453,7 +1547,7 @@ The EKS values file includes a StorageClass with `WaitForFirstConsumer` binding 
 ```yaml
 storageClass:
   create: true
-  name: "kdbai-storage"
+  name: "rag-storage"
   volumeBindingMode: WaitForFirstConsumer
   reclaimPolicy: Delete
   allowVolumeExpansion: true
@@ -1562,7 +1656,7 @@ envVars:
 
 ### NVIDIA RAG Blueprint
 - [NVIDIA RAG Blueprint Overview](readme.md) - Main documentation
-- [Deploy with Docker Compose](deploy-docker-compose.md) - Docker deployment guide
+- [Deploy with Docker Compose](deploy-docker-self-hosted.md) - Docker deployment guide
 - [Deploy with Helm](deploy-helm.md) - Kubernetes deployment guide
 - [Best Practices for Common Settings](accuracy_perf.md) - Performance optimization
 - [RAG Pipeline Debugging Guide](debugging.md) - General debugging tips

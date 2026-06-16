@@ -1,0 +1,112 @@
+{{- if .Values.nemoGuardrails.enabled }}
+{{- $o := .Values.nemoGuardrails.orchestrator -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $o.service.name }}
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+    app.kubernetes.io/component: guardrails-orchestrator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "nvidia-blueprint-rag.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: guardrails-orchestrator
+  template:
+    metadata:
+      labels:
+        {{- include "nvidia-blueprint-rag.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: guardrails-orchestrator
+    spec:
+      {{- if .Values.imagePullSecret.name }}
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret.name }}
+      {{- end }}
+      containers:
+        - name: orchestrator
+          image: "{{ $o.image.repository }}:{{ $o.image.tag }}"
+          imagePullPolicy: {{ $o.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - containerPort: {{ $o.service.port }}
+          env:
+            - name: CONFIG_STORE_PATH
+              value: "/config-store"
+            - name: DEFAULT_CONFIG_ID
+              value: {{ $o.defaultConfigId | quote }}
+            # NeMo Guardrails expects the LLM BASE URL (e.g. .../v1), not the
+            # full chat-completions endpoint — it appends /chat/completions
+            # itself. rag-server's APP_LLM_SERVERURL is the full endpoint, so
+            # strip the /chat/completions suffix when inheriting.
+            # If the inherited URL doesn't have that suffix (e.g. bare
+            # "nim-llm:8000"), the user must set nimEndpointUrl explicitly.
+            {{- $appLlmUrl := index .Values.envVars "APP_LLM_SERVERURL" }}
+            {{- $resolved := $o.nimEndpointUrl }}
+            {{- if not $resolved }}
+              {{- if regexMatch "/chat/completions/?$" $appLlmUrl }}
+                {{- $resolved = regexReplaceAll "/chat/completions/?$" $appLlmUrl "" }}
+              {{- else }}
+                {{- fail (printf "nemoGuardrails.enabled=true requires a base LLM URL. APP_LLM_SERVERURL=%q does not end in /chat/completions (so it can't be auto-stripped). Set nemoGuardrails.orchestrator.nimEndpointUrl explicitly to e.g. http://nim-llm:8000/v1" $appLlmUrl) }}
+              {{- end }}
+            {{- end }}
+            - name: NIM_ENDPOINT_URL
+              value: {{ $resolved | quote }}
+            - name: NIM_ENDPOINT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ngcApiSecret.name }}
+                  key: NGC_API_KEY
+            - name: NVIDIA_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ngcApiSecret.name }}
+                  key: NVIDIA_API_KEY
+          {{- if $o.resources }}
+          resources:
+{{ toYaml $o.resources | nindent 12 }}
+          {{- end }}
+          {{- if $o.livenessProbe }}
+          livenessProbe:
+{{ toYaml $o.livenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if $o.readinessProbe }}
+          readinessProbe:
+{{ toYaml $o.readinessProbe | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: config-store
+              mountPath: /config-store
+              readOnly: true
+      volumes:
+        - name: config-store
+          configMap:
+            name: {{ .Release.Name }}-guardrails-config
+            items:
+              {{- /*
+                Build a unique set of <configId>/<filename> mappings from:
+                  (a) template-generated nemoguard/config.yml (when any in-cluster
+                      safety NIM is enabled),
+                  (b) filesystem-loaded files (prompts.yml etc., nemoguard_cloud),
+                  (c) inline values overrides.
+              */ -}}
+              {{- $items := dict }}
+              {{- $cs := .Values.nemoGuardrails.contentSafety.enabled }}
+              {{- $tc := .Values.nemoGuardrails.topicControl.enabled }}
+              {{- $jb := (.Values.nemoGuardrails.jailbreakDetect | default dict).enabled }}
+              {{- if or $cs $tc $jb }}
+                {{- $_ := set $items "nemoguard__config.yml" "nemoguard/config.yml" }}
+              {{- end }}
+              {{- range $path, $_ := .Files.Glob "files/guardrails/*/*.yml" }}
+                {{- $relParts := splitList "/" (trimPrefix "files/guardrails/" $path) }}
+                {{- $_ := set $items (printf "%s__%s" (index $relParts 0) (index $relParts 1)) (printf "%s/%s" (index $relParts 0) (index $relParts 1)) }}
+              {{- end }}
+              {{- range $configId, $files := .Values.nemoGuardrails.configStore.configs }}
+                {{- range $filename, $content := $files }}
+                {{- $_ := set $items (printf "%s__%s" $configId $filename) (printf "%s/%s" $configId $filename) }}
+                {{- end }}
+              {{- end }}
+              {{- range $key, $path := $items }}
+              - key: {{ $key }}
+                path: {{ $path }}
+              {{- end }}
+{{- end }}

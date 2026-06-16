@@ -53,7 +53,7 @@ services:
 
   topic-control:
     container_name: llama-3.1-nemoguard-8b-topic-control
-    image: nvcr.io/nim/nvidia/llama-3.1-nemoguard-8b-topic-control:1.10
+    image: nvcr.io/nim/nvidia/llama-3.1-nemoguard-8b-topic-control:1.10.1
     environment:
       - NGC_API_KEY=${NGC_API_KEY}
       - NIM_SERVED_MODEL_NAME=llama-3.1-nemoguard-8b-topic-control

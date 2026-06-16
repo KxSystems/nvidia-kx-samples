@@ -86,7 +86,7 @@ nim-llm:
 
 
 # Embedding NIM
-nvidia-nim-llama-32-nv-embedqa-1b-v2:
+nvidia-nim-llama-nemotron-embed-1b-v2:
   resources:
     limits:
       nvidia.com/mig-2g.20gb: 1
@@ -96,7 +96,7 @@ nvidia-nim-llama-32-nv-embedqa-1b-v2:
       nvidia.com/gpu: 0
 
 # Text Reranking NIM
-nvidia-nim-llama-32-nv-rerankqa-1b-v2:
+nvidia-nim-llama-nemotron-rerank-1b-v2:
   resources:
     limits:
       nvidia.com/mig-2g.20gb: 1

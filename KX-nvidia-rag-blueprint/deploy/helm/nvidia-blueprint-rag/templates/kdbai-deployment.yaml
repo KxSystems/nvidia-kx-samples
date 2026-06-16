@@ -10,6 +10,14 @@ metadata:
     app.kubernetes.io/component: kdbai
 spec:
   replicas: 1
+  {{- if .Values.kdbai.persistence.enabled }}
+  # The pod mounts a ReadWriteOnce EBS PVC, which a single volume cannot
+  # multi-attach. The default RollingUpdate would spin up the new pod before
+  # terminating the old one, deadlocking every `helm upgrade` on Multi-Attach.
+  # Recreate tears the old pod down first. (Matches the kdbx/ingestor pattern.)
+  strategy:
+    type: Recreate
+  {{- end }}
   selector:
     matchLabels:
       app: {{ .Values.kdbai.fullnameOverride | default "kdbai" }}

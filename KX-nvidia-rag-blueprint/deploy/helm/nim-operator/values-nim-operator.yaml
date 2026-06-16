@@ -5,9 +5,9 @@ envVars:
   APP_QUERYREWRITER_SERVERURL: "nim-llm:8000"
 nim-llm:
   enabled: false
-nvidia-nim-llama-32-nv-embedqa-1b-v2:
+nvidia-nim-llama-nemotron-embed-1b-v2:
   enabled: false
-nvidia-nim-llama-32-nv-rerankqa-1b-v2:
+nvidia-nim-llama-nemotron-rerank-1b-v2:
   enabled: false
 nv-ingest:
     nemoretriever-graphic-elements-v1:

@@ -1,0 +1,19 @@
+{{- if and .Values.nemoGuardrails.enabled .Values.nemoGuardrails.jailbreakDetect.enabled .Values.nemoGuardrails.jailbreakDetect.persistence.enabled }}
+{{- $g := .Values.nemoGuardrails.jailbreakDetect -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $g.service.name }}-cache
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nemoguard-jailbreak
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ $g.persistence.size | default "50Gi" }}
+  {{- if $g.persistence.storageClass }}
+  storageClassName: {{ $g.persistence.storageClass | quote }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,74 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 KX Systems, Inc. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# ===========================================================================
+# AIRGAP WARNING
+# ===========================================================================
+# kdbx.useCuvs=true triggers a runtime download from portal.dl.kx.com at
+# pod startup (kdbx-entrypoint.sh downloads l64-cuvs.zip using KDB_BEARER_TOKEN).
+# This is incompatible with strict airgap (Posture A).
+# Options for airgap:
+#   1. Pre-stage the cuVS zip in the image (contact KX for offline bundle)
+#   2. Allow portal.dl.kx.com in your egress allowlist
+#   3. In production, KDB-X is customer-managed — this download does not apply;
+#      the chart's self-installing entrypoint is test-only scaffolding.
+# ===========================================================================
+#
+# cuVS / CAGRA (GPU) overlay for the KDB-X RAG deployment.
+#
+# LAYER THIS ON TOP OF rag-values-kdbx.yaml (which is the CPU/HNSW base):
+#
+#   helm upgrade --install rag deploy/helm/nvidia-blueprint-rag -n <ns> \
+#     -f deploy/EKS/rag-values-kdbx.yaml \
+#     -f deploy/EKS/rag-values-kdbx-cuvs.yaml \
+#     --set kdbx.image.repository=<your-ecr>/kdbx-rag \
+#     --set image.repository=<your-ecr>/nvidia-rag-server-kdbx --set image.tag=<tag> \
+#     --set ingestor-server.image.repository=<your-ecr>/ingestor-server-kdbx \
+#     --set ingestor-server.image.tag=<tag> \
+#     --set kdbx.imagePullSecret.name="" \
+#     --set-file imagePullSecret.password=<ngc-key-file> \
+#     --set-file ngcApiSecret.password=<ngc-key-file> \
+#     --set-file kdbx.licenseSecret.bearerToken=<kx-portal-token-file>   # if creating the secret here
+#
+# WHY THIS OVERLAY EXISTS (reproducibility): enabling CAGRA requires BOTH
+#   (a) arming the server — kdbx.useCuvs=true sets KDBX_USE_CUVS=1 so the kdbx
+#       entrypoint installs the cuVS module and the startup-loaded kdbx-init.q
+#       (mounted from the ConfigMap, loaded at q startup) loads it; AND
+#   (b) the CLIENT asking for it — the rag-server/ingestor adapter picks the index
+#       type from APP_VECTORSTORE_ENABLEGPUINDEX / ENABLEGPUSEARCH (or
+#       APP_VECTORSTORE_INDEXTYPE=cagra). useCuvs alone is NOT enough: without the
+#       client env below the adapter requests hnsw and collections are built HNSW
+#       even on a GPU pod. This overlay sets both so a from-repo deploy is correct.
+# NOTE: Omitting APP_VECTORSTORE_ENABLEGPUINDEX/SEARCH from rag-server or ingestor
+# silently produces HNSW collections even with useCuvs=true — no error is raised.
+#
+# NODE REQUIREMENTS: a GPU node (NVIDIA driver >=580, Ampere+; e.g. g5.2xlarge =
+# A10G) with the device plugin advertising nvidia.com/gpu. The .cagra index blob
+# is arch-coupled — pin one arch via kdbx.gpu.nodeSelector (the WS-SAFETY stamp
+# rebuilds rather than reads a blob from a different arch). Validated on A10G.
+
+# ---- arm the server + default new collections to CAGRA ----
+kdbx:
+  useCuvs: true
+  indexType: "cagra"
+  gpu:
+    count: 1
+    # Pin the GPU arch (the persisted .cagra is arch-coupled; Recreate-strategy
+    # PVC must reattach to the same arch). Match your GPU nodegroup's label —
+    # rag-dev's gpu-pool (g5.2xlarge / A10G) is labeled node-type=gpu.
+    nodeSelector:
+      node-type: gpu
+    # tolerations: [...]   # if your GPU nodes are tainted
+
+# ---- client must request the GPU index (drives the adapter's CAGRA choice) ----
+# rag-server retrieval/search path:
+envVars:
+  APP_VECTORSTORE_ENABLEGPUINDEX: "True"
+  APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
+
+# ingestor-server create/insert path (collections are created here, so this MUST
+# also request CAGRA or new collections land as HNSW):
+ingestor-server:
+  envVars:
+    APP_VECTORSTORE_ENABLEGPUINDEX: "True"
+    APP_VECTORSTORE_ENABLEGPUSEARCH: "True"

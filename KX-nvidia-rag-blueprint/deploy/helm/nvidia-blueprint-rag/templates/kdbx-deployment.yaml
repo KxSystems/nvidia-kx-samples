@@ -1,0 +1,191 @@
+{{- if .Values.kdbx.enabled }}
+{{- if not .Values.kdbx.image.repository }}
+{{- fail "kdbx.enabled=true but kdbx.image.repository is empty. Pass --set kdbx.image.repository=<your-registry>/kdbx-rag (see docs/change-vectordb-kdbx.md)." }}
+{{- end }}
+# KDB-X Vector Database Deployment (Phase 1: HNSW via .ai.hnsw)
+# Build the image with deploy/helm/nvidia-blueprint-rag/files/kdbx/Dockerfile.kdbx
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.kdbx.fullnameOverride | default "kdbx" }}
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kdbx
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: {{ .Values.kdbx.fullnameOverride | default "kdbx" }}
+      app.kubernetes.io/component: kdbx
+      {{- include "nvidia-blueprint-rag.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.kdbx.fullnameOverride | default "kdbx" }}
+        app.kubernetes.io/component: kdbx
+        {{- include "nvidia-blueprint-rag.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- if .Values.kdbx.imagePullSecret.name }}
+      imagePullSecrets:
+        - name: {{ .Values.kdbx.imagePullSecret.name }}
+      {{- end }}
+      {{- if and .Values.kdbx.useCuvs .Values.kdbx.gpu }}
+      {{- with .Values.kdbx.gpu.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.kdbx.gpu.tolerations }}
+      tolerations:
+{{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- end }}
+      containers:
+        - name: kdbx
+          image: "{{ .Values.kdbx.image.repository }}:{{ .Values.kdbx.image.tag }}"
+          imagePullPolicy: {{ .Values.kdbx.image.pullPolicy }}
+          # Bootstrap script (test-deploy): idempotently installs KDB-X (if the
+          # image lacks q) and the cuVS module (when useCuvs), then launches q.
+          # Run via `sh` because ConfigMap-mounted files are not executable.
+          command: ["sh", "/opt/kx/conf/kdbx-entrypoint.sh"]
+          ports:
+            - name: kdbx
+              containerPort: 5000
+              protocol: TCP
+          env:
+            - name: KDBX_DATA_DIR
+              value: "/opt/kx/data"
+            - name: KDBX_USE_CUVS
+              value: {{ if .Values.kdbx.useCuvs }}"1"{{ else }}"0"{{ end }}
+            {{- if .Values.kdbx.indexType }}
+            # Pod-default index type for NEW collections (kdbx-init.q's
+            # resolveIndexType). Previously kdbx.indexType was defined in
+            # values but consumed by no template (TODO 4.4).
+            - name: KDBX_INDEX_TYPE
+              value: {{ .Values.kdbx.indexType | quote }}
+            {{- end }}
+            {{- if .Values.kdbx.hnsw }}
+            {{- if .Values.kdbx.hnsw.metric }}
+            - name: KDBX_METRIC
+              value: {{ .Values.kdbx.hnsw.metric | quote }}
+            {{- end }}
+            {{- if .Values.kdbx.hnsw.m }}
+            - name: KDBX_HNSW_M
+              value: {{ .Values.kdbx.hnsw.m | quote }}
+            {{- end }}
+            {{- if .Values.kdbx.hnsw.efConstruction }}
+            - name: KDBX_HNSW_EF_CONSTRUCTION
+              value: {{ .Values.kdbx.hnsw.efConstruction | quote }}
+            {{- end }}
+            {{- if .Values.kdbx.hnsw.efSearch }}
+            - name: KDBX_HNSW_EF_SEARCH
+              value: {{ .Values.kdbx.hnsw.efSearch | quote }}
+            {{- end }}
+            {{- end }}
+            - name: KDB_LICENSE_B64
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.kdbx.licenseSecret.name }}
+                  key: KDB_LICENSE_B64
+            {{- if .Values.kdbx.useCuvs }}
+            # KX portal token — needed at runtime ONLY to download the cuVS
+            # module (and KDB-X itself if the image lacks q). Test-deploy only;
+            # `optional: true` so a CPU image that already ships q + has no GPU
+            # still schedules if the key is absent.
+            - name: KDB_BEARER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.kdbx.licenseSecret.name }}
+                  key: KDB_BEARER_TOKEN
+                  optional: true
+            {{- if .Values.kdbx.cagra }}
+            {{- if .Values.kdbx.cagra.skipPersistedRead }}
+            # WS-SAFETY kill-switch: never .read a persisted .cagra, always
+            # rebuild from vectors. Escape hatch if a blob ever fatally faults.
+            - name: KDBX_CAGRA_SKIP_PERSISTED_READ
+              value: "1"
+            {{- end }}
+            {{- if .Values.kdbx.cagra.cuvsStamp }}
+            # WS-SAFETY: extra cuVS/CUDA version tag folded into the .cagra
+            # env-stamp, so a module/version change invalidates persisted blobs.
+            - name: KDBX_CUVS_STAMP
+              value: {{ .Values.kdbx.cagra.cuvsStamp | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+          {{- if .Values.kdbx.useCuvs }}
+          # GPU pod (WS-SAFETY). Liveness stays the cheap .rag.ping but with a
+          # long startup grace: the cuVS module + CUDA libs install at pod start
+          # (install_deps.sh pulls ~GBs) and the first CAGRA build also blocks
+          # q's single thread -- neither should trip a liveness kill. The build
+          # marker (kdbx-init.q) is the backstop: a kill mid-build rebuilds from
+          # vectors next boot rather than reading a half-written blob.
+          livenessProbe:
+            exec:
+              command: ["q", "/opt/kx/conf/healthcheck.q"]
+            initialDelaySeconds: {{ .Values.kdbx.cuvsStartupSeconds | default 600 }}
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 10
+          # Readiness runs the cuVS GPU canary (.rag.cuvs.canary): a wedged GPU
+          # context pulls the pod from service WITHOUT a liveness kill (which
+          # would churn the RWO PVC). Fails benignly during the startup install.
+          readinessProbe:
+            exec:
+              command: ["q", "/opt/kx/conf/readiness.q"]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 3
+          {{- else }}
+          {{- if .Values.kdbx.livenessProbe }}
+          livenessProbe:
+{{ toYaml .Values.kdbx.livenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.kdbx.readinessProbe }}
+          readinessProbe:
+{{ toYaml .Values.kdbx.readinessProbe | nindent 12 }}
+          {{- end }}
+          {{- end }}
+          {{- if .Values.kdbx.resources }}
+          resources:
+            {{- with .Values.kdbx.resources.requests }}
+            requests:
+{{ toYaml . | nindent 14 }}
+            {{- end }}
+            {{- $gpu := and .Values.kdbx.useCuvs .Values.kdbx.gpu }}
+            {{- if or .Values.kdbx.resources.limits $gpu }}
+            limits:
+              {{- with .Values.kdbx.resources.limits }}
+{{ toYaml . | nindent 14 }}
+              {{- end }}
+              {{- if $gpu }}
+              # GPU CAGRA (cuVS) requested — request one device. nodeSelector/
+              # tolerations come from kdbx.gpu. The .cagra index blob is GPU-arch
+              # coupled, so pin the arch via kdbx.gpu.nodeSelector in production-
+              # like tests (see Phase 2 plan WS3).
+              nvidia.com/gpu: {{ .Values.kdbx.gpu.count | default 1 }}
+              {{- end }}
+            {{- end }}
+          {{- end }}
+          volumeMounts:
+            {{- if .Values.kdbx.persistence.enabled }}
+            - name: kdbx-data
+              mountPath: /opt/kx/data
+            {{- end }}
+            - name: kdbx-init
+              mountPath: /opt/kx/conf
+      volumes:
+        {{- if .Values.kdbx.persistence.enabled }}
+        - name: kdbx-data
+          persistentVolumeClaim:
+            claimName: {{ .Values.kdbx.fullnameOverride | default "kdbx" }}-data
+        {{- else }}
+        - name: kdbx-data
+          emptyDir: {}
+        {{- end }}
+        - name: kdbx-init
+          configMap:
+            name: kdbx-init
+{{- end }}

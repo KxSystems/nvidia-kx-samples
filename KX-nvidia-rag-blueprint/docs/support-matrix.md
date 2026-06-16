@@ -22,7 +22,7 @@ For the RAG Blueprint you need the following operating system:
 
 For the RAG Blueprint you need the following drivers:
 
-- GPU Driver -  560 or later
+- GPU Driver -  560 or later (for KDB-X GPU CAGRA via kx.cuvs, host driver must be **>= 580**)
 - CUDA version - 12.9 or later
 
 For details, see [NVIDIA NIM for LLMs Software](https://docs.nvidia.com/nim/large-language-models/latest/getting-started.html#software).
@@ -56,10 +56,13 @@ To install the RAG Blueprint on Kubernetes, you need one of the following:
 
 The following are requirements and recommendations for the individual components of the RAG Bluprint:
 
-- **Pipeline operation** – 1x L40 GPU or similar recommended. This is needed for the Milvus vector database, as GPU acceleration is enabled by default.
+- **Vector database (KDB.AI)** – 1x A10G/L40 or similar GPU recommended for the KDB.AI cuVS/CAGRA index (GPU acceleration is the default).
+- **Vector database (KDB-X, CPU HNSW)** – No GPU required; works on any x86-64 node.
+- **Vector database (KDB-X, GPU CAGRA)** – 1x Ampere+ GPU (A10G, H100, RTX PRO 6000, etc.), x86-64 only, host driver >= 580.
+- **NeMo Guardrails (optional)** – 2x L40/A100/H100 GPUs (one per safety NIM: content-safety and topic-control, each 8B and ~16GB VRAM). +1 more if `jailbreakDetect` is enabled.
 - **LLM NIM (llama-3.3-nemotron-super-49b-v1.5)** – Refer to the [Support Matrix]( https://docs.nvidia.com/nim/large-language-models/latest/supported-models.html#llama-3-3-nemotron-super-49b-v1-5).
-- **Embedding NIM (Llama-3.2-NV-EmbedQA-1B-v2 )** – Refer to the [Support Matrix](https://docs.nvidia.com/nim/nemo-retriever/text-embedding/latest/support-matrix.html#llama-3-2-nv-embedqa-1b-v2).
-- **Reranking NIM (llama-3_2-nv-rerankqa-1b-v2 )**: Refer to the [Support Matrix](https://docs.nvidia.com/nim/nemo-retriever/text-reranking/latest/support-matrix.html#llama-3-2-nv-rerankqa-1b-v2).
+- **Embedding NIM (Llama-Nemotron-Embed-1B-v2)** – Refer to the [Support Matrix](https://docs.nvidia.com/nim/nemo-retriever/text-embedding/latest/support-matrix.html).
+- **Reranking NIM (llama-nemotron-rerank-1b-v2)**: Refer to the [Support Matrix](https://docs.nvidia.com/nim/nemo-retriever/text-reranking/latest/support-matrix.html).
 - **NVIDIA NIM for Image OCR (baidu/paddleocr)**: Refer to the [Support Matrix](https://docs.nvidia.com/nim/ingestion/table-extraction/latest/support-matrix.html#supported-hardware).
 - **NeMo Retriever OCR**: Refer to the [Support Matrix](https://docs.nvidia.com/nim/ingestion/image-ocr/latest/support-matrix.html).
 - **NVIDIA NIMs for Object Detection**:

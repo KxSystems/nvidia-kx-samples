@@ -1,34 +1,35 @@
 apiVersion: v2
-appVersion: 2.3.4
+appVersion: 2.4.0
 dependencies:
 - condition: nim-llm.enabled
   name: nim-llm
   repository: https://helm.ngc.nvidia.com/nim
+  version: 1.13.1
+- condition: nvidia-nim-llama-nemotron-embed-1b-v2.enabled
+  name: nvidia-nim-llama-nemotron-embed-1b-v2
+  repository: https://helm.ngc.nvidia.com/nim/nvidia
   version: 1.13.0
-- condition: nvidia-nim-llama-32-nv-embedqa-1b-v2.enabled
-  name: nvidia-nim-llama-32-nv-embedqa-1b-v2
+# Dropped: gated NGC chart, image entitled but helm chart 403s for our NGC org.
+# Filed as upstream chart bug. Default values keep VL-embed disabled so this dep is dead weight.
+# - condition: nvidia-nim-llama-nemotron-embed-vl-1b-v2.enabled
+#   name: nvidia-nim-llama-nemotron-embed-vl-1b-v2
+#   repository: https://helm.ngc.nvidia.com/nim/nvidia
+#   version: 1.12.0
+- condition: nvidia-nim-llama-nemotron-rerank-1b-v2.enabled
+  name: nvidia-nim-llama-nemotron-rerank-1b-v2
   repository: https://helm.ngc.nvidia.com/nim/nvidia
-  version: 1.9.0
-- condition: nvidia-nim-llama-32-nemoretriever-1b-vlm-embed-v1.enabled
-  name: nvidia-nim-llama-32-nemoretriever-1b-vlm-embed-v1
-  repository: https://helm.ngc.nvidia.com/nvidia/nemo-microservices
-  version: 1.7.0
-- condition: nvidia-nim-llama-32-nv-rerankqa-1b-v2.enabled
-  name: nvidia-nim-llama-32-nv-rerankqa-1b-v2
-  repository: https://helm.ngc.nvidia.com/nim/nvidia
-  version: 1.7.0
+  version: 1.10.0
 - condition: nim-vlm.enabled
   name: nim-vlm
   repository: https://helm.ngc.nvidia.com/nim
-  version: 1.3.0
+  version: 1.7.0
 - condition: nv-ingest.enabled
   name: nv-ingest
   repository: https://helm.ngc.nvidia.com/nvidia/nemo-microservices
   version: 25.9.0
-- condition: elasticsearch.enabled
-  name: elasticsearch
-  repository: https://charts.bitnami.com/bitnami
-  version: 22.0.13
+# Note: this is the KX fork — KDB-X (default) or KDB.AI as the vector store.
+# Elasticsearch / Milvus charts have been removed. Python VDB implementations
+# remain in src/nvidia_rag/utils/vdb/ but are not deployable from this chart.
 - condition: zipkin.enabled
   name: zipkin
   repository: https://zipkin.io/zipkin-helm
@@ -41,7 +42,7 @@ dependencies:
   name: kube-prometheus-stack
   repository: https://prometheus-community.github.io/helm-charts
   version: 76.3.0
-description: An end to end Helm chart for the NVIDIA RAG Blueprint
+description: NVIDIA RAG Blueprint — KX fork. End-to-end chart for retrieval-augmented generation using KDB-X (default, CPU HNSW / GPU CAGRA via cuVS) or KDB.AI as the vector store, llama-nemotron embed/rerank NIMs, optional cloud or self-hosted LLM, and optional NeMo Guardrails (orchestrator + content-safety + topic-control NIMs).
 name: nvidia-blueprint-rag
 type: application
-version: 2.3.4
+version: 2.4.0

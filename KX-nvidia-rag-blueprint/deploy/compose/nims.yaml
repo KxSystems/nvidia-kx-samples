@@ -2,7 +2,7 @@ services:
   nim-llm:
     # Note: container_name must match the hostname expected by other services (nim-llm)
     container_name: nim-llm
-    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.13.1
+    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.15.5
     shm_size: 16GB
     volumes:
     - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
@@ -31,8 +31,9 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              # 49B model requires 2 GPUs with tensor parallelism (bf16 ~98GB, single GPU has 96GB)
-              count: ${LLM_GPU_COUNT:-2}
+              # FP8 (~49GB) fits one 96GB GPU → 49B runs on 1 GPU (TP1). 1 GPU forces
+              # FP8 (bf16 ~98GB won't fit). Override LLM_GPU_COUNT=2 for bf16 TP2.
+              count: ${LLM_GPU_COUNT:-1}
               capabilities: [gpu]
     healthcheck:
       test: ["CMD", "python3", "-c", "import requests; requests.get('http://localhost:8000/v1/health/ready')"]
@@ -43,7 +44,7 @@ services:
 
   nemoretriever-embedding-ms:
     container_name: nemoretriever-embedding-ms
-    image: nvcr.io/nim/nvidia/llama-3.2-nv-embedqa-1b-v2:1.10.0
+    image: nvcr.io/nim/nvidia/llama-nemotron-embed-1b-v2:1.13.0
     volumes:
     - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
     ports:
@@ -73,7 +74,7 @@ services:
 
   nemoretriever-vlm-embedding-ms:
     container_name: nemoretriever-vlm-embedding-ms
-    image: nvcr.io/nvidia/nemo-microservices/llama-3.2-nemoretriever-1b-vlm-embed-v1:1.7.0
+    image: nvcr.io/nim/nvidia/llama-nemotron-embed-vl-1b-v2:1.12.0
     volumes:
     - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
     ports:
@@ -103,7 +104,7 @@ services:
 
   nemoretriever-ranking-ms:
     container_name: nemoretriever-ranking-ms
-    image: nvcr.io/nim/nvidia/llama-3.2-nv-rerankqa-1b-v2:1.8.0
+    image: nvcr.io/nim/nvidia/llama-nemotron-rerank-1b-v2:1.10.0
     volumes:
     - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
     ports:
@@ -130,7 +131,7 @@ services:
 
   page-elements:
     container_name: page-elements
-    image: ${YOLOX_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-page-elements-v2}:${YOLOX_TAG:-1.5.0}
+    image: ${YOLOX_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-page-elements-v2}:${YOLOX_TAG:-1.6.0}
     shm_size: 16gb
     ports:
       - "8000:8000"
@@ -170,7 +171,7 @@ services:
 
   graphic-elements:
     container_name: graphic-elements
-    image: ${YOLOX_GRAPHIC_ELEMENTS_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-graphic-elements-v1}:${YOLOX_GRAPHIC_ELEMENTS_TAG:-1.5.0}
+    image: ${YOLOX_GRAPHIC_ELEMENTS_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-graphic-elements-v1}:${YOLOX_GRAPHIC_ELEMENTS_TAG:-1.6.0}
     shm_size: 16gb
     ports:
       - "8003:8000"
@@ -198,7 +199,7 @@ services:
 
   table-structure:
     container_name: table-structure
-    image: ${YOLOX_TABLE_STRUCTURE_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-table-structure-v1}:${YOLOX_TABLE_STRUCTURE_TAG:-1.5.0}
+    image: ${YOLOX_TABLE_STRUCTURE_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-table-structure-v1}:${YOLOX_TABLE_STRUCTURE_TAG:-1.6.0}
     shm_size: 16gb
     ports:
       - "8006:8000"
@@ -329,7 +330,7 @@ services:
 
   vlm-ms:
     container_name: nemo-vlm-microservice
-    image: nvcr.io/nim/nvidia/llama-3.1-nemotron-nano-vl-8b-v1:1.3.1
+    image: nvcr.io/nim/nvidia/nemotron-nano-12b-v2-vl:1.6.0
     volumes:
     - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
     ports:

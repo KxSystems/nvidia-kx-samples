@@ -39,11 +39,11 @@ Follow steps in [For Helm Deployments](#for-helm-deployments) to change the infe
 
 To change the embedding model to a model from the API catalog,
 specify the model in the `APP_EMBEDDINGS_MODELNAME` environment variable when you start the RAG server.
-The following example uses the `NVIDIA Embed QA 4` model.
+The following example uses the `llama-nemotron-embed-1b-v2` embedding model and the `llama-nemotron-rerank-1b-v2` reranker.
 
 ```console
-export APP_EMBEDDINGS_MODELNAME='NV-Embed-QA' 
-export APP_RANKING_MODELNAME='NV-Embed-QA' 
+export APP_EMBEDDINGS_MODELNAME='nvidia/llama-nemotron-embed-1b-v2' 
+export APP_RANKING_MODELNAME='nvidia/llama-nemotron-rerank-1b-v2' 
 docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
 docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
 ```
@@ -157,7 +157,7 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
         name: "<llm-model-name>"
 
     # Embedding NIM
-    nvidia-nim-llama-32-nv-embedqa-1b-v2:
+    nvidia-nim-llama-nemotron-embed-1b-v2:
       enabled: true
       image:
         # nvcr.io/nim/<image>:<tag>
@@ -172,7 +172,7 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
         ngcAPIKey: ""
 
     # Reranker NIM
-    nvidia-nim-llama-32-nv-rerankqa-1b-v2:
+    nvidia-nim-llama-nemotron-rerank-1b-v2:
       enabled: true
       image:
         # nvcr.io/nim/<image>:<tag>

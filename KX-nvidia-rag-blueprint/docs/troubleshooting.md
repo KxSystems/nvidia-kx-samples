@@ -97,7 +97,7 @@ Configure the LLM to use GPUs that aren't occupied by other services:
 
 ```bash
 # Check which GPUs are free in nvidia-smi output
-# Then set LLM to use free GPUs (e.g., GPUs 1 and 2)
+# Then set LLM to use free GPUs (e.g., GPUs 0 and 1)
 export LLM_MS_GPU_ID=0,1
 
 # Restart the LLM container
@@ -331,6 +331,86 @@ you will need to obtain more credits to continue using the API.
 Please contact your NVIDIA representative to get more credits.
 
 
+
+
+
+## KDB-X Vector Database Issues
+
+### CAGRA not used despite kdbx.useCuvs=true (silent HNSW fallback)
+
+`kdbx.useCuvs=true` in Helm enables the cuVS GPU path on the kdbx pod only. The adapter's index choice is driven by client-side env vars on the **rag-server** and **ingestor** pods.
+
+**Symptoms:** Collections are created with HNSW index even though useCuvs=true. No error message.
+
+**Fix:** Set on **both** rag-server and ingestor via `envVars` in your Helm values:
+```yaml
+envVars:
+  APP_VECTORSTORE_ENABLEGPUINDEX: "True"
+  APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
+```
+The `deploy/EKS/rag-values-kdbx-cuvs.yaml` overlay already sets these correctly for both pods.
+
+
+
+### KDB-X connection failure: KDBX_PORT env collision
+
+**Symptoms:** KDB-X pod fails to bind on expected port, or adapter cannot connect.
+
+**Cause:** A Kubernetes Service named `kdbx` automatically injects `KDBX_PORT=tcp://<clusterIP>:5000` into all pods in the same namespace, shadowing any `KDBX_PORT` variable you set.
+
+**Fix:** The correct listen-port env var is `KDBX_LISTEN_PORT` (not `KDBX_PORT`). This is already set correctly in the chart. If you are setting this variable manually, use `KDBX_LISTEN_PORT`.
+
+
+
+### KDB-X CrashLoopBackOff with cuVS enabled
+
+**Symptoms:** The kdbx pod crash-loops at startup when `KDBX_USE_CUVS=1`. Error may reference a .cagra file or CUDA fault.
+
+**Cause:** A stale or corrupted `.cagra` blob from a prior run faults during `.cuvs.cagra.read` at pod startup. This can be process-fatal and triggers a restart loop.
+
+**Fix:** Set the kill-switch to force rebuild from stored vectors:
+```yaml
+# In Helm values or rag-values-kdbx-cuvs.yaml:
+kdbx:
+  cagra:
+    skipPersistedRead: true
+```
+Or set env `KDBX_CAGRA_SKIP_PERSISTED_READ=1` directly. Remove after one successful start.
+
+
+
+### cuVS module download fails (HTTP 401)
+
+**Symptoms:** kdbx pod logs show HTTP 401 or permission denied when downloading cuVS module.
+
+**Cause:** The kdbx entrypoint downloads `l64-cuvs.zip` from `portal.dl.kx.com` using a KX bearer token. The token is missing or expired.
+
+**Fix:** The KDB-X license secret needs **three keys**:
+- `KDB_LICENSE_B64`: base64-encoded kdb+ license file
+- `KDB_BEARER_TOKEN`: KX portal bearer token for cuVS module download
+- `kc.lic`: raw license file (base64-decoded version of KDB_LICENSE_B64)
+
+Check your license secret: `kubectl get secret kdbx-license-secret -o yaml`.
+
+
+
+### CUDA error 803 on Blackwell g7e LLM pod
+
+**Symptoms:** LLM NIM pod crashes with CUDA error 803 on g7e nodes.
+
+**Cause:** compat-libcuda version mismatch — the NIM image bundles CUDA compat 580.95.05 but the g7e host driver is 580.159.03. The newer host version shadows the bundled compat library incorrectly.
+
+**Fix:** Mount an emptyDir over the compat path to prevent the shadow. This fix is already applied in `deploy/EKS/rag-values-llm-selfhost-g7e.yaml`.
+
+
+
+### CAGRA not used for small test collections (< 33 vectors)
+
+**Symptoms:** Search works but logs show exactScan path used instead of CAGRA.
+
+**Cause:** CAGRA requires at least 33 vectors to build a graph. Collections with fewer vectors automatically fall back to exact brute-force scan.
+
+**Fix:** This is expected behavior, not a bug. Ingest at least 33 document chunks to trigger CAGRA graph construction.
 
 
 

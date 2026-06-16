@@ -67,3 +67,10 @@ Create secret to access NGC Api
 {{- define "ngcApiSecret" -}}
 {{- printf "%s" .Values.ngcApiSecret.password | b64enc -}}
 {{- end -}}
+
+{{- /*
+  The kdbai/kdbx mutual-exclusion guard lives in templates/kdbx-vdb-mutex.yaml
+  (a real, non-underscore template — helm only renders top-level code in those).
+  Don't add a `define` here: it would never be `include`d and would silently
+  drift from the real guard.
+*/ -}}
