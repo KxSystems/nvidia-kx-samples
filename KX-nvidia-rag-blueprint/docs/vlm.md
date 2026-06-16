@@ -92,7 +92,7 @@ Users interact with the system normally - they ask questions and receive respons
 
 ## Start the VLM NIM Service (Local)
 
-NVIDIA RAG uses the [**llama-3.1-nemotron-nano-vl-8b-v1**](https://build.nvidia.com/nvidia/llama-3.1-nemotron-nano-vl-8b-v1) VLM model by default, provided as the `vlm-ms` service in `nims.yaml`.
+NVIDIA RAG uses the [**nemotron-nano-12b-v2-vl**](https://build.nvidia.com/nvidia/nemotron-nano-12b-v2-vl) VLM model by default, provided as the `vlm-ms` service in `nims.yaml`.
 
 To start the local VLM NIM service, run:
 
@@ -135,7 +135,7 @@ Set the following environment variables to enable VLM inference:
 
 ```bash
 export ENABLE_VLM_INFERENCE="true"
-export APP_VLM_MODELNAME="nvidia/llama-3.1-nemotron-nano-vl-8b-v1"
+export APP_VLM_MODELNAME="nvidia/nemotron-nano-12b-v2-vl"
 export APP_VLM_SERVERURL="http://vlm-ms:8000/v1"
 
 # Apply by restarting rag-server
@@ -158,7 +158,7 @@ To use a remote NVIDIA-hosted NIM for VLM inference:
 
 ```bash
 export ENABLE_VLM_INFERENCE="true"
-export APP_VLM_MODELNAME="nvidia/llama-3.1-nemotron-nano-vl-8b-v1"
+export APP_VLM_MODELNAME="nvidia/nemotron-nano-12b-v2-vl"
 export APP_VLM_SERVERURL="https://integrate.api.nvidia.com/v1/"
 
 # Apply by restarting rag-server
@@ -182,7 +182,7 @@ To enable VLM inference in Helm-based deployments, follow these steps:
 
    ```yaml
    ENABLE_VLM_INFERENCE: "true"
-   APP_VLM_MODELNAME: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"
+   APP_VLM_MODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
    APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"  # Local VLM NIM endpoint
    ```
 

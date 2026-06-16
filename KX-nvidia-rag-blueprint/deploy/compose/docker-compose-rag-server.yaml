@@ -3,7 +3,7 @@ services:
   # Main orchestrator server which stiches together all calls to different services to fulfill the user request
   rag-server:
     container_name: rag-server
-    image: ${RAG_SERVER_IMAGE:-portal.dl.kx.com/rag-server-kdbai:2.3.4}
+    image: ${RAG_SERVER_IMAGE:-portal.dl.kx.com/rag-server-kdbai:2.4.0}
     build:
       # Set context to repo's root directory
       context: ../../
@@ -28,19 +28,20 @@ services:
 
       ##===Vector DB specific configurations===
       # URL on which vectorstore is hosted
-      # - KDB.AI (default): http://kdbai:8082
+      # - KDB-X (default): http://kdbx:5000
+      # - KDB.AI: http://kdbai:8082
       # - Milvus: http://milvus:19530
       # - Elasticsearch: http://elasticsearch:9200
-      APP_VECTORSTORE_URL: ${APP_VECTORSTORE_URL:-http://kdbai:8082}
-      # Type of vectordb used to store embedding. Supported built-ins: "kdbai", "milvus", "elasticsearch".
-      APP_VECTORSTORE_NAME: ${APP_VECTORSTORE_NAME:-"kdbai"}
+      APP_VECTORSTORE_URL: ${APP_VECTORSTORE_URL:-http://kdbx:5000}
+      # Type of vectordb used to store embedding. Supported built-ins: "kdbx", "kdbai", "milvus", "elasticsearch".
+      APP_VECTORSTORE_NAME: ${APP_VECTORSTORE_NAME:-"kdbx"}
       # KDB.AI specific configurations
       KDBAI_API_KEY: ${KDBAI_API_KEY:-}
       KDBAI_DATABASE: ${KDBAI_DATABASE:-default}
       KDBAI_INDEX_TYPE: ${KDBAI_INDEX_TYPE:-cagra}
       KDBAI_CAGRA_SINGLE_BATCH: ${KDBAI_CAGRA_SINGLE_BATCH:-false}
-      # Type of index to be used for vectorstore (hnsw for KDB.AI, GPU_CAGRA for Milvus)
-      APP_VECTORSTORE_INDEXTYPE: ${APP_VECTORSTORE_INDEXTYPE:-"hnsw"}
+      # Index type: cagra (cuVS GPU, default for KDB-X / KDB.AI), hnsw (CPU), flat (CPU)
+      APP_VECTORSTORE_INDEXTYPE: ${APP_VECTORSTORE_INDEXTYPE:-"cagra"}
       # Type of vectordb search to be used
       APP_VECTORSTORE_SEARCHTYPE: ${APP_VECTORSTORE_SEARCHTYPE:-"dense"} # Can be dense or hybrid
       # Boolean to control GPU search/indexing
@@ -78,15 +79,15 @@ services:
       ##===Embedding Model specific configurations===
       # url on which embedding model is hosted. If "", Nvidia hosted API is used
       APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemoretriever-embedding-ms:8000"}
-      APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-3.2-nv-embedqa-1b-v2}
+      APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-nemotron-embed-1b-v2}
       # For VLM Embedding Model (Nemoretriever-1b-vlm-embed-v1)
       # APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemoretriever-vlm-embedding-ms:8000"}
-      # APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1}
+      # APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-nemotron-embed-vl-1b-v2}
 
       ##===Reranking Model specific configurations===
       # url on which ranking model is hosted. If "", Nvidia hosted API is used
       APP_RANKING_SERVERURL: ${APP_RANKING_SERVERURL-"nemoretriever-ranking-ms:8000"}
-      APP_RANKING_MODELNAME: ${APP_RANKING_MODELNAME:-"nvidia/llama-3.2-nv-rerankqa-1b-v2"}
+      APP_RANKING_MODELNAME: ${APP_RANKING_MODELNAME:-"nvidia/llama-nemotron-rerank-1b-v2"}
       ENABLE_RERANKER: ${ENABLE_RERANKER:-True}
       # Default confidence threshold for filtering documents by reranker relevance scores (0.0 to 1.0)
       RERANKER_CONFIDENCE_THRESHOLD: ${RERANKER_CONFIDENCE_THRESHOLD:-0.0}
@@ -106,7 +107,7 @@ services:
       # VLM server URL
       APP_VLM_SERVERURL: ${APP_VLM_SERVERURL-"http://vlm-ms:8000/v1"}
       # VLM model name
-      APP_VLM_MODELNAME: ${APP_VLM_MODELNAME:-"nvidia/llama-3.1-nemotron-nano-vl-8b-v1"}
+      APP_VLM_MODELNAME: ${APP_VLM_MODELNAME:-"nvidia/nemotron-nano-12b-v2-vl"}
 
       NVIDIA_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
 

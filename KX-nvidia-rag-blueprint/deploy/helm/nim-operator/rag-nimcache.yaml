@@ -5,7 +5,7 @@ metadata:
 spec:
   source:
     ngc:
-      modelPuller: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.13.1
+      modelPuller: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.15.5
       pullSecret: ngc-secret
       authSecret: ngc-api-secret
       model:
@@ -24,7 +24,7 @@ metadata:
 spec:
   source:
     ngc:
-      modelPuller: nvcr.io/nim/nvidia/nemoretriever-page-elements-v2:1.5.0
+      modelPuller: nvcr.io/nim/nvidia/nemoretriever-page-elements-v2:1.6.0
       pullSecret: ngc-secret
       authSecret: ngc-api-secret
       model:
@@ -44,7 +44,7 @@ metadata:
 spec:
   source:
     ngc:
-      modelPuller: nvcr.io/nim/nvidia/nemoretriever-graphic-elements-v1:1.5.0
+      modelPuller: nvcr.io/nim/nvidia/nemoretriever-graphic-elements-v1:1.6.0
       pullSecret: ngc-secret
       authSecret: ngc-api-secret
       model:
@@ -64,7 +64,7 @@ metadata:
 spec:
   source:
     ngc:
-      modelPuller: nvcr.io/nim/nvidia/nemoretriever-table-structure-v1:1.5.0
+      modelPuller: nvcr.io/nim/nvidia/nemoretriever-table-structure-v1:1.6.0
       pullSecret: ngc-secret
       authSecret: ngc-api-secret
       model:
@@ -80,11 +80,11 @@ spec:
 apiVersion: apps.nvidia.com/v1alpha1
 kind: NIMCache
 metadata:
-  name: nvidia-nim-llama-32-nv-embedqa-1b-v2
+  name: nvidia-nim-llama-nemotron-embed-1b-v2
 spec:
   source:
     ngc:
-      modelPuller: nvcr.io/nim/nvidia/llama-3.2-nv-embedqa-1b-v2:1.10.0
+      modelPuller: nvcr.io/nim/nvidia/llama-nemotron-embed-1b-v2:1.13.0
       pullSecret: ngc-secret
       authSecret: ngc-api-secret
       model:
@@ -100,11 +100,11 @@ spec:
 apiVersion: apps.nvidia.com/v1alpha1
 kind: NIMCache
 metadata:
-  name: nvidia-nim-llama-32-nv-rerankqa-1b-v2
+  name: nvidia-nim-llama-nemotron-rerank-1b-v2
 spec:
   source:
     ngc:
-      modelPuller: nvcr.io/nim/nvidia/llama-3.2-nv-rerankqa-1b-v2:1.8.0
+      modelPuller: nvcr.io/nim/nvidia/llama-nemotron-rerank-1b-v2:1.10.0
       pullSecret: ngc-secret
       authSecret: ngc-api-secret
       model:

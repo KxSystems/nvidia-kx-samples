@@ -4,7 +4,7 @@
 -->
 # Use Multimodal (VLM) Embedding for Ingestion for NVIDIA RAG Blueprint (Early Access)
 
-This guide shows how to enable and use the multimodal embedding model `nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1` with the [NVIDIA RAG Blueprint](readme.md) ingestion pipeline.
+This guide shows how to enable and use the multimodal embedding model `nvidia/llama-nemotron-embed-vl-1b-v2` with the [NVIDIA RAG Blueprint](readme.md) ingestion pipeline.
 
 In this documentation you do the following:
 
@@ -15,7 +15,7 @@ In this documentation you do the following:
 Requirements: An NVIDIA GPU and a valid `NGC_API_KEY`.
 
 > [!Note]
-> **Early Access**: Currently, `nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1` is in early access preview.
+> **Early Access**: Currently, `nvidia/llama-nemotron-embed-vl-1b-v2` is in early access preview.
 
 [!NOTE]
 **PDF Support Only**: The VLM embedding feature is currently only supported for PDF documents. Other document formats (Word, PowerPoint, etc.) are not supported with VLM embedding.
@@ -55,7 +55,7 @@ Set the ingestor’s embedding endpoint and model to the VLM service and model. 
 # Point to the required VLM embedding endpoint
 export APP_EMBEDDINGS_SERVERURL="nemoretriever-vlm-embedding-ms:8000" # For on-prem deployed
 # export APP_EMBEDDINGS_SERVERURL="" # For cloud hosted NIM
-export APP_EMBEDDINGS_MODELNAME="nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
+export APP_EMBEDDINGS_MODELNAME="nvidia/llama-nemotron-embed-vl-1b-v2"
 
 # Launch or restart the ingestor server so the new env vars take effect
 docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
@@ -130,7 +130,7 @@ docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
 - **Start only VLM embedding service**: `docker compose -f deploy/compose/nims.yaml --profile vlm-embed up -d`
 - **Point ingestor to VLM embedding**:
   - `APP_EMBEDDINGS_SERVERURL=nemoretriever-vlm-embedding-ms:8000`
-  - `APP_EMBEDDINGS_MODELNAME=nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1`
+  - `APP_EMBEDDINGS_MODELNAME=nvidia/llama-nemotron-embed-vl-1b-v2`
 - **Modality env vars**:
   - `APP_NVINGEST_STRUCTURED_ELEMENTS_MODALITY`: `image` or empty
   - `APP_NVINGEST_IMAGE_ELEMENTS_MODALITY`: `image` or empty
@@ -147,27 +147,27 @@ To deploy the VLM embedding service with Helm, we need to enable the VLM embeddi
 
 ```yaml
 # Enable VLM embedding NIM
-nvidia-nim-llama-32-nemoretriever-1b-vlm-embed-v1:
+nvidia-nim-llama-nemotron-embed-vl-1b-v2:
   enabled: true
 
 # Optional: disable the default text embedding NIM to optimize GPU usage
-nvidia-nim-llama-32-nv-embedqa-1b-v2:
+nvidia-nim-llama-nemotron-embed-1b-v2:
   enabled: false
 
 # Point services to the VLM embedding service and model name
 envVars:
   APP_EMBEDDINGS_SERVERURL: "nemoretriever-vlm-embedding-ms:8000"
-  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
+  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-vl-1b-v2"
 
 ingestor-server:
   envVars:
     APP_EMBEDDINGS_SERVERURL: "nemoretriever-vlm-embedding-ms:8000"
-    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
+    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-vl-1b-v2"
 
 nv-ingest:
   envVars:
     EMBEDDING_NIM_ENDPOINT: "http://nemoretriever-vlm-embedding-ms:8000/v1"
-    EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
+    EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-nemotron-embed-vl-1b-v2"
 ```
 
 2. Update the deployment to reflect the changes with the following command.
@@ -190,7 +190,7 @@ Set extraction-related variables under `envVars` and `ingestor-server.envVars`, 
 ```yaml
 envVars:
   APP_EMBEDDINGS_SERVERURL: "nemoretriever-vlm-embedding-ms:8000"
-  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
+  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-vl-1b-v2"
 ingestor-server:
   envVars:
     # Extraction toggles
@@ -204,13 +204,13 @@ ingestor-server:
     APP_NVINGEST_IMAGE_ELEMENTS_MODALITY: ""        # set to "image" to embed page images as images
     # Ingestor-side embedding target
     APP_EMBEDDINGS_SERVERURL: "nemoretriever-vlm-embedding-ms:8000"
-    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
+    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-vl-1b-v2"
 
 nv-ingest:
   envVars:
     # NV-Ingest runtime embedding target
     EMBEDDING_NIM_ENDPOINT: "http://nemoretriever-vlm-embedding-ms:8000/v1"
-    EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
+    EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-nemotron-embed-vl-1b-v2"
 ```
 
 

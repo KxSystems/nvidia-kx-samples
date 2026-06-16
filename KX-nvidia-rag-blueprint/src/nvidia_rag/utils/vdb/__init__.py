@@ -134,5 +134,27 @@ def _get_vdb_op(
 
         return KdbaiVDB(**vdb_kwargs)
 
+    elif CONFIG.vector_store.name == "kdbx":
+        from nvidia_rag.utils.vdb.kdbx.kdbx_vdb import KdbxVDB
+
+        # Metric from search_type, mirroring the kdbai branch: cosine for
+        # hybrid, else L2. (The kdbx server enforces build==search metric via
+        # its own .rag.metric global; this is the requested default.)
+        metric = "CS" if CONFIG.vector_store.search_type == "hybrid" else "L2"
+
+        # KDB-X Phase 1 = CPU HNSW; Phase 2 = GPU CAGRA via .cuvs, selected per
+        # deployment by the kdbx pod's KDBX_USE_CUVS env.  The client sends only
+        # a PREFERENCE (index_type + GPU toggles); the q createCollection honors
+        # it when cuVS is actually loaded, else downgrades to hnsw.
+        return KdbxVDB(
+            kdbx_endpoint=vdb_endpoint or CONFIG.vector_store.url,
+            embedding_model=embedding_model,
+            collection_name=collection_name,
+            index_type=CONFIG.vector_store.index_type,
+            metric=metric,
+            enable_gpu_index=CONFIG.vector_store.enable_gpu_index,
+            enable_gpu_search=CONFIG.vector_store.enable_gpu_search,
+        )
+
     else:
         raise ValueError(f"Invalid vector store name: {CONFIG.vector_store.name}")

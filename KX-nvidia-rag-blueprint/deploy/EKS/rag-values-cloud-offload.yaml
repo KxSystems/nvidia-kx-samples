@@ -1,0 +1,135 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 KX Systems, Inc. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# ===========================================================================
+# MINIMAL-FOOTPRINT OVERLAY — offload offloadable NIMs to NVIDIA-hosted cloud
+# ===========================================================================
+# Goal: run the smallest viable on-cluster footprint. After this overlay the
+# GPU consumers are kdbx (cuVS/CAGRA), the reranker NIM, and the two extraction
+# NIMs whose hosted endpoints NVIDIA retired (table-structure, graphic-elements).
+# The LLM, embedding, OCR, and page-elements NIMs run on NVIDIA cloud endpoints
+# (integrate.api.nvidia.com / ai.api.nvidia.com), authenticated by the
+# NVIDIA_API_KEY already injected into rag-server, ingestor-server, and
+# nv-ingest from the ngc-api secret.
+#
+# WHY THE RERANKER IS SELF-HOSTED (not offloaded like the rest):
+#   The reranker model nvidia/llama-nemotron-rerank-1b-v2 has NO public
+#   NVIDIA-hosted endpoint. integrate.api.nvidia.com exposes no /v1/ranking
+#   path (404 page-not-found for every reranker model name), and the legacy
+#   ai.api.nvidia.com/v1/retrieval/.../reranking path is decommissioned (410).
+#   So unlike the LLM/embed/extraction NIMs, reranking cannot be offloaded —
+#   it must run in-cluster. It needs its own GPU (k8s GPU scheduling is
+#   exclusive: one nvidia.com/gpu pod per GPU, and kdbx already owns one), so
+#   the minimal GPU node count for THIS overlay is 2 (kdbx + reranker).
+#   If you can live without reranking, set ENABLE_RERANKER=False and disable
+#   nvidia-nim-llama-nemotron-rerank-1b-v2 to drop back to a single GPU —
+#   retrieval still returns CAGRA vector-ranked results, just unreranked.
+#
+# GPU math: stock self-hosted KDB-X deploy needs ~7 GPUs (LLM + embed + rerank
+# + 4 extraction NIMs). This overlay collapses that to 4 GPUs — kdbx + reranker
+# + table-structure + graphic-elements (the NIMs with no working hosted
+# endpoint) — validated 2026-06-15 on g5.2xlarge (A10G) in rag-dev.
+#
+# LAYER THIS ON TOP OF the KDB-X base + cuVS overlays:
+#
+#   helm upgrade --install rag deploy/helm/nvidia-blueprint-rag -n rag \
+#     -f deploy/EKS/rag-values-kdbx.yaml \
+#     -f deploy/EKS/rag-values-kdbx-cuvs.yaml \
+#     -f deploy/EKS/rag-values-cloud-offload.yaml \
+#     --set image.repository=<ecr>/rag-server-kdbx --set image.tag=<tag> \
+#     --set ingestor-server.image.repository=<ecr>/ingestor-server-kdbx \
+#     --set ingestor-server.image.tag=<tag> \
+#     --set kdbx.image.repository=<ecr>/kdbx-rag --set kdbx.image.tag=<tag> \
+#     --set-file imagePullSecret.password=<ngc-key-file> \
+#     --set-file ngcApiSecret.password=<ngc-key-file> \
+#     --set-file kdbx.licenseSecret.bearerToken=<kx-portal-token-file> \
+#     # the self-hosted reranker needs the NGC key for image pull + model auth:
+#     --set-file nvidia-nim-llama-nemotron-rerank-1b-v2.nim.ngcAPIKey=<ngc-key-file>
+#
+# AIRGAP: incompatible with strict airgap — every model call leaves the cluster
+# for *.api.nvidia.com. For airgapped sites use the fully self-hosted overlays
+# (see docs/airgapped-eks-aws-requirements.md) instead of this one.
+# ===========================================================================
+
+# ---- LLM: NVIDIA-hosted, no on-cluster nim-llm (saves the big LLM GPU) ----
+nim-llm:
+  enabled: false
+
+envVars:
+  # LLM + reasoning paths -> hosted catalog
+  APP_LLM_SERVERURL: "https://integrate.api.nvidia.com/v1/chat/completions"
+  APP_QUERYREWRITER_SERVERURL: "https://integrate.api.nvidia.com/v1/chat/completions"
+  APP_FILTEREXPRESSIONGENERATOR_SERVERURL: "https://integrate.api.nvidia.com/v1/chat/completions"
+  REFLECTION_LLM_SERVERURL: "https://integrate.api.nvidia.com/v1/chat/completions"
+  # Embedding: empty URL => NVIDIA API catalog (auth via NVIDIA_API_KEY).
+  APP_EMBEDDINGS_SERVERURL: ""
+  # Reranking: self-hosted in-cluster (see header for why it can't be offloaded).
+  # Point at the reranker subchart's service; ENABLE_RERANKER stays on.
+  ENABLE_RERANKER: "True"
+  APP_RANKING_SERVERURL: "nemoretriever-ranking-ms:8000"
+  APP_RANKING_MODELNAME: "nvidia/llama-nemotron-rerank-1b-v2"
+
+ingestor-server:
+  envVars:
+    APP_EMBEDDINGS_SERVERURL: ""
+    SUMMARY_LLM_SERVERURL: "https://integrate.api.nvidia.com/v1/chat/completions"
+
+# ---- embedder offloaded to cloud (works on the catalog); reranker kept ----
+# The embed model resolves cleanly on the NVIDIA API catalog (empty
+# APP_EMBEDDINGS_SERVERURL above), so we drop its in-cluster NIM and save a GPU.
+nvidia-nim-llama-nemotron-embed-1b-v2:
+  enabled: false
+# The reranker has no hosted equivalent (see header) so it MUST run in-cluster.
+# It serves on nemoretriever-ranking-ms:8000 and consumes the 2nd GPU.
+# Pass nim.ngcAPIKey via --set-file at deploy time (image pull + model auth) —
+# never commit the key. The nvidia.com/gpu request alone pins it to a GPU node.
+nvidia-nim-llama-nemotron-rerank-1b-v2:
+  enabled: true
+
+# ---- kdbx stays on GPU/CAGRA (this overlay does not park it to CPU) ----
+kdbx:
+  useCuvs: true
+  indexType: "cagra"
+
+# ---- nv-ingest: MIXED extraction — hosted where the endpoint still exists, ----
+# ---- self-hosted for the two NVIDIA decommissioned (410 Gone, 2026-06).    ----
+# Probed 2026-06-15: of the four CV extraction NIMs, page-elements-v2 and
+# paddleocr still serve on ai.api.nvidia.com (HTTP 422 on an empty body =
+# reachable), but table-structure-v1 and graphic-elements-v1 return 410 Gone —
+# their hosted endpoints are retired. PDFs with tables/charts (e.g. SEC 8-Ks)
+# invoke those two, so they MUST run in-cluster (one GPU each). page-elements +
+# OCR stay on cloud to hold the GPU count down. Net extraction GPUs: 2.
+nv-ingest:
+  envVars:
+    EMBEDDING_NIM_ENDPOINT: "https://integrate.api.nvidia.com/v1"
+    # OCR + page-elements: hosted (still alive)
+    OCR_HTTP_ENDPOINT: "https://ai.api.nvidia.com/v1/cv/baidu/paddleocr"
+    OCR_INFER_PROTOCOL: "http"
+    YOLOX_HTTP_ENDPOINT: "https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-page-elements-v2"
+    YOLOX_INFER_PROTOCOL: "http"
+    # graphic-elements + table-structure: hosted endpoints are 410 Gone -> point
+    # at the in-cluster sub-NIM services (gRPC) enabled just below.
+    YOLOX_GRAPHIC_ELEMENTS_GRPC_ENDPOINT: "nemoretriever-graphic-elements-v1:8001"
+    YOLOX_GRAPHIC_ELEMENTS_HTTP_ENDPOINT: "http://nemoretriever-graphic-elements-v1:8000/v1/infer"
+    YOLOX_GRAPHIC_ELEMENTS_INFER_PROTOCOL: "grpc"
+    YOLOX_TABLE_STRUCTURE_GRPC_ENDPOINT: "nemoretriever-table-structure-v1:8001"
+    YOLOX_TABLE_STRUCTURE_HTTP_ENDPOINT: "http://nemoretriever-table-structure-v1:8000/v1/infer"
+    YOLOX_TABLE_STRUCTURE_INFER_PROTOCOL: "grpc"
+  # nv-ingest 25.9.0 ships its OWN embedder ("nv-ingest-embedqa", 1 GPU). The
+  # parent chart's nvidia-nim-llama-nemotron-embed-1b-v2.enabled=false does NOT
+  # reach it — the active alias in this subchart is the key below, which must be
+  # disabled explicitly or it silently steals a GPU.
+  nvidia-nim-llama-32-nv-embedqa-1b-v2:
+    deployed: false
+  # OCR + page-elements: offloaded to cloud (hosted endpoints still serve).
+  paddleocr-nim:
+    deployed: false
+  nemoretriever-page-elements-v2:
+    deployed: false
+  # graphic-elements + table-structure: self-hosted (hosted = 410 Gone). One
+  # GPU each; the nvidia.com/gpu request pins them to GPU nodes. NGC pull/auth
+  # comes from the chart-created ngc-secret + ngc-api (already wired).
+  nemoretriever-graphic-elements-v1:
+    deployed: true
+  nemoretriever-table-structure-v1:
+    deployed: true

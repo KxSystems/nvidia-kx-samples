@@ -4,6 +4,9 @@
 -->
 # Deploy NVIDIA RAG Blueprint on Kubernetes with Helm from the repository
 
+> [!IMPORTANT]
+> **KX fork:** the Helm chart in this repo supports **KDB.AI** and **KDB-X** as vector database backends and ships with NeMo Guardrails support, with several fixes baked in (`kdbai-registry-secret` auto-attached, all 3 NGC keys wired via `secretKeyRef`, `strategy: Recreate` on ingestor, explicit `storageClass: kdbai-storage` on every PVC). For the recommended one-shot install, see [`change-vectordb-kdbai.md` → Quick Deploy](change-vectordb-kdbai.md#quick-deploy-this-fork) (KDB.AI) or [`change-vectordb-kdbx.md`](change-vectordb-kdbx.md) (KDB-X). The steps below describe the upstream multi-VDB install procedure.
+
 Use the following documentation to deploy the [NVIDIA RAG Blueprint](readme.md) by using the helm chart from the repository. 
 
 - To deploy the Helm chart with MIG support, refer to [RAG Deployment with MIG Support](./mig-deployment.md). 
@@ -72,6 +75,8 @@ If you are working directly with the source Helm chart, and you want to customiz
     > Refer to [NIM Model Profile Configuration](model-profiles.md) to set NIM LLM profile according to the GPU type and count.
     > Set the profile explicitly to avoid any errors with NIM LLM pod deployment.
 
+> [!CAUTION]
+> `kdbx.useCuvs=true` alone is not sufficient for GPU CAGRA. Both `rag-server` and `ingestor` must also receive `APP_VECTORSTORE_ENABLEGPUINDEX=True` and `APP_VECTORSTORE_ENABLEGPUSEARCH=True` via `envVars`. Without these, the adapter silently creates HNSW collections instead of CAGRA.
 
 6. Follow the remaining instructions in [Deploy on Kubernetes with Helm](./deploy-helm.md):
 
@@ -89,6 +94,7 @@ If you are working directly with the source Helm chart, and you want to customiz
 
 - [NVIDIA RAG Blueprint Documentation](readme.md)
 - [KDB.AI Deployment Guide](change-vectordb-kdbai.md) - Full KDB.AI configuration and troubleshooting
+- [Configure KDB-X as Your Vector Database](change-vectordb-kdbx.md)
 - [Best Practices for Common Settings](accuracy_perf.md)
 - [RAG Pipeline Debugging Guide](debugging.md)
 - [Troubleshoot](troubleshooting.md)

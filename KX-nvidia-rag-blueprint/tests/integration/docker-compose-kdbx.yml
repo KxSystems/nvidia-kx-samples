@@ -1,0 +1,30 @@
+version: "3.9"
+
+# Integration test stack — bring up a throwaway KDB-X instance.
+# Usage (from repo root):
+#   docker compose -f tests/integration/docker-compose-kdbx.yml up -d
+#   KDBX_HOST=localhost pytest tests/integration/ -v
+#   docker compose -f tests/integration/docker-compose-kdbx.yml down -v
+
+services:
+  kdbx:
+    image: "${KDBX_IMAGE:-localhost/kdbx-rag:1.0.0}"
+    platform: linux/amd64
+    ports:
+      # Host port overridable via KDBX_TEST_PORT (conftest passes it through)
+      # so a local 5001 conflict doesn't skip/fail the session.
+      - "${KDBX_TEST_PORT:-5001}:5000"
+    # No bind-mounts: kdbx-init.q / healthcheck.q are baked into the image (see
+    # Dockerfile.kdbx) and the image CMD loads kdbx-init.q at startup. Bind-mounting
+    # them from the repo would break under a Docker-in-Docker runner — the daemon
+    # can't see the job's checkout, so the mount resolves to an empty path.
+    healthcheck:
+      # readiness.q, NOT healthcheck.q (review-2 #2 residue): the liveness
+      # probe only evals 1+1, so a container whose init ABORTED still reports
+      # healthy. readiness.q requires the .rag.initComplete sentinel, so the
+      # conftest's wait-for-healthy genuinely means ".rag.* is serving".
+      test: ["CMD", "/opt/kx/.kx/bin/q", "/opt/kx/conf/readiness.q"]
+      interval: 5s
+      timeout: 10s
+      retries: 12
+      start_period: 20s

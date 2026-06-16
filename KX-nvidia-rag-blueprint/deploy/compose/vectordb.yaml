@@ -71,7 +71,7 @@ services:
       interval: 30s
       timeout: 20s
       retries: 3
-    profiles: ["milvus", "elasticsearch", "minio", "kdbai"]
+    profiles: ["milvus", "elasticsearch", "minio", "kdbai", "kdbx"]
 
   elasticsearch:
     container_name: elasticsearch
@@ -282,9 +282,68 @@ services:
               device_ids: ['${KDBAI_GPU_DEVICE_ID:-0}']
     profiles: ["kdbai-gpu"]
 
+  # ===========================================================================
+  # KDB-X — DEFAULT vector database (bare kdb+ with cuVS GPU CAGRA).
+  # Mirrors the Helm kdbx pod: runs the kdbx-rag image with kdbx-init.q loaded at
+  # q startup (defines the .rag.* functions) and installs cuVS at start when
+  # KDBX_USE_CUVS=1.
+  #
+  # PREREQUISITES (the kdbx-rag image is NOT published — build it first):
+  #   docker build --platform linux/amd64 \
+  #     --secret id=bearer_token,env=KDB_BEARER_TOKEN \
+  #     --secret id=license_b64,env=KDB_B64_LICENSE \
+  #     -t kdbx-rag:1.0.0 \
+  #     -f ../helm/nvidia-blueprint-rag/files/kdbx/Dockerfile.kdbx \
+  #     ../helm/nvidia-blueprint-rag/files/kdbx/
+  #   export KDBX_IMAGE=kdbx-rag:1.0.0
+  #   export KDB_LICENSE_B64="$(base64 -w0 /path/to/kc.lic)"   # macOS: base64 -i
+  #   export KDB_BEARER_TOKEN="<kx-portal-bearer>"             # for the cuVS download
+  # cuVS (CAGRA) needs a GPU with driver >=580. For CPU HNSW set KDBX_USE_CUVS=0
+  # (then KDB_BEARER_TOKEN is not required). To connect to an EXTERNAL KDB-X
+  # instead, skip this service and set APP_VECTORSTORE_URL=http://<host>:<port>.
+  # ===========================================================================
+  kdbx:
+    container_name: kdbx
+    image: ${KDBX_IMAGE:?KDBX_IMAGE required - build from ../helm/nvidia-blueprint-rag/files/kdbx/Dockerfile.kdbx}
+    command: ["sh", "/opt/kx/conf/kdbx-entrypoint.sh"]
+    ports:
+      - "5000:5000"
+    environment:
+      KDBX_USE_CUVS: ${KDBX_USE_CUVS:-1}    # 1 = GPU CAGRA (default); 0 = CPU HNSW
+      KDBX_LISTEN_PORT: "5000"
+      KDBX_DATA_DIR: "/opt/kx/data"
+      KDBX_INDEX_TYPE: ${KDBX_INDEX_TYPE:-cagra}
+      KDB_LICENSE_B64: ${KDB_LICENSE_B64:?KDB_LICENSE_B64 is required - obtain from KX}
+      # Required when KDBX_USE_CUVS=1 (entrypoint downloads the cuVS module at start)
+      KDB_BEARER_TOKEN: ${KDB_BEARER_TOKEN:-}
+    volumes:
+      - kdbx-data:/opt/kx/data
+      # kdbx-init.q + scripts (the Helm chart mounts these from a ConfigMap)
+      - ../helm/nvidia-blueprint-rag/files/kdbx/kdbx-init.q:/opt/kx/conf/kdbx-init.q:ro
+      - ../helm/nvidia-blueprint-rag/files/kdbx/kdbx-entrypoint.sh:/opt/kx/conf/kdbx-entrypoint.sh:ro
+      - ../helm/nvidia-blueprint-rag/files/kdbx/readiness.q:/opt/kx/conf/readiness.q:ro
+      - ../helm/nvidia-blueprint-rag/files/kdbx/healthcheck.q:/opt/kx/conf/healthcheck.q:ro
+    healthcheck:
+      test: ["CMD", "sh", "-c", "$QHOME/bin/q /opt/kx/conf/healthcheck.q"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 600s    # cuVS install + first CAGRA build block q's thread
+    restart: on-failure
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: ["gpu"]
+    profiles: ["kdbx"]
+
 volumes:
   kdbai-data:
     name: kdbai-data
+  kdbx-data:
+    name: kdbx-data
 
 networks:
   default:

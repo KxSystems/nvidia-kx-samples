@@ -1,0 +1,80 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# eksctl node group for self-hosting the LLM on NVIDIA RTX PRO 6000 Blackwell.
+#
+# g7e = NVIDIA RTX PRO 6000 Blackwell Server Edition, 96 GB per GPU. g7e.24xlarge
+# = 4 GPUs; the 49B LLM uses 1 (FP8 TP1), leaving 3 for headroom / other NIMs.
+#
+# Apply additively to the EXISTING cluster (does not recreate it):
+#   eksctl create nodegroup -f deploy/EKS/g7e-llm-nodegroup.yaml
+# Remove later with:
+#   eksctl delete nodegroup --cluster rag-dev --name gpu-llm-g7e --region us-west-2 --wait
+#   (NOTE: name-mode delete — do NOT pass --approve, that flag requires -f/--config-file.)
+#
+# ===========================================================================
+# CRITICAL (validated 2026-06-02): eksctl picks the WRONG AMI for g7e.
+# ===========================================================================
+# With only `amiFamily: AmazonLinux2023`, eksctl 0.221 does NOT recognise g7e as
+# a GPU instance and provisions the *standard* AL2023 AMI (NO driver) — the node
+# joins, but `nvidia-smi` is absent and the device plugin advertises 0 GPUs.
+# You MUST pin the AL2023 *NVIDIA* AMI explicitly. Because a custom `ami:` on a
+# MANAGED nodegroup requires `overrideBootstrapCommand`, we supply the AL2023
+# nodeadm NodeConfig below. The eksctl-level labels/taints are NOT applied when a
+# custom AMI + overrideBootstrapCommand is used, so they are set via kubelet flags
+# inside the NodeConfig instead.
+#
+# Fill the four <PLACEHOLDER>s before applying:
+#   AMI    : aws ssm get-parameter --region us-west-2 \
+#              --name /aws/service/eks/optimized-ami/1.30/amazon-linux-2023/x86_64/nvidia/recommended/image_id \
+#              --query Parameter.Value --output text
+#   ENDPOINT + CA + CIDR:
+#            aws eks describe-cluster --name rag-dev --region us-west-2 \
+#              --query '{e:cluster.endpoint,cidr:cluster.kubernetesNetworkConfig.serviceIpv4Cidr,ca:cluster.certificateAuthority.data}'
+#
+# Driver note: the AL2023 NVIDIA AMI ships driver 580.159.03 / CUDA 13 (Blackwell
+# sm_120 OK). That driver is NEWER than the NIM image's bundled CUDA-13 forward-
+# compat libcuda -> CUDA error 803. The fix lives in rag-values-llm-selfhost-g7e.yaml
+# (shadow /usr/local/cuda-13.0/compat/lib.real). See that file.
+#
+# TAINT NOTE: tainted `dedicated=llm:NoSchedule` so cheaper NIMs stay on the g5/g6
+# pool. The NVIDIA device-plugin DaemonSet MUST tolerate this taint (patch its
+# tolerations to `operator: Exists`, or use the GPU Operator). The LLM pod carries
+# the matching toleration via rag-values-llm-selfhost-g7e.yaml.
+
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: rag-dev          # must match the existing cluster name
+  region: us-west-2
+
+managedNodeGroups:
+  - name: gpu-llm-g7e
+    instanceType: g7e.24xlarge   # 4x RTX PRO 6000 Blackwell (96 GB each)
+    amiFamily: AmazonLinux2023
+    ami: <PLACEHOLDER_AL2023_NVIDIA_AMI>   # e.g. ami-0ab708c0c7cd3f207 (us-west-2 / EKS 1.30) — see SSM lookup above
+    desiredCapacity: 1
+    minSize: 0
+    maxSize: 2
+    volumeSize: 200              # OS + large NIM container images (model cache is a separate EBS PVC)
+    volumeType: gp3
+    spot: false
+    # labels/taints are set via kubelet flags in overrideBootstrapCommand (a custom
+    # AMI on a managed nodegroup ignores the eksctl-level labels:/taints: fields).
+    overrideBootstrapCommand: |
+      apiVersion: node.eks.aws/v1alpha1
+      kind: NodeConfig
+      spec:
+        cluster:
+          name: rag-dev
+          apiServerEndpoint: <PLACEHOLDER_CLUSTER_ENDPOINT>
+          certificateAuthority: <PLACEHOLDER_CLUSTER_CA_BASE64>
+          cidr: <PLACEHOLDER_SERVICE_IPV4_CIDR>
+        kubelet:
+          flags:
+            - "--node-labels=node-type=gpu-llm,nvidia.com/gpu.present=true"
+            - "--register-with-taints=dedicated=llm:NoSchedule"
+    iam:
+      withAddonPolicies:
+        ebs: true

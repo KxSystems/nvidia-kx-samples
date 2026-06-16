@@ -1,0 +1,242 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# EKS-Specific Deployment Values for NVIDIA RAG Blueprint with KDB-X
+#
+# CPU/HNSW base overlay for KDB-X vector database backend.
+# Layer deploy/EKS/rag-values-kdbx-cuvs.yaml on top for GPU CAGRA support.
+#
+# Prerequisites:
+#   1. Build the KDB-X image from files/kdbx/Dockerfile.kdbx and push to ECR:
+#      export REGISTRY=<your-ecr-registry>
+#      docker buildx build --platform linux/amd64 \
+#        -t ${REGISTRY}/kdbx-rag:1.0.0 \
+#        -f deploy/helm/nvidia-blueprint-rag/files/kdbx/Dockerfile.kdbx --push .
+#
+#   2. Create the KDB-X registry secret:
+#      kubectl create secret docker-registry kdbx-registry-secret \
+#        --docker-server=<your-ecr-registry> \
+#        --docker-username=AWS \
+#        --docker-password=$(aws ecr get-login-password) \
+#        -n <your-namespace>
+#
+#   3. Create the KDB-X license secret:
+#      kubectl create secret generic kdbx-license-secret \
+#        --from-literal=KDB_LICENSE_B64=<your-base64-encoded-kdbx-license> \
+#        -n <your-namespace>
+#
+#   4. Create the NGC API secret (for NVIDIA cloud LLM endpoints):
+#      kubectl create secret generic ngc-api \
+#        --from-literal=NGC_API_KEY=<your-ngc-api-key> \
+#        -n <your-namespace>
+#
+#   5. Update Helm dependencies:
+#      helm dependency update deploy/helm/nvidia-blueprint-rag
+#
+#   6. Deploy with this overlay:
+#      helm upgrade --install rag deploy/helm/nvidia-blueprint-rag \
+#        -n <your-namespace> \
+#        -f deploy/EKS/rag-values-kdbx.yaml \
+#        --set kdbx.image.repository=<your-ecr-registry>/kdbx-rag \
+#        --set imagePullSecret.password="${NGC_API_KEY}" \
+#        --set ngcApiSecret.password="${NGC_API_KEY}"
+
+# =============================================================================
+# Secrets (pass via --set flags, never hardcode)
+# =============================================================================
+# imagePullSecret:
+#   password: ""  # Pass via: --set imagePullSecret.password="${NGC_API_KEY}"
+#
+# ngcApiSecret:
+#   password: ""  # Pass via: --set ngcApiSecret.password="${NGC_API_KEY}"
+
+# =============================================================================
+# rag-server + ingestor-server images.
+#
+# These images need the KDB-X adapter code (`utils/vdb/kdbx/`), so build them
+# from source and push to your own registry. The multi-stage Dockerfiles compile
+# the nvidia_rag wheel from ./src, so each image is self-contained:
+#
+#   docker build --platform linux/amd64 -t <registry>/rag-server-kdbx:<tag> \
+#     -f src/nvidia_rag/rag_server/Dockerfile .
+#   docker build --platform linux/amd64 -t <registry>/ingestor-server-kdbx:<tag> \
+#     -f src/nvidia_rag/ingestor_server/Dockerfile .
+#
+# then --set image.repository / image.tag (and the ingestor-server.* keys below)
+# to your registry on the helm install line — see docs/change-vectordb-kdbx.md.
+# The portal.dl.kx.com default below is the PUBLISHED pipeline name (the
+# -kdbai suffix is historical; images >=2.4.0 contain the kdbx adapter too).
+# Until the 2.4.0 release lands on the portal, override to your own registry.
+# =============================================================================
+image:
+  repository: portal.dl.kx.com/rag-server-kdbai
+  tag: "2.4.0"
+# NOTE: ingestor-server.image.repository is set further down (the chart bundles
+# ingestor-server's full config under that key, and YAML "last key wins" — keep
+# all ingestor-server settings in the single block below).
+
+# =============================================================================
+# Disable KDB.AI — use KDB-X instead.
+# kdbai.storageClass is still created here so KDB-X PVC and MinIO PVC can
+# reference storageClass: "rag-storage" (shared SC name).
+# =============================================================================
+kdbai:
+  enabled: false
+  storageClass:
+    create: true
+    name: "rag-storage"
+    isDefault: false
+    volumeBindingMode: WaitForFirstConsumer
+    reclaimPolicy: Delete
+    allowVolumeExpansion: true
+    provisioner: "ebs.csi.aws.com"
+    parameters:
+      type: gp3
+
+# =============================================================================
+# KDB-X Vector Database Configuration
+# =============================================================================
+kdbx:
+  enabled: true
+  fullnameOverride: kdbx
+
+  image:
+    # Set via --set kdbx.image.repository=<your-ecr-registry>/kdbx-rag
+    repository: ""
+    tag: "1.0.0"
+    pullPolicy: Always
+
+  imagePullSecret:
+    name: "kdbx-registry-secret"
+    create: false
+
+  licenseSecret:
+    name: "kdbx-license-secret"
+    create: false
+
+  indexType: "hnsw"
+  useCuvs: false
+
+  # PyKX license mount — see values.yaml's kdbx block for the full story.
+  # Defaults inherited from values.yaml: license mounted at /opt/kx-license,
+  # but PYKX_UNLICENSED=1 (we proved IPC-only mode works end-to-end against
+  # KDB-X 5).  Flip to false if your PyKX accepts the kc.lic format.
+  licenseMountPath: "/opt/kx-license"
+  pykxUnlicensed: true
+
+  resources:
+    requests:
+      cpu: "2"
+      memory: "8Gi"
+    limits:
+      memory: "16Gi"
+
+  persistence:
+    enabled: true
+    size: 50Gi
+    storageClass: "rag-storage"
+
+# =============================================================================
+# Standalone MinIO Object Storage
+# =============================================================================
+minio:
+  enabled: true
+  fullnameOverride: "rag-minio"
+  image:
+    repository: minio/minio
+    tag: "RELEASE.2025-09-07T16-13-09Z"
+  auth:
+    rootUser: "minioadmin"
+    rootPassword: "minioadmin"
+  defaultBuckets: "nv-ingest"
+  persistence:
+    enabled: true
+    size: 50Gi
+    storageClass: "rag-storage"
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "2Gi"
+      cpu: "1"
+
+# =============================================================================
+# Disable self-hosted LLM NIM (use cloud-hosted)
+# =============================================================================
+nim-llm:
+  enabled: false
+
+# =============================================================================
+# RAG Server Configuration — KDB-X backend
+# =============================================================================
+envVars:
+  APP_VECTORSTORE_URL: "http://kdbx:5000"
+  APP_VECTORSTORE_NAME: "kdbx"
+  APP_VECTORSTORE_SEARCHTYPE: "dense"
+  APP_VECTORSTORE_ENABLEGPUINDEX: "False"
+  APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
+
+  MINIO_ENDPOINT: "rag-minio:9000"
+
+  # Cloud-hosted LLM endpoints
+  APP_LLM_SERVERURL: "https://integrate.api.nvidia.com/v1/chat/completions"
+  APP_LLM_MODELNAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+  APP_LLM_MODELENGINE: "nvidia-ai-endpoints"
+
+  APP_QUERYREWRITER_SERVERURL: "https://integrate.api.nvidia.com/v1/chat/completions"
+  APP_QUERYREWRITER_MODELNAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+
+  APP_FILTEREXPRESSIONGENERATOR_SERVERURL: "https://integrate.api.nvidia.com/v1/chat/completions"
+  APP_FILTEREXPRESSIONGENERATOR_MODELNAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+
+  REFLECTION_LLM_SERVERURL: "https://integrate.api.nvidia.com/v1/chat/completions"
+  REFLECTION_LLM: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+
+# =============================================================================
+# Ingestor Server Configuration — KDB-X backend
+# =============================================================================
+ingestor-server:
+  image:
+    repository: portal.dl.kx.com/ingestor-server-kdbai
+    tag: "2.4.0"
+  resources:
+    limits:
+      memory: "12Gi"
+    requests:
+      memory: "8Gi"
+  persistence:
+    enabled: true
+    storageClass: "rag-storage"
+  envVars:
+    APP_VECTORSTORE_URL: "http://kdbx:5000"
+    APP_VECTORSTORE_NAME: "kdbx"
+    APP_VECTORSTORE_SEARCHTYPE: "dense"
+    APP_VECTORSTORE_ENABLEGPUINDEX: "False"
+    APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
+    MINIO_ENDPOINT: "rag-minio:9000"
+    SUMMARY_LLM_SERVERURL: "https://integrate.api.nvidia.com/v1/chat/completions"
+    SUMMARY_LLM: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+
+# =============================================================================
+# NV-Ingest Configuration
+# =============================================================================
+nv-ingest:
+  redis:
+    global:
+      storageClass: "rag-storage"
+  otelEnabled: false
+  resources:
+    limits:
+      cpu: "8"
+      memory: "24Gi"
+    requests:
+      cpu: "2"
+      memory: "12Gi"
+  milvusDeployed: false
+  milvus:
+    enabled: false
+  envVars:
+    MINIO_INTERNAL_ADDRESS: "rag-minio:9000"
+    MINIO_PUBLIC_ADDRESS: "http://rag-minio:9000"
+    MINIO_BUCKET: "nv-ingest"

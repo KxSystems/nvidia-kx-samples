@@ -38,7 +38,7 @@ ngcApiSecret:
 # -- RAG server container image
 image:
   repository: portal.dl.kx.com/rag-server-kdbai
-  tag: "2.3.4"
+  tag: "2.4.0"
   pullPolicy: Always
 
 # -- RAG server service configuration
@@ -91,15 +91,11 @@ envVars:
   MINIO_SECRETKEY: "minioadmin"
 
   ##===Vector DB specific configurations===
-  # URL on which vectorstore is hosted
-  # - KDB.AI: "http://kdbai:8082" (default)
-  # - Milvus: "http://milvus:19530"
-  # - Elasticsearch: "http://elasticsearch:9200"
-  APP_VECTORSTORE_URL: "http://kdbai:8082"
-  # Type of vectordb used to store embedding supported type "kdbai", "milvus", or "elasticsearch"
-  APP_VECTORSTORE_NAME: "kdbai"
-  # Index type (e.g., hnsw for KDB.AI, GPU_CAGRA for Milvus)
-  APP_VECTORSTORE_INDEXTYPE: "hnsw"
+  # KX fork — KDB-X (default) and KDB.AI; Milvus and Elasticsearch are not supported.
+  APP_VECTORSTORE_URL: "http://kdbx:5000"
+  APP_VECTORSTORE_NAME: "kdbx"
+  # Index type: cagra (cuVS GPU, default), hnsw (CPU), flat (CPU)
+  APP_VECTORSTORE_INDEXTYPE: "cagra"
   # Type of vectordb search to be used
   APP_VECTORSTORE_SEARCHTYPE: "dense"
   # Boolean to control GPU search/indexing
@@ -150,12 +146,12 @@ envVars:
   ##===Embedding Model specific configurations===
   # URL on which embedding model is hosted. If "", Nvidia hosted API is used
   APP_EMBEDDINGS_SERVERURL: "nemoretriever-embedding-ms:8000"
-  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nv-embedqa-1b-v2"
+  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-1b-v2"
 
   ##===Reranking Model specific configurations===
   # URL on which ranking model is hosted. If "", Nvidia hosted API is used
   APP_RANKING_SERVERURL: "nemoretriever-ranking-ms:8000"
-  APP_RANKING_MODELNAME: "nvidia/llama-3.2-nv-rerankqa-1b-v2"
+  APP_RANKING_MODELNAME: "nvidia/llama-nemotron-rerank-1b-v2"
   ENABLE_RERANKER: "True"
   # Default confidence threshold for filtering documents by reranker relevance scores (0.0 to 1.0)
   RERANKER_CONFIDENCE_THRESHOLD: "0.0"
@@ -173,7 +169,7 @@ envVars:
   # Max number of context images to include in VLM input
   APP_VLM_MAX_CONTEXT_IMAGES: "1"
   APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"
-  APP_VLM_MODELNAME: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"
+  APP_VLM_MODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
 
   # === Text Splitter ===
   APP_TEXTSPLITTER_CHUNKSIZE: "2000"
@@ -252,7 +248,7 @@ ingestor-server:
 
   image:
     repository: portal.dl.kx.com/ingestor-server-kdbai
-    tag: "2.3.4"
+    tag: "2.4.0"
     pullPolicy: Always
 
   # -- Service config for ingestor-server
@@ -278,12 +274,9 @@ ingestor-server:
     EXAMPLE_PATH: "src/nvidia_rag/ingestor_server"
     # Absolute path to custom prompt.yaml file
     PROMPT_CONFIG_FILE: "/prompt.yaml"
-    # === Vector Store Configurations ===
-    # - KDB.AI: "http://kdbai:8082" (default)
-    # - Milvus: "http://milvus:19530"
-    # - Elasticsearch: "http://elasticsearch:9200"
-    APP_VECTORSTORE_URL: "http://kdbai:8082"
-    APP_VECTORSTORE_NAME: "kdbai" # supported values: "kdbai", "milvus", or "elasticsearch"
+    # === Vector Store Configurations === (KX fork — KDB-X default)
+    APP_VECTORSTORE_URL: "http://kdbx:5000"
+    APP_VECTORSTORE_NAME: "kdbx"
     APP_VECTORSTORE_SEARCHTYPE: "dense"
     APP_VECTORSTORE_ENABLEGPUINDEX: "True"
     APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
@@ -302,7 +295,7 @@ ingestor-server:
 
     # === Embeddings Configurations ===
     APP_EMBEDDINGS_SERVERURL: "nemoretriever-embedding-ms:8000"
-    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nv-embedqa-1b-v2"
+    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-1b-v2"
     APP_EMBEDDINGS_DIMENSIONS: "2048"
 
     # === NV-Ingest Configurations ===
@@ -322,7 +315,7 @@ ingestor-server:
     APP_NVINGEST_TEXTDEPTH: "page"  # Extract text by "page" or "document"
 
     # === NV-Ingest caption configurations ===
-    APP_NVINGEST_CAPTIONMODELNAME: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"  # Model name for captioning
+    APP_NVINGEST_CAPTIONMODELNAME: "nvidia/nemotron-nano-12b-v2-vl"  # Model name for captioning
     APP_NVINGEST_CAPTIONENDPOINTURL: ""  # Endpoint URL for captioning model
 
     # === NV-Ingest save to disk configurations ===
@@ -413,45 +406,6 @@ frontend:
       value: "http://rag-server:8081/v1"
     - name: VITE_API_VDB_URL
       value: "http://ingestor-server:8082/v1"
-    - name: VITE_MILVUS_URL
-      value: "http://milvus:19530"
-
-# -- Elasticsearch dependency toggle
-# subsection: elasticsearch
-elasticsearch:
-  enabled: false
-  fullnameOverride: elasticsearch
-  security:
-    enabled: false
-    tls:
-      restEncryption: false
-  extraConfig:
-    discovery.type: single-node
-  master:
-    masterOnly: false
-    replicaCount: 1
-  data:
-    replicaCount: 0
-  coordinating:
-    replicaCount: 0
-  ingest:
-    enabled: false
-  global:
-    security:
-      allowInsecureImages: true
-  image:
-    registry: docker.io
-    repository: bitnamilegacy/elasticsearch
-    tag: 9.0.3-debian-12-r1
-  volumePermissions:
-    image:
-      registry: docker.io
-      repository: bitnamilegacy/os-shell
-      tag: 12-debian-12-r48
-  sysctlImage:
-    registry: docker.io
-    repository: bitnamilegacy/os-shell
-    tag: 12-debian-12-r48
 
 # -- KDB.AI Vector Database Configuration (Self-Hosted)
 # subsection: kdbai
@@ -460,15 +414,16 @@ elasticsearch:
 # Prerequisites:
 #   1. Obtain a KDB.AI license from KX (https://kx.com) - valid for 90 days
 #   2. Get your Docker registry credentials from the KX welcome email
-#   3. Create the kdbai-credentials secret with your license and registry auth
+#   3. Pass the license and registry credentials via Helm:
+#        --set kdbai.licenseSecret.create=true \
+#        --set kdbai.licenseSecret.licenseB64="${KDB_LICENSE_B64}" \
+#        --set kdbai.imagePullSecret.create=true \
+#        --set kdbai.imagePullSecret.email="${KDBAI_REGISTRY_EMAIL}" \
+#        --set kdbai.imagePullSecret.token="${KDBAI_REGISTRY_TOKEN}"
 #
-# To enable KDB.AI:
-#   1. Set kdbai.enabled: true
-#   2. Set elasticsearch.enabled: false (if previously enabled)
-#   3. Update nv-ingest.milvusDeployed: false to disable Milvus
-#   4. Update APP_VECTORSTORE_NAME: "kdbai" in envVars
-#   5. Update APP_VECTORSTORE_URL: "http://kdbai:8082" in envVars
-#   6. Create the required secrets (see kdbai-secret.yaml template)
+# KX fork: the default backend is KDB-X (kdbx.enabled). Set kdbai.enabled=true
+# (and kdbx.enabled=false) to use KDB.AI instead — they are mutually exclusive.
+# There is no Milvus / Elasticsearch path in the chart.
 kdbai:
   enabled: false
   fullnameOverride: kdbai
@@ -537,6 +492,22 @@ kdbai:
       - ReadWriteOnce
     size: 50Gi
 
+  # -- Optional StorageClass managed by the chart (used on EKS to provide a
+  # WaitForFirstConsumer SC). Disabled by default; the EKS overlay enables it.
+  storageClass:
+    create: false
+    name: "rag-storage"
+    # When true, the SC gets the storageclass.kubernetes.io/is-default-class
+    # annotation. Only set true if the cluster has NO existing default SC, as
+    # K8s rejects PVCs when multiple defaults exist.
+    isDefault: false
+    volumeBindingMode: WaitForFirstConsumer
+    reclaimPolicy: Delete
+    allowVolumeExpansion: true
+    provisioner: "ebs.csi.aws.com"
+    parameters:
+      type: gp3
+
   # -- Probes for KDB.AI server
   livenessProbe:
     httpGet:
@@ -560,14 +531,167 @@ kdbai:
   affinity: {}
   tolerations: []
 
+# -- KDB-X Vector Database Configuration (Self-Hosted)
+# subsection: kdbx
+# KDB-X vector database — DEFAULT backend for this fork (CAGRA/cuVS GPU by default).
+# Mutually exclusive with kdbai.enabled — _helpers.tpl enforces this.
+# NOTE: a bare `helm install` needs prep — build/push the kdbx images (no public
+# image yet), provide a KDB-X license (+ bearer token for the cuVS download), and
+# a GPU node (driver >=580). See docs/eks-kdbx-cuvs-setup.md.
+kdbx:
+  enabled: true
+  fullnameOverride: kdbx
+
+  # Restrict q IPC ingress to the rag-server + ingestor pods (TODO 3.1).
+  # q IPC is unauthenticated and code-execution-equivalent, so keep this on.
+  # Requires a CNI that enforces NetworkPolicy (on EKS the stock VPC CNI needs
+  # its network-policy agent enabled; Calico/Cilium enforce natively) — with a
+  # non-enforcing CNI the object is accepted but inert (harmless).
+  networkPolicy:
+    enabled: true
+    port: 5000  # must match the kdbx listen port / Service targetPort
+
+  image:
+    # Build with deploy/helm/nvidia-blueprint-rag/files/kdbx/Dockerfile.kdbx
+    # and push to your own registry.
+    repository: ""  # e.g., "123456789012.dkr.ecr.us-west-2.amazonaws.com/kdbx-rag"
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+
+  imagePullSecret:
+    name: "kdbx-registry-secret"
+    create: false
+    # If create: true, supply:
+    # registry: ""
+    # username: ""
+    # password: ""
+
+  licenseSecret:
+    name: "kdbx-license-secret"
+    create: false
+    # If create: true:
+    # licenseB64: ""  # base64-encoded KDB-X license
+    # bearerToken: "" # KX portal OAuth token — TEST DEPLOYS ONLY, and only when
+    #                 # useCuvs=true. The entrypoint uses it to download the cuVS
+    #                 # module (and KDB-X itself if the image lacks q) at runtime.
+    #                 # Stored under the key KDB_BEARER_TOKEN. Leave empty if the
+    #                 # image already bundles cuVS or you don't need GPU.
+
+  indexType: "cagra"
+  useCuvs: true
+
+  # -- GPU scheduling for the cuVS/CAGRA test deploy. Only applied when
+  # useCuvs=true. The repo's kdbx pod is TEST-ONLY scaffolding; production
+  # KDB-X is customer-managed (see docs/change-vectordb-kdbx.md). The cuVS
+  # module + CUDA libs are installed at pod startup by kdbx-entrypoint.sh
+  # (no maintained GPU image), so the node only needs a host driver >=580 and
+  # the NVIDIA device plugin.
+  gpu:
+    # Number of GPUs to request (nvidia.com/gpu limit). CAGRA uses one.
+    count: 1
+    # Pin the GPU arch — the persisted .cagra index blob is arch-coupled, so a
+    # Recreate-strategy PVC must reattach to the same arch. Match your nodes.
+    nodeSelector: {}
+    #   node.kubernetes.io/instance-type: g5.2xlarge
+    tolerations: []
+    #   - key: nvidia.com/gpu
+    #     operator: Exists
+    #     effect: NoSchedule
+
+  # -- Startup grace (seconds) for the GPU liveness probe (WS-SAFETY). Only used
+  # when useCuvs=true. Must comfortably exceed the at-pod-start cuVS install
+  # (install_deps.sh pulls ~GBs of CUDA) PLUS the first CAGRA build, since both
+  # block q's single thread and a liveness timeout would kill -> crashloop the
+  # pod. 10 min is generous for a test deploy on a normal network.
+  cuvsStartupSeconds: 600
+
+  # -- CAGRA persistence-safety knobs (WS-SAFETY). Only applied when useCuvs=true.
+  cagra:
+    # Kill-switch: never read a persisted .cagra blob, always rebuild from the
+    # vector table. Escape hatch if a blob ever fatally faults q on .read (a
+    # hard fault q cannot trap, which would otherwise crashloop the pod).
+    skipPersistedRead: false
+    # Optional cuVS/CUDA version tag folded into the per-collection .cagra
+    # env-stamp (alongside the GPU arch/driver from nvidia-smi). Set it to your
+    # cuVS module version (e.g. "25.10") so a module/version bump invalidates
+    # persisted blobs and forces a clean rebuild instead of a risky cross-version
+    # read. Empty => arch+driver stamping only.
+    cuvsStamp: ""
+
+  # -- HNSW index tuning (server-side, read by kdbx-init.q at startup).
+  # All optional; omitted keys fall back to the q defaults shown here.
+  hnsw:
+    # Distance metric for all .ai.hnsw calls: L2 (default) or CS (cosine).
+    # build and search always use this same value. Use CS for cosine-style
+    # retrieval with L2-normalized embeddings.
+    metric: "L2"
+    # Graph connectivity (higher = better recall, more memory/build time).
+    m: 32
+    # ef used when building/extending the graph on insert.
+    efConstruction: 64
+    # ef used at query time — tune independently of efConstruction; raise for
+    # higher recall at some latency cost.
+    efSearch: 64
+
+  # -- PyKX license mount for the rag-server + ingestor-server pods.
+  # The chart mounts `kdbx.licenseSecret` at `licenseMountPath` and sets QLIC
+  # to that dir, so PyKX has a `kc.lic` to pick up.
+  #
+  # `pykxUnlicensed: true` (the safe default) forces PYKX_UNLICENSED=1 on the
+  # client pods.  PyKX then runs in IPC-only mode and our adapter sends all
+  # data over the wire as q strings — that path is what we validated
+  # end-to-end on EKS.  The license is still mounted so it's available if
+  # PyKX one day accepts it, but PyKX skips license detection at this level.
+  #
+  # Flip to `false` to try licensed mode — works only if PyKX's bundled q
+  # accepts your kc.lic format.  KDB-X CE licenses are NOT currently
+  # accepted by PyKX 3.1.x's bundled q (signed for a newer kdb+ than what
+  # PyKX ships).  See docs/change-vectordb-kdbx.md "Troubleshooting".
+  licenseMountPath: "/opt/kx-license"
+  pykxUnlicensed: true
+
+  service:
+    type: ClusterIP
+    port: 5000
+
+  resources:
+    requests:
+      cpu: "2"
+      memory: "8Gi"
+    limits:
+      memory: "16Gi"
+
+  persistence:
+    enabled: true
+    size: 50Gi
+    storageClass: "rag-storage"
+
+  # q is single-threaded; the `hopen` in the exec healthcheck can transiently
+  # fail with 'conn reset by peer' while a heavy operation (big insert, HNSW
+  # search, rehydrate) holds the main thread.  We don't want the kubelet to
+  # kill a stateful pod over a transient busy window — that churns the data
+  # dir and breaks in-flight requests.  Generous timeout + high
+  # failureThreshold gives the pod ~5 min of cover before declaring it dead.
+  livenessProbe:
+    exec:
+      command: ["q", "/opt/kx/conf/healthcheck.q"]
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 10
+
+  readinessProbe:
+    tcpSocket:
+      port: 5000
+    initialDelaySeconds: 20
+    periodSeconds: 10
+
 # -- Standalone MinIO Object Storage
 # subsection: minio
-# Use this when deploying KDB.AI or Elasticsearch without Milvus.
 # MinIO is required for storing multimodal content (images extracted from documents).
-# When using Milvus (milvusDeployed: true), MinIO is included as a Milvus sub-dependency,
-# so this standalone MinIO should be disabled to avoid conflicts.
+# Always enabled in this KDB.AI-only fork (Milvus's bundled MinIO is no longer in scope).
 minio:
-  enabled: false  # Enable when using KDB.AI or Elasticsearch without Milvus
+  enabled: true
   fullnameOverride: "rag-minio"
 
   # -- MinIO image configuration (official minio/minio image)
@@ -730,8 +854,11 @@ nim-llm:
   image:
     repository: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
     pullPolicy: IfNotPresent
-    tag: "1.13.1"
+    tag: "1.15.5"
   resources:
+    # FP8 single GPU (TP1): FP8 (~49GB) fits one 96GB RTX PRO 6000 Blackwell.
+    # 1 GPU forces FP8 — bf16 (~98GB) cannot fit, so NIM auto-selects the FP8 TP1
+    # profile. For bf16 tensor parallelism, set both to 2 and pin a tp2 profile below.
     limits:
       nvidia.com/gpu: 1
     requests:
@@ -739,21 +866,24 @@ nim-llm:
 
   env:
     - name: NIM_MODEL_PROFILE
-      value: "" # Provide correct profile name here
+      # Empty = auto-select. On a single 96GB GPU this resolves to FP8 TP1
+      # (tensorrt_llm-rtx6000_blackwell_sv-fp8-tp1-...). To pin explicitly, run
+      # `list-model-profiles` against tag 1.15.5 on your GPU and paste the FP8 ID.
+      value: ""
   model:
     ngcAPIKey: ""
     name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
     hfTokenSecret: ""
 
-# subsection: nvidia-nim-llama-32-nv-embedqa-1b-v2
+# subsection: nvidia-nim-llama-nemotron-embed-1b-v2
 # NIM Text Embedding
-nvidia-nim-llama-32-nv-embedqa-1b-v2:
+nvidia-nim-llama-nemotron-embed-1b-v2:
   enabled: true
   service:
     name: "nemoretriever-embedding-ms"
   image:
-    repository: nvcr.io/nim/nvidia/llama-3.2-nv-embedqa-1b-v2
-    tag: "1.10.0"
+    repository: nvcr.io/nim/nvidia/llama-nemotron-embed-1b-v2
+    tag: "1.13.0"
   resources:
     limits:
       nvidia.com/gpu: 1
@@ -762,15 +892,15 @@ nvidia-nim-llama-32-nv-embedqa-1b-v2:
   nim:
     ngcAPIKey: ""
 
-# subsection: nvidia-nim-llama-32-nemoretriever-1b-vlm-embed-v1
+# subsection: nvidia-nim-llama-nemotron-embed-vl-1b-v2
 # NIM VLM Embedding
-nvidia-nim-llama-32-nemoretriever-1b-vlm-embed-v1:
+nvidia-nim-llama-nemotron-embed-vl-1b-v2:
   enabled: false
   service:
     name: "nemoretriever-vlm-embedding-ms"
   image:
-    repository: nvcr.io/nvidia/nemo-microservices/llama-3.2-nemoretriever-1b-vlm-embed-v1
-    tag: "1.7.0"
+    repository: nvcr.io/nim/nvidia/llama-nemotron-embed-vl-1b-v2
+    tag: "1.12.0"
   resources:
     limits:
       nvidia.com/gpu: 1
@@ -781,13 +911,13 @@ nvidia-nim-llama-32-nemoretriever-1b-vlm-embed-v1:
 
 # subsection: text-reranking-nim
 # NIM Text Reranking
-nvidia-nim-llama-32-nv-rerankqa-1b-v2:
+nvidia-nim-llama-nemotron-rerank-1b-v2:
   enabled: true
   service:
     name: "nemoretriever-ranking-ms"
   image:
-    repository: nvcr.io/nim/nvidia/llama-3.2-nv-rerankqa-1b-v2
-    tag: "1.8.0"
+    repository: nvcr.io/nim/nvidia/llama-nemotron-rerank-1b-v2
+    tag: "1.10.0"
   resources:
     limits:
       nvidia.com/gpu: 1
@@ -803,8 +933,8 @@ nim-vlm:
   service:
     name: "nim-vlm"
   image:
-    repository: nvcr.io/nim/nvidia/llama-3.1-nemotron-nano-vl-8b-v1
-    tag: "1.3.1"
+    repository: nvcr.io/nim/nvidia/nemotron-nano-12b-v2-vl
+    tag: "1.6.0"
   resources:
     limits:
       nvidia.com/gpu: 1
@@ -812,6 +942,142 @@ nim-vlm:
       nvidia.com/gpu: 1
   nim:
     ngcAPIKey: ""
+
+# -- NeMo Guardrails (orchestrator + safety NIMs)
+# Disabled by default. When enabled, the chart deploys:
+#   - guardrails orchestrator (port 7331)
+#   - llama-3.1-nemoguard-8b-content-safety NIM (when contentSafety.enabled)
+#   - llama-3.1-nemoguard-8b-topic-control NIM (when topicControl.enabled)
+# rag-server picks it up via envVars.ENABLE_GUARDRAILS=True and NEMO_GUARDRAILS_URL.
+# subsection: nemoGuardrails
+nemoGuardrails:
+  enabled: false
+
+  orchestrator:
+    image:
+      repository: nvcr.io/nvidia/nemo-microservices/guardrails
+      tag: "25.09"
+      pullPolicy: IfNotPresent
+    service:
+      name: "nemo-guardrails"
+      type: ClusterIP
+      port: 7331
+    # Default config_id picked when rag-server doesn't specify one
+    defaultConfigId: "nemoguard"
+    # URL of the main LLM the orchestrator hits when applying rails.
+    # Leave empty to inherit from envVars.APP_LLM_SERVERURL (works for both
+    # cloud integrate.api.nvidia.com and self-hosted nim-llm).
+    nimEndpointUrl: ""
+    # Probe tuning — orchestrator needs the safety NIMs to be ready first
+    livenessProbe:
+      httpGet: { path: /v1/health, port: 7331 }
+      initialDelaySeconds: 60
+      periodSeconds: 30
+    readinessProbe:
+      httpGet: { path: /v1/health, port: 7331 }
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      failureThreshold: 30
+    resources:
+      requests: { cpu: "500m", memory: "1Gi" }
+      limits:   { cpu: "2",    memory: "4Gi" }
+
+  # Content safety NIM (8B, ~16GB VRAM). Disable + set endpointUrl to use cloud.
+  contentSafety:
+    enabled: true
+    image:
+      repository: nvcr.io/nim/nvidia/llama-3.1-nemoguard-8b-content-safety
+      tag: "1.10.1"
+      pullPolicy: IfNotPresent
+    service:
+      name: "nemoguard-content-safety"
+      type: ClusterIP
+      port: 8000
+    modelName: "llama-3.1-nemoguard-8b-content-safety"
+    # When contentSafety.enabled=false, set this to a cloud URL to keep guardrails working
+    endpointUrl: ""
+    # No memory limits — TRT-LLM engine compile of an 8B model peaks above 24Gi.
+    # Matches the pattern used by the working NIM subcharts. Request just GPU.
+    resources:
+      requests: { nvidia.com/gpu: 1 }
+      limits:   { nvidia.com/gpu: 1 }
+    persistence:
+      enabled: true
+      size: 50Gi
+      # Leave empty to use cluster default; set to "rag-storage" on EKS overlay
+      storageClass: ""
+    readinessProbe:
+      httpGet: { path: /v1/health/ready, port: 8000 }
+      initialDelaySeconds: 120
+      periodSeconds: 15
+      failureThreshold: 80
+
+  # Topic control NIM (8B, ~16GB VRAM)
+  topicControl:
+    enabled: true
+    image:
+      repository: nvcr.io/nim/nvidia/llama-3.1-nemoguard-8b-topic-control
+      tag: "1.10.1"
+      pullPolicy: IfNotPresent
+    service:
+      name: "nemoguard-topic-control"
+      type: ClusterIP
+      port: 8000
+    modelName: "llama-3.1-nemoguard-8b-topic-control"
+    endpointUrl: ""
+    resources:
+      requests: { nvidia.com/gpu: 1 }
+      limits:   { nvidia.com/gpu: 1 }
+    persistence:
+      enabled: true
+      size: 50Gi
+      storageClass: ""
+    readinessProbe:
+      httpGet: { path: /v1/health/ready, port: 8000 }
+      initialDelaySeconds: 120
+      periodSeconds: 15
+      failureThreshold: 80
+
+  # Jailbreak detection NIM (8B, ~16GB VRAM). Optional 3rd safety rail.
+  # Default disabled (adds 1 GPU). Same pattern as contentSafety + topicControl.
+  jailbreakDetect:
+    enabled: false
+    image:
+      repository: nvcr.io/nim/nvidia/llama-3.1-nemoguard-8b-jailbreak-detect
+      tag: "1.10.1"
+      pullPolicy: IfNotPresent
+    service:
+      name: "nemoguard-jailbreak"
+      type: ClusterIP
+      port: 8000
+    modelName: "llama-3.1-nemoguard-8b-jailbreak-detect"
+    endpointUrl: ""
+    resources:
+      requests: { nvidia.com/gpu: 1 }
+      limits:   { nvidia.com/gpu: 1 }
+    persistence:
+      enabled: true
+      size: 50Gi
+      storageClass: ""
+    readinessProbe:
+      httpGet: { path: /v1/health/ready, port: 8000 }
+      initialDelaySeconds: 120
+      periodSeconds: 15
+      failureThreshold: 80
+
+  # Rails config sources (in priority order):
+  #   1. files/guardrails/<configId>/<filename>  — verbatim upstream defaults
+  #      (config.yml + prompts.yml for "nemoguard" and "nemoguard_cloud").
+  #      The chart auto-substitutes service URLs to match this chart's services.
+  #   2. configStore.configs[<configId>][<filename>] = <yaml content>  — inline
+  #      overrides that WIN over filesystem defaults with the same key.
+  configStore:
+    configs: {}
+      # Example override (uncomment to customize):
+      # nemoguard:
+      #   config.yml: |
+      #     models: [...]
+      #     rails: [...]
 
 # -- NV-Ingest dependency configuration
 # subsection: nv-ingest
@@ -849,14 +1115,13 @@ nv-ingest:
     NV_INGEST_DEFAULT_TIMEOUT_MS: "1234"
     MAX_INGEST_PROCESS_WORKERS: 16
     EMBEDDING_NIM_ENDPOINT: "http://nemoretriever-embedding-ms:8000/v1"
-    EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-3.2-nv-embedqa-1b-v2"
+    EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-nemotron-embed-1b-v2"
     MESSAGE_CLIENT_HOST: "rag-redis-master"
     MESSAGE_CLIENT_PORT: 6379
     MESSAGE_CLIENT_TYPE: "redis"
     MINIO_INTERNAL_ADDRESS: "rag-minio:9000"
     MINIO_PUBLIC_ADDRESS: "http://localhost:9000"
     MINIO_BUCKET: "nv-ingest"
-    MILVUS_ENDPOINT: "http://milvus:19530"
     #OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
     MODEL_PREDOWNLOAD_PATH: "/workspace/models/"
     INSTALL_AUDIO_EXTRACTION_DEPS: "true"
@@ -889,36 +1154,16 @@ nv-ingest:
     YOLOX_TABLE_STRUCTURE_INFER_PROTOCOL: grpc
 
     # Captioning
-    VLM_CAPTION_MODEL_NAME: nvidia/llama-3.1-nemotron-nano-vl-8b-v1
+    VLM_CAPTION_MODEL_NAME: nvidia/nemotron-nano-12b-v2-vl
     #VLM_CAPTION_ENDPOINT: http://nim-vlm:8000/v1/chat/completions
 
     # Audio service
     AUDIO_GRPC_ENDPOINT: nv-ingest-riva-nim:50051
     AUDIO_INFER_PROTOCOL: grpc
 
-  # Expose internal Milvus/MinIO config managed by nv-ingest subchart
-  milvusDeployed: true
-  milvus:
-    image:
-      all:
-        repository: milvusdb/milvus
-        tag: v2.5.17-gpu
-    etcd:
-      image:
-        repository: "milvusdb/etcd"
-        tag: "3.5.22-r1"
-    standalone:
-      resources:
-        limits:
-          nvidia.com/gpu: 1
-    minio:
-      image:
-        repository: minio/minio
-        tag: "RELEASE.2025-09-07T16-13-09Z"
-      accessKey: minioadmin
-      secretKey: minioadmin
-      bucketName: nv-ingest
-    fullnameOverride: milvus
+  # KDB.AI-only fork: nv-ingest's bundled Milvus + its embedded MinIO are
+  # disabled. The chart-managed standalone MinIO (above) handles object storage.
+  milvusDeployed: false
 
   # Redis Master
   redis:
@@ -928,7 +1173,7 @@ nv-ingest:
 
 
   # Ensure nv-ingest does not deploy its own embedding NIM
-  nvidia-nim-llama-32-nv-embedqa-1b-v2:
+  nvidia-nim-llama-nemotron-embed-1b-v2:
     deployed: false
 
   # Ensure nv-ingest does not deploy its own observability components
@@ -1004,7 +1249,7 @@ nv-ingest:
     replicaCount: 1
     image:
       repository: nvcr.io/nim/nvidia/nemoretriever-graphic-elements-v1
-      tag: "1.5.0"
+      tag: "1.6.0"
     env:
       - name: NIM_HTTP_API_PORT
         value: "8000"
@@ -1032,7 +1277,7 @@ nv-ingest:
     replicaCount: 1
     image:
       repository: nvcr.io/nim/nvidia/nemoretriever-page-elements-v2
-      tag: "1.5.0"
+      tag: "1.6.0"
     env:
       - name: NIM_HTTP_API_PORT
         value: "8000"
@@ -1078,7 +1323,7 @@ nv-ingest:
     replicaCount: 1
     image:
       repository: nvcr.io/nim/nvidia/nemoretriever-table-structure-v1
-      tag: "1.5.0"
+      tag: "1.6.0"
     env:
       - name: NIM_HTTP_API_PORT
         value: "8000"

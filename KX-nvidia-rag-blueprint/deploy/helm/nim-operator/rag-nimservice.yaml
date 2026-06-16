@@ -37,7 +37,7 @@ metadata:
 spec:
   image:
     repository: nvcr.io/nim/nvidia/nemoretriever-page-elements-v2
-    tag: 1.5.0
+    tag: 1.6.0
     pullPolicy: IfNotPresent
     pullSecrets:
       - ngc-secret
@@ -64,7 +64,7 @@ metadata:
 spec:
   image:
     repository: nvcr.io/nim/nvidia/nemoretriever-graphic-elements-v1
-    tag: 1.5.0
+    tag: 1.6.0
     pullPolicy: IfNotPresent
     pullSecrets:
       - ngc-secret
@@ -91,7 +91,7 @@ metadata:
 spec:
   image:
     repository: nvcr.io/nim/nvidia/nemoretriever-table-structure-v1
-    tag: 1.5.0
+    tag: 1.6.0
     pullPolicy: IfNotPresent
     pullSecrets:
       - ngc-secret
@@ -117,15 +117,15 @@ metadata:
   name: nemoretriever-embedding-ms
 spec:
   image:
-    repository: nvcr.io/nim/nvidia/llama-3.2-nv-embedqa-1b-v2
-    tag: 1.10.0
+    repository: nvcr.io/nim/nvidia/llama-nemotron-embed-1b-v2
+    tag: 1.13.0
     pullPolicy: IfNotPresent
     pullSecrets:
       - ngc-secret
   authSecret: ngc-api-secret
   storage:
     nimCache:
-      name: nvidia-nim-llama-32-nv-embedqa-1b-v2
+      name: nvidia-nim-llama-nemotron-embed-1b-v2
       profile: ''
   replicas: 1
   resources:
@@ -143,7 +143,7 @@ metadata:
   name: nemoretriever-ranking-ms
 spec:
   image:
-    repository: nvcr.io/nim/nvidia/llama-3.2-nv-rerankqa-1b-v2
+    repository: nvcr.io/nim/nvidia/llama-nemotron-rerank-1b-v2
     tag: 1.8.0
     pullPolicy: IfNotPresent
     pullSecrets:
@@ -151,7 +151,7 @@ spec:
   authSecret: ngc-api-secret
   storage:
     nimCache:
-      name: nvidia-nim-llama-32-nv-rerankqa-1b-v2
+      name: nvidia-nim-llama-nemotron-rerank-1b-v2
       profile: ''
   replicas: 1
   resources:

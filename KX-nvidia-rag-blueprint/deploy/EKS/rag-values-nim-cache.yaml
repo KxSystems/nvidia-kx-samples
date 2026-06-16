@@ -1,0 +1,67 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 KX Systems, Inc. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Airgap weight-cache PVCs for the self-hosted NIMs.
+#
+# LAYER LAST, after the base + cuVS overlays:
+#   helm upgrade --install rag deploy/helm/nvidia-blueprint-rag -n <ns> \
+#     -f deploy/EKS/rag-values-kdbx.yaml \
+#     -f deploy/EKS/rag-values-kdbx-cuvs.yaml \
+#     -f deploy/EKS/rag-values-nim-cache.yaml \
+#     ...
+#
+# POLICY: every NIM whose chart EXPOSES `persistence` gets a right-sized PVC on
+# rag-storage so its weights SURVIVE a pod restart. In a full airgap (Option 1)
+# this is MANDATORY for the otherwise-emptyDir NIMs — with no egress, a restart
+# on emptyDir can't re-fetch weights and the pod crashloops. (The PVC only makes
+# the cache durable; the weights must still ARRIVE once — pre-staged in Option 1
+# or first-boot-pulled in Option 2.)
+#
+# Coverage:
+#   - 49B LLM ........... already has its 120Gi cache via rag-values-llm-selfhost-*.yaml
+#   - Guardrails 8B x3 .. persistence already enabled (50Gi); here we just pin the SC
+#   - embed / rerank .... default persistence.enabled=false -> enabled here (~10Gi each)
+#   - nv-ingest EXTRACTION NIMs (paddleocr, page/graphic/table-elements, parse, ocr,
+#     embedqa) ......... NOT covered: the nv-ingest subchart exposes NO persistence
+#     key for them. Handle per posture (see the airgap doc): Option 2 = leave emptyDir,
+#     they first-boot-pull (small, ~1-3GB, fast); Option 1 = patch the nv-ingest NIM
+#     deployments to add a PVC/hostPath model cache, OR bake the weights into the
+#     mirrored extraction-NIM images. There is no clean values toggle for these.
+#
+# EBS gp3 is ReadWriteOnce, so each NIM gets its OWN PVC (no shared cache). A single
+# shared model cache would need EFS (RWX) + its own VPC endpoint — not recommended
+# for this footprint.
+
+# --- Embedding NIM (1B): add a small weight-cache PVC ---
+nvidia-nim-llama-nemotron-embed-1b-v2:
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: "rag-storage"
+    accessMode: ReadWriteOnce
+
+# --- Reranking NIM (1B): same ---
+nvidia-nim-llama-nemotron-rerank-1b-v2:
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: "rag-storage"
+    accessMode: ReadWriteOnce
+
+# --- Guardrails (8B x3): persistence already enabled (50Gi); pin the SC for EKS ---
+nemoGuardrails:
+  contentSafety:
+    persistence:
+      enabled: true
+      size: 50Gi
+      storageClass: "rag-storage"
+  topicControl:
+    persistence:
+      enabled: true
+      size: 50Gi
+      storageClass: "rag-storage"
+  jailbreakDetect:
+    persistence:
+      enabled: true
+      size: 50Gi
+      storageClass: "rag-storage"

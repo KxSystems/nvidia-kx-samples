@@ -1,4 +1,8 @@
-<h1>NVIDIA RAG Blueprint</h1>
+<h1>NVIDIA RAG Blueprint — KX fork</h1>
+
+> **This fork supports KDB.AI and KDB-X as vector databases.** The upstream NVIDIA RAG Blueprint supports Milvus, Elasticsearch, and KDB.AI as vector stores. This fork (`kxdev/.../kx-nvidia-rag`) specializes the Helm chart for KX vector databases — Milvus and Elasticsearch chart deps and overlays have been removed. Python implementations under `src/nvidia_rag/utils/vdb/{milvus,elasticsearch}/` remain in the codebase (unused at deploy time). The Helm chart deploys either a KDB.AI-backed stack or a KDB-X-backed stack (connecting to a customer-managed bare kdb+ endpoint via IPC).
+>
+> Also adds: NeMo Guardrails Helm support (orchestrator + content-safety + topic-control NIMs) — not available in upstream's Helm chart, only their docker-compose. See `docs/nemo-guardrails.md`.
 
 Retrieval-Augmented Generation (RAG) combines the reasoning power of large language models (LLMs)
 with real-time retrieval from trusted data sources.
@@ -36,7 +40,7 @@ it serves as a flexible starting point that developers can adapt and extend to t
         <li>Hybrid search with dense and sparse search</li>
         <li>Reranking to further improve accuracy</li>
         <li>GPU-accelerated Index creation and search</li>
-        <li>Pluggable vector database (KDB.AI, Milvus, Elasticsearch)</li>
+        <li>KDB.AI vector database with cuVS / CAGRA GPU acceleration; KDB-X (bare kdb+ BYO endpoint) also supports GPU CAGRA via kx.cuvs (set <code>KDBX_USE_CUVS=1</code>)</li>
     </ul>
 </details>
 <details>
@@ -106,8 +110,8 @@ This modular design ensures efficient query processing, accurate retrieval of in
 
 - Retriever and Extraction Models
 
-    - [NVIDIA NIM llama-3_2-nv-embedqa-1b-v2]( https://build.nvidia.com/nvidia/llama-3_2-nv-embedqa-1b-v2)
-    - [NVIDIA NIM llama-3_2-nv-rerankqa-1b-v2](https://build.nvidia.com/nvidia/llama-3_2-nv-rerankqa-1b-v2)
+    - [NVIDIA NIM llama-nemotron-embed-1b-v2](https://build.nvidia.com/nvidia/llama-nemotron-embed-1b-v2)
+    - [NVIDIA NIM llama-nemotron-rerank-1b-v2](https://build.nvidia.com/nvidia/llama-nemotron-rerank-1b-v2)
     - [NeMo Retriever Page Elements NIM](https://build.nvidia.com/nvidia/nemoretriever-page-elements-v2)
     - [NeMo Retriever Table Structure NIM](https://build.nvidia.com/nvidia/nemoretriever-table-structure-v1)
     - [NeMo Retriever Graphic Elements NIM](https://build.nvidia.com/nvidia/nemoretriever-graphic-elements-v1)
@@ -117,20 +121,20 @@ This modular design ensures efficient query processing, accurate retrieval of in
 
     - [Llama 3.1 NemoGuard 8B Content Safety NIM](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-content-safety)
     - [Llama 3.1 NemoGuard 8B Topic Control NIM](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-topic-control)
-    - [Llama-3.1 Nemotron-nano-vl-8b-v1 NIM](https://build.nvidia.com/nvidia/llama-3.1-nemotron-nano-vl-8b-v1)
+    - [Nemotron-Nano-12b-v2-VL NIM](https://build.nvidia.com/nvidia/nemotron-nano-12b-v2-vl)
     - [NeMo Retriever Parse NIM](https://build.nvidia.com/nvidia/nemoretriever-parse)
     - [NeMo Retriever OCR NIM](https://build.nvidia.com/nvidia/nemoretriever-ocr) (Early Access)
-    - [llama-3.2-nemoretriever-1b-vlm-embed-v1](https://build.nvidia.com/nvidia/llama-3_2-nemoretriever-1b-vlm-embed-v1) (Early Access)
+    - [llama-nemotron-embed-vl-1b-v2](https://build.nvidia.com/nvidia/llama-nemotron-embed-vl-1b-v2)
 
 
  ### Integration and orchestration layer
 
 - **RAG Orchestrator Server** – Coordinates interactions between the user, retrievers, vector database, and inference models, ensuring multi-turn and context-aware query handling. This is [LangChain](https://www.langchain.com/)-based.
 
-- **Vector Database** – Stores and searches embeddings at scale with high-performance indexing and retrieval. Supported vector databases:
-    - [KDB.AI CuVS](https://kdb.ai/) – **Default** – High-performance vector database built on kdb+ technology, with GPU acceleration via NVIDIA cuVS
-    - [Milvus Vector Database](https://milvus.io/) – GPU-accelerated with cuVS
-    - [Elasticsearch](https://www.elastic.co/elasticsearch/vector-database) – Hybrid search with BM25
+- **Vector Database** – Stores and searches embeddings at scale with high-performance indexing and retrieval.
+    - **KDB-X** (**default & recommended**) – **Default vector database for this fork** (CAGRA / cuVS GPU by default). Connects to a customer-managed bare kdb+ endpoint via IPC — point the adapter at it with `APP_VECTORSTORE_URL` (e.g. `http://my-kdbx-host:5000`); the host:port is parsed from that URL. (`KDBX_LISTEN_PORT` is the **server-side** kdb+ listen port, not a client connection setting.) The KDB-X process loads its `.rag.*` server definitions from `kdbx-init.q` at **q startup** (the in-cluster test pod does this automatically via its entrypoint; a customer-managed KDB-X loads it itself — the adapter no longer pushes them on connect). Supports CPU HNSW and GPU CAGRA (via kx.cuvs). See [docs/change-vectordb-kdbx.md](docs/change-vectordb-kdbx.md) for configuration and all `KDBX_*` env vars, and the step-by-step [EKS + KDB-X cuVS (GPU CAGRA) setup runbook](docs/eks-kdbx-cuvs-setup.md) for a full from-scratch EKS deployment.
+    - [KDB.AI CuVS](https://kdb.ai/) _(supported alternative)_ – High-performance vector store built on kdb+, with GPU acceleration via NVIDIA cuVS. Select it by layering the KDB.AI overlay (`-f deploy/EKS/rag-values-kdbai.yaml`) — it ships public images and works out of the box.
+    - Upstream NVIDIA RAG Blueprint also supports Milvus and Elasticsearch; that support has been removed from this Helm chart (Python implementations remain in the codebase for reference).
 
 - **NeMo Retriever Extraction** – A high-performance ingestion microservice for parsing multimodal content. For more information about the ingestion pipeline, see [NeMo Retriever Extraction Overview](https://docs.nvidia.com/nemo/retriever/latest/extraction/overview/)
 
@@ -205,17 +209,33 @@ For detailed per-component requirements, see [Minimum System Requirements](docs/
 
 ## Get Started With NVIDIA RAG Blueprint
 
-The recommended way to get started is to deploy the NVIDIA RAG Blueprint
-with Docker Compose using [KDB.AI with NVIDIA cuVS](https://kdb.ai/) as the GPU-accelerated vector database.
+**KDB-X is the default and recommended vector database for this fork** (GPU CAGRA
+via NVIDIA cuVS). For a cloud deployment, follow the step-by-step
+[EKS + KDB-X cuVS runbook](docs/eks-kdbx-cuvs-setup.md); for local evaluation or a
+self-hosted Kubernetes cluster, see the [KDB-X deployment guide](docs/change-vectordb-kdbx.md)
+(covers Docker Compose **and** Helm). KDB.AI with NVIDIA cuVS remains supported as
+an alternative (public images, 90-day trial license) — see
+[Alternative Vector Databases](#alternative-vector-databases).
 
 ### Deployment Options
 
+The first three rows (KDB-X) are the recommended paths; the KDB.AI rows remain supported as an alternative.
+
 | Deployment | Vector Database | LLM | Documentation |
 |------------|-----------------|-----|---------------|
-| **Docker Compose (Recommended)** | KDB.AI with cuVS | Self-hosted NIM | [Guide](docs/deploy-docker-self-hosted.md) |
-| Docker Compose | KDB.AI with cuVS | NVIDIA Cloud Endpoints | [Guide](docs/deploy-docker-nvidia-hosted.md) |
-| Kubernetes/Helm | KDB.AI with cuVS | Self-hosted NIM | [Guide](docs/deploy-helm.md) |
-| Kubernetes with NIM Operator | KDB.AI with cuVS | Self-hosted NIM | [Guide](docs/deploy-nim-operator.md) |
+| **Amazon EKS — step-by-step (Recommended)** | **KDB-X** cuVS / GPU CAGRA (A10G) | NVIDIA Cloud Endpoints | [Runbook](docs/eks-kdbx-cuvs-setup.md) |
+| **Kubernetes/Helm (Recommended)** | **KDB-X** (BYO kdb+ endpoint) | Self-hosted NIM | [Guide](docs/change-vectordb-kdbx.md) |
+| **Docker Compose** — local eval | **KDB-X** | Self-hosted NIM or NVIDIA Cloud | [Guide](docs/change-vectordb-kdbx.md#docker-compose-deployment) |
+| Docker Compose | KDB.AI with cuVS _(alternative)_ | Self-hosted NIM | [Guide](docs/deploy-docker-self-hosted.md) |
+| Docker Compose | KDB.AI with cuVS _(alternative)_ | NVIDIA Cloud Endpoints | [Guide](docs/deploy-docker-nvidia-hosted.md) |
+| Kubernetes/Helm | KDB.AI with cuVS _(alternative)_ | Self-hosted NIM | [Guide](docs/deploy-helm.md) |
+| Kubernetes with NIM Operator | KDB.AI with cuVS _(alternative)_ | Self-hosted NIM | [Guide](docs/deploy-nim-operator.md) |
+
+> **Sizing — dev vs. production.** The EKS runbook uses a **dev / evaluation**
+> GPU sizing (9× g5.2xlarge / A10G + the NGC-hosted LLM) so you can exercise the
+> full pipeline cheaply. For **preprod/production**, self-host the LLM and size the
+> GPU fleet per [Minimum System Requirements](#minimum-system-requirements)
+> (Kubernetes: 8× H100-80GB, 8× RTX PRO 6000 Blackwell, 9× A100-80GB SXM, or 9× B200).
 
 ### LLM Hosting Options
 
@@ -238,7 +258,7 @@ export NVIDIA_API_KEY="${NGC_API_KEY}"
 
 # Configure LLM endpoint (in your .env or values file)
 APP_LLM_SERVERURL="https://integrate.api.nvidia.com/v1"
-APP_LLM_MODELNAME="nvidia/llama-3.3-nemotron-super-49b-v1"
+APP_LLM_MODELNAME="nvidia/llama-3.3-nemotron-super-49b-v1.5"
 ```
 
 **Pros:** No GPU required for LLM, faster setup, always up-to-date models
@@ -270,7 +290,7 @@ export NGC_API_KEY="nvapi-your-key-here"
 
 # Configure LLM endpoint (points to local container)
 APP_LLM_SERVERURL="http://nemollm-inference:8000/v1"
-APP_LLM_MODELNAME="nvidia/llama-3.3-nemotron-super-49b-v1"
+APP_LLM_MODELNAME="nvidia/llama-3.3-nemotron-super-49b-v1.5"
 
 # GPU assignment for LLM (example: GPUs 0 and 1)
 LLM_MS_GPU_ID=0,1
@@ -286,7 +306,8 @@ LLM_MS_GPU_ID=0,1
 
 ### Alternative Vector Databases
 
-KDB.AI with cuVS is the default. To use a different vector database, see:
+**KDB-X with cuVS (CAGRA) is the default** — see the [KDB-X configuration guide](docs/change-vectordb-kdbx.md) (all `KDBX_*` env vars) and the step-by-step [EKS + KDB-X cuVS setup runbook](docs/eks-kdbx-cuvs-setup.md). Note a bare KDB-X install needs prep (build the kdbx images, supply a license/bearer, GPU node). To use a different vector database, see:
+- [KDB.AI](docs/change-vectordb-kdbai.md) – GPU cuVS vector store with **public images** (works out of the box). Select it with `-f deploy/EKS/rag-values-kdbai.yaml`.
 - [Elasticsearch](docs/change-vectordb.md) – Hybrid search with BM25 and vector similarity
 
 Refer to the [full documentation](docs/readme.md) to learn about the following:
@@ -330,7 +351,7 @@ Use of the models in this blueprint is governed by the [NVIDIA AI Foundation Mod
 
 ### KX / KDB.AI License
 
-KDB.AI is the default vector database for this blueprint. Use of KDB.AI requires:
+This fork uses a KX vector database — **KDB-X by default**, or KDB.AI — both of which require a valid KX license. Use of KDB.AI specifically requires:
 
 - **KDB.AI License**: A valid license from [KX](https://kx.com). Free trial licenses are available for evaluation (valid for 90 days).
 - **KDB.AI Terms of Service**: Use of KDB.AI is governed by the [KX Terms of Service](https://kx.com/terms-of-service/).
@@ -338,10 +359,12 @@ KDB.AI is the default vector database for this blueprint. Use of KDB.AI requires
 
 To obtain a KDB.AI license, visit [kx.com](https://kx.com) and sign up for access.
 
+KDB-X users bring their own kdb+ license from KX. The open-source adapter has no separate license requirement.
+
 
 ## Terms of Use
 This blueprint is governed by the [NVIDIA Agreements | Enterprise Software | NVIDIA Software License Agreement](https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/) and the [NVIDIA Agreements | Enterprise Software | Product Specific Terms for AI Product](https://www.nvidia.com/en-us/agreements/enterprise-software/product-specific-terms-for-ai-products/). The models are governed by the [NVIDIA Agreements | Enterprise Software | NVIDIA Community Model License](https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-community-models-license/) and the [NVIDIA RAG dataset](./data/multimodal/) which is governed by the [NVIDIA Asset License Agreement](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/data/LICENSE.DATA).
-The following models that are built with Llama are governed by the Llama 3.2 Community License Agreement: nvidia/llama-3.2-nv-embedqa-1b-v2 and nvidia/llama-3.2-nv-rerankqa-1b-v2 and llama-3.2-nemoretriever-1b-vlm-embed-v1.
+The following models that are built with Llama are governed by the Llama 3.2 Community License Agreement: nvidia/llama-nemotron-embed-1b-v2 and nvidia/llama-nemotron-rerank-1b-v2 and llama-nemotron-embed-vl-1b-v2.
 
 ### KX / KDB.AI Terms
 
@@ -352,5 +375,5 @@ Use of KDB.AI as the vector database is subject to:
 
 ## Additional Information
 
-The [Llama 3.1 Community License Agreement](https://www.llama.com/llama3_1/license/) for the llama-3.1-nemotron-nano-vl-8b-v1, llama-3.1-nemoguard-8b-content-safety and llama-3.1-nemoguard-8b-topic-control models. The [Llama 3.2 Community License Agreement](https://www.llama.com/llama3_2/license/) for the nvidia/llama-3.2-nv-embedqa-1b-v2, nvidia/llama-3.2-nv-rerankqa-1b-v2 and llama-3.2-nemoretriever-1b-vlm-embed-v1 models. The [Llama 3.3 Community License Agreement](https://github.com/meta-llama/llama-models/blob/main/models/llama3_3/LICENSE) for the llama-3.3-nemotron-super-49b-v1.5 models. Built with Llama. Apache 2.0 for NVIDIA Ingest and for the nemoretriever-page-elements-v2, nemoretriever-table-structure-v1, nemoretriever-graphic-elements-v1, paddleocr and nemoretriever-ocr-v1 models.
+The [Llama 3.1 Community License Agreement](https://www.llama.com/llama3_1/license/) for the nemotron-nano-12b-v2-vl, llama-3.1-nemoguard-8b-content-safety and llama-3.1-nemoguard-8b-topic-control models. The [Llama 3.2 Community License Agreement](https://www.llama.com/llama3_2/license/) for the nvidia/llama-nemotron-embed-1b-v2, nvidia/llama-nemotron-rerank-1b-v2 and llama-nemotron-embed-vl-1b-v2 models. The [Llama 3.3 Community License Agreement](https://github.com/meta-llama/llama-models/blob/main/models/llama3_3/LICENSE) for the llama-3.3-nemotron-super-49b-v1.5 models. Built with Llama. Apache 2.0 for NVIDIA Ingest and for the nemoretriever-page-elements-v2, nemoretriever-table-structure-v1, nemoretriever-graphic-elements-v1, paddleocr and nemoretriever-ocr-v1 models.
 

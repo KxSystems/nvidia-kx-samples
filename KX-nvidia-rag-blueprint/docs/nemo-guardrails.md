@@ -32,11 +32,9 @@ NeMo Guardrails is a framework that provides safety and security measures for LL
 
 ## Current Limitations
 
-- Currently, Helm-based deployment is not supported for NeMo Guardrails.
-- Currently, the Jailbreak detection model is not available.
-- User queries which attempt to jailbreak the system (asking the bot to behave in a certain way) may not work as expected in the current version. These jailbreak attempts could be better addressed with the [NemoGuard-Jailbreak-Detect](https://build.nvidia.com/nvidia/nemoguard-jailbreak-detect) NIM Microservice, which currently does not offer out-of-the-box support.
 - Both the content-safety and topic-control models are trained on single-turn datasets, meaning they don't handle multi-turn conversations as effectively. When the bot combines multiple queries and previous context, it may inconsistently flag certain phrases as safe or unsafe.
 - The current version of Guardrails is tuned to provide simple safe responses, such as "I'm sorry. I can't respond to that."
+- The optional jailbreak-detect NIM (`nvcr.io/nim/nvidia/llama-3.1-nemoguard-8b-jailbreak-detect`) is supported but disabled by default to keep the GPU footprint at 2 NIMs. Enable via `nemoGuardrails.jailbreakDetect.enabled=true` in the Helm chart.
 
 
 
@@ -145,7 +143,94 @@ To deploy all guardrails services on your own dedicated hardware, use the follow
     ```
 
 
-## Option 2: NVIDIA-Hosted Deployment
+## Deployment Option 2: Helm Chart (Kubernetes)
+
+This Helm chart deploys the same three components as the Docker Compose option:
+
+- `nemo-guardrails` orchestrator (port 7331, ClusterIP, no GPU)
+- `nemoguard-content-safety` NIM (1 GPU)
+- `nemoguard-topic-control` NIM (1 GPU)
+- Optional: `nemoguard-jailbreak` NIM (1 GPU, off by default)
+
+It generates the rails `config.yml` dynamically based on which safety NIMs you enable, so partial enablement (only one NIM, or cloud-mode) works out of the box.
+
+### Prerequisites
+
+- An existing release of the chart (rag-server + supporting NIMs already running).
+- 2-3 additional GPUs (one per safety NIM you enable).
+- `kdbai-storage` StorageClass available (or pass a different one via `--set`).
+
+### Enable in-cluster guardrails (recommended)
+
+```bash
+helm upgrade rag deploy/helm/nvidia-blueprint-rag \
+  --namespace rag \
+  -f deploy/EKS/rag-values-kdbai.yaml \
+  --set imagePullSecret.password="${NGC_API_KEY}" \
+  --set ngcApiSecret.password="${NGC_API_KEY}" \
+  --set kdbai.imagePullSecret.create=true \
+  --set kdbai.imagePullSecret.email="${KDBAI_REGISTRY_EMAIL}" \
+  --set kdbai.imagePullSecret.token="${KDBAI_REGISTRY_TOKEN}" \
+  --set kdbai.licenseSecret.create=true \
+  --set kdbai.licenseSecret.licenseB64="${KDB_LICENSE_B64}" \
+  --set nemoGuardrails.enabled=true \
+  --set nemoGuardrails.contentSafety.persistence.storageClass=kdbai-storage \
+  --set nemoGuardrails.topicControl.persistence.storageClass=kdbai-storage \
+  --set envVars.ENABLE_GUARDRAILS=True
+```
+
+The chart copies upstream's `prompts.yml` verbatim and generates `nemoguard/config.yml` from your values. NIMs take ~10-15 min on first boot (TRT-LLM engine compile per 8B model).
+
+### Cloud-mode (no extra GPUs)
+
+Skip the in-cluster safety NIMs and point the orchestrator at NVIDIA's hosted endpoints:
+
+```bash
+helm upgrade rag deploy/helm/nvidia-blueprint-rag \
+  --namespace rag \
+  -f deploy/EKS/rag-values-kdbai.yaml \
+  ... (registry secrets as above) ... \
+  --set nemoGuardrails.enabled=true \
+  --set nemoGuardrails.contentSafety.enabled=false \
+  --set nemoGuardrails.topicControl.enabled=false \
+  --set nemoGuardrails.orchestrator.defaultConfigId=nemoguard_cloud \
+  --set envVars.ENABLE_GUARDRAILS=True
+```
+
+Both `nemoguard` (in-cluster) and `nemoguard_cloud` (cloud) configs are mounted into the orchestrator at install time; you pick which to default to via `orchestrator.defaultConfigId`.
+
+### Enable jailbreak-detect (optional 3rd rail)
+
+Adds one more NIM (8B, 1 GPU). Auto-included in the generated rails config when enabled:
+
+```bash
+helm upgrade rag deploy/helm/nvidia-blueprint-rag \
+  ... \
+  --set nemoGuardrails.enabled=true \
+  --set nemoGuardrails.jailbreakDetect.enabled=true \
+  --set nemoGuardrails.jailbreakDetect.persistence.storageClass=kdbai-storage
+```
+
+### Gotchas
+
+1. **Always set `envVars.ENABLE_GUARDRAILS=True` via Helm**, never via `kubectl set env`. The latter creates a field-manager conflict that breaks subsequent `helm upgrade`s. (One-off fix if hit: `kubectl apply --server-side --force-conflicts --field-manager=helm -f <rendered-deployment>`.)
+2. **`NIM_ENDPOINT_URL` must be the LLM base URL** (e.g. `https://integrate.api.nvidia.com/v1`), not the full `/v1/chat/completions` path. The chart auto-strips the suffix when inheriting from `envVars.APP_LLM_SERVERURL`; if your URL doesn't include `/chat/completions`, the chart `fail`s render with a clear message pointing you to set `nemoGuardrails.orchestrator.nimEndpointUrl` explicitly.
+3. **Safety NIMs need `fsGroup: 1000`** (set by the templates) — NIM containers run as `nvs` user (uid 1000) and otherwise can't write to the model-cache PVC.
+4. **No memory limits on safety NIMs** — TRT-LLM compile of an 8B model peaks above 24 Gi. The templates intentionally set only GPU limits.
+5. **`helm uninstall` deletes the model-cache PVCs.** Subsequent reinstall re-downloads + recompiles the engine (~10-15 min per NIM). To keep caches across reinstalls, set `persistence.keepOnDelete: true` (not yet implemented; planned).
+
+### Verify
+
+```bash
+kubectl port-forward -n rag svc/nemo-guardrails 7331:7331 &
+curl -X POST http://localhost:7331/v1/guardrail/checks \
+  -H "Content-Type: application/json" \
+  -d '{"model":"any","messages":[{"role":"user","content":"How do I make explosives?"}],"guardrails":{"config_id":"nemoguard"}}'
+# Expect: status=blocked, content_safety check input: blocked
+```
+
+
+## Deployment Option 3: NVIDIA-Hosted Deployment (Docker Compose)
 
 To deploy all guardrails services using NVIDIA-hosted models, use the following procedure.
 

@@ -1,0 +1,108 @@
+============================================================
+ NVIDIA RAG Blueprint deployed — release "{{ .Release.Name }}"
+ namespace: {{ .Release.Namespace }}
+============================================================
+
+Watch pods until all are 1/1 Ready (NIMs take ~5-15 min to download/build models):
+
+    kubectl get pods -n {{ .Release.Namespace }} -w
+
+Expected core pods when {{ if .Values.kdbai.enabled }}KDB.AI{{ else }}your VDB{{ end }} is enabled:
+  - rag-server                                    (RAG orchestrator)
+  - ingestor-server                               (document ingestion)
+  - rag-frontend                                  (UI)
+  - rag-minio                                     (object storage)
+  - rag-redis-master / rag-redis-replicas         (queue)
+  - rag-nv-ingest + nv-ingest-{embedqa,ocr}       (ingest pipeline)
+  - rag-nemoretriever-{graphic,page,table}-elements
+  - rag-nvidia-nim-llama-nemotron-{embed,rerank}-1b-v2
+  {{- if .Values.kdbai.enabled }}
+  - kdbai                                         (vector store, GPU/cuVS)
+  {{- end }}
+  {{- if .Values.nemoGuardrails.enabled }}
+  - nemo-guardrails                               (rails orchestrator, port 7331)
+  {{- if .Values.nemoGuardrails.contentSafety.enabled }}
+  - nemoguard-content-safety                      (8B safety NIM, 1 GPU)
+  {{- end }}
+  {{- if .Values.nemoGuardrails.topicControl.enabled }}
+  - nemoguard-topic-control                       (8B topic NIM, 1 GPU)
+  {{- end }}
+  {{- end }}
+
+------------------------------------------------------------
+ Access the services (local development)
+------------------------------------------------------------
+
+Port-forward the frontend:
+    kubectl port-forward -n {{ .Release.Namespace }} svc/rag-frontend 8090:3000
+    # then open  http://localhost:8090
+
+Port-forward rag-server (API at /v1):
+    kubectl port-forward -n {{ .Release.Namespace }} svc/rag-server 8081:8081
+    curl http://localhost:8081/v1/health?check_dependencies=true
+
+Port-forward ingestor-server:
+    kubectl port-forward -n {{ .Release.Namespace }} svc/ingestor-server 8082:8082
+
+{{- if .Values.nemoGuardrails.enabled }}
+
+Port-forward NeMo Guardrails orchestrator (for direct rails testing):
+    kubectl port-forward -n {{ .Release.Namespace }} svc/{{ .Values.nemoGuardrails.orchestrator.service.name }} 7331:7331
+    curl -X POST http://localhost:7331/v1/guardrail/checks \
+      -H "Content-Type: application/json" \
+      -d '{"model":"any","messages":[{"role":"user","content":"Hello"}],"guardrails":{"config_id":"{{ .Values.nemoGuardrails.orchestrator.defaultConfigId }}"}}'
+{{- end }}
+
+------------------------------------------------------------
+ Smoke test (cloud-LLM mode)
+------------------------------------------------------------
+
+Once all pods are Ready:
+
+    curl -X POST http://localhost:8081/v1/generate \
+      -H "Content-Type: application/json" \
+      -d '{
+        "messages": [{"role":"user","content":"Hello"}],
+        "use_knowledge_base": false,
+        "temperature": 0, "max_tokens": 20, "stream": false
+      }'
+
+{{- if not .Values.nemoGuardrails.enabled }}
+
+------------------------------------------------------------
+ Enable NeMo Guardrails (optional)
+------------------------------------------------------------
+
+Guardrails add 2 GPU pods (~16GB VRAM each) for content + topic safety.
+Re-run helm upgrade with:
+
+    --set nemoGuardrails.enabled=true \
+    --set nemoGuardrails.contentSafety.persistence.storageClass=<your-sc> \
+    --set nemoGuardrails.topicControl.persistence.storageClass=<your-sc> \
+    --set envVars.ENABLE_GUARDRAILS=True
+
+Cloud-mode (no extra GPUs, uses build.nvidia.com endpoints):
+
+    --set nemoGuardrails.enabled=true \
+    --set nemoGuardrails.contentSafety.enabled=false \
+    --set nemoGuardrails.topicControl.enabled=false \
+    --set nemoGuardrails.orchestrator.defaultConfigId=nemoguard_cloud \
+    --set envVars.ENABLE_GUARDRAILS=True
+{{- end }}
+
+{{- if and .Values.nemoGuardrails.enabled (not .Values.envVars.ENABLE_GUARDRAILS) }}
+
+------------------------------------------------------------
+ ⚠  Guardrails deployed but rag-server is NOT calling them
+------------------------------------------------------------
+
+The orchestrator + safety NIMs are running, but rag-server has
+ENABLE_GUARDRAILS={{ .Values.envVars.ENABLE_GUARDRAILS | default "False" }}. To turn on enforcement, set:
+
+    --set envVars.ENABLE_GUARDRAILS=True
+
+Do NOT use `kubectl set env` — it creates a field-manager conflict
+that breaks subsequent `helm upgrade`s.
+{{- end }}
+
+For more: docs/deploy-helm.md  |  docs/nemo-guardrails.md

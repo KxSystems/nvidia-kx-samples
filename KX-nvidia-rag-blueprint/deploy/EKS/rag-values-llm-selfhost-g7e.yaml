@@ -1,0 +1,116 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Self-host the LLM on g7e (RTX PRO 6000 Blackwell, 96 GB) as FP8 single-GPU (TP1).
+#
+# This is a THIN overlay layered ON TOP of rag-values-kdbx.yaml — it only flips the
+# LLM from cloud-hosted to in-cluster. Everything else (KDB-X, MinIO, embed/rerank/
+# VLM/extraction NIMs) is inherited from the kdbx overlay + base values.yaml.
+#
+# Order matters (last -f wins): kdbx overlay first, this overlay second.
+#
+#   1. Add the g7e node group (once):
+#        eksctl create nodegroup -f deploy/EKS/g7e-llm-nodegroup.yaml
+#
+#   2. Deploy with both overlays:
+#        helm upgrade --install rag deploy/helm/nvidia-blueprint-rag -n <namespace> \
+#          -f deploy/EKS/rag-values-kdbx.yaml \
+#          -f deploy/EKS/rag-values-llm-selfhost-g7e.yaml \
+#          --set kdbx.image.repository=<your-ecr-registry>/kdbx-rag \
+#          --set imagePullSecret.password="${NGC_API_KEY}" \
+#          --set ngcApiSecret.password="${NGC_API_KEY}"
+#
+# To revert to cloud-hosted LLM, just drop this -f file (rag-values-kdbx.yaml keeps
+# nim-llm.enabled: false and the cloud endpoints).
+
+# =============================================================================
+# Self-hosted LLM NIM — 49B on one 96GB Blackwell, FP8 TP1
+# =============================================================================
+nim-llm:
+  enabled: true
+  service:
+    name: "nim-llm"
+  image:
+    repository: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
+    tag: "1.15.5"          # latest 1.x / TensorRT-LLM (FP8 profiles intact)
+    pullPolicy: IfNotPresent
+
+  # FP8 single GPU (TP1): FP8 (~49GB) fits one 96GB Blackwell. 1 GPU forces FP8 —
+  # bf16 (~98GB) cannot fit, so NIM auto-selects the FP8 TP1 profile.
+  resources:
+    limits:
+      nvidia.com/gpu: 1
+    requests:
+      nvidia.com/gpu: 1
+
+  # DO NOT set NIM_MODEL_PROFILE. Leave it UNSET so NIM auto-selects the profile.
+  # (Setting it to an empty string "" makes NIM 1.15.x fail with
+  #  "NIM_MODEL_PROFILE is set to , but no matching profile_id ... in manifest".)
+  # Validated 2026-06-02 on g7e: auto-select chose the FP8 profile
+  # `fp8-rmctserfba-tool-calling` on RTX PRO 6000 Blackwell.
+  env: []
+
+  # --- CUDA error 803 fix for Blackwell / driver 580.x ---------------------------
+  # The NIM image is CUDA-13 based and ships a forward-compat libcuda at
+  # /usr/local/cuda-13.0/compat/lib.real (e.g. 580.95.05). The EKS AL2023-NVIDIA
+  # AMI host driver is NEWER (580.159.03) -> patch-level mismatch -> the bundled
+  # compat lib is loaded against the newer kernel module -> CUDA init fails with
+  # "unsupported display driver / cuda driver combination (error 803)".
+  # Shadow the compat dir with an emptyDir so the linker falls back to the
+  # host-injected libcuda (which matches the kernel). Confirmed: this yields
+  # "CUDA driver initialized successfully" and the 49B serves on Blackwell.
+  # (NVIDIA_DISABLE_REQUIRE=1 does NOT fix this; the compat shadow does.)
+  # Harmless on older/g5 hosts whose driver matches the compat lib.
+  extraVolumes:
+    cuda-no-compat:
+      emptyDir: {}
+  extraVolumeMounts:
+    cuda-no-compat:
+      mountPath: /usr/local/cuda-13.0/compat/lib.real
+
+  model:
+    name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+    ngcAPISecret: "ngc-api"   # the secret created in the kdbx overlay prereqs
+    nimCache: /model-store
+
+  # Persist the NGC model cache (weights + built engine) so a pod restart doesn't
+  # re-download/re-build the 49B. Uses the gp3 SC the kdbx overlay creates.
+  persistence:
+    enabled: true
+    storageClass: "rag-storage"
+    accessMode: ReadWriteOnce
+    size: 120Gi
+
+  # Pin the LLM to the g7e pool and tolerate its dedicated taint, so the cheaper
+  # embed/rerank/VLM/extraction NIMs stay on the existing g5/g6 GPU pool.
+  nodeSelector:
+    node-type: gpu-llm
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: llm
+      effect: NoSchedule
+
+# =============================================================================
+# Repoint every LLM consumer from the cloud endpoint back to the in-cluster NIM.
+# (rag-values-kdbx.yaml set these to https://integrate.api.nvidia.com/...)
+# =============================================================================
+# Use the full /v1/chat/completions endpoint form (same shape rag-values-kdbx.yaml
+# uses for the cloud endpoint), NOT a bare host:port. Two reasons:
+#   1. Consistency: the cloud default is https://integrate.api.nvidia.com/v1/chat/completions;
+#      the rag-server treats APP_LLM_SERVERURL as the full chat-completions endpoint.
+#   2. NeMo Guardrails: guardrails-orchestrator-deployment.yaml derives the orchestrator's
+#      base URL by stripping a trailing /chat/completions from APP_LLM_SERVERURL and
+#      `fail`s the render if it can't. A bare "nim-llm:8000" would break helm templating
+#      the moment someone layers guardrails onto this self-host config.
+# (sanitize_nim_url only auto-appends /v1 when the scheme is missing, so the explicit
+#  http://.../v1/chat/completions is passed through unchanged for the rag-server too.)
+envVars:
+  APP_LLM_SERVERURL: "http://nim-llm:8000/v1/chat/completions"
+  APP_QUERYREWRITER_SERVERURL: "http://nim-llm:8000/v1/chat/completions"
+  APP_FILTEREXPRESSIONGENERATOR_SERVERURL: "http://nim-llm:8000/v1/chat/completions"
+  REFLECTION_LLM_SERVERURL: "http://nim-llm:8000/v1/chat/completions"
+
+ingestor-server:
+  envVars:
+    SUMMARY_LLM_SERVERURL: "http://nim-llm:8000/v1/chat/completions"

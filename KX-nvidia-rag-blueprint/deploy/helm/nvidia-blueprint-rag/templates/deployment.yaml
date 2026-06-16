@@ -17,9 +17,19 @@ spec:
         app.kubernetes.io/component: rag-server
     spec:
       serviceAccountName: {{ include "nvidia-blueprint-rag.serviceAccountName" . }}
-      {{- if .Values.imagePullSecret.name }}
+      {{- $needsKdbai := and .Values.kdbai.enabled .Values.kdbai.imagePullSecret.name -}}
+      {{- $needsKdbx  := and .Values.kdbx.enabled  .Values.kdbx.imagePullSecret.name -}}
+      {{- if or .Values.imagePullSecret.name $needsKdbai $needsKdbx }}
       imagePullSecrets:
+        {{- if .Values.imagePullSecret.name }}
         - name: {{ .Values.imagePullSecret.name }}
+        {{- end }}
+        {{- if $needsKdbai }}
+        - name: {{ .Values.kdbai.imagePullSecret.name }}
+        {{- end }}
+        {{- if $needsKdbx }}
+        - name: {{ .Values.kdbx.imagePullSecret.name }}
+        {{- end }}
       {{- end }}
       {{- if .Values.nodeSelector }}
       nodeSelector:
@@ -51,11 +61,35 @@ spec:
               value: "{{ $v }}"
           {{- end }}
           {{- end }}
+            - name: NGC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ngcApiSecret.name }}
+                  key: NGC_API_KEY
+            - name: NGC_CLI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ngcApiSecret.name }}
+                  key: NGC_CLI_API_KEY
             - name: NVIDIA_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.ngcApiSecret.name }}
                   key: NVIDIA_API_KEY
+            {{- if .Values.kdbx.enabled }}
+            # PyKX picks up its kc.lic from $QLIC.  The kdbx-license-secret is
+            # mounted as a file below; pointing QLIC at its dir lets pykx run
+            # in licensed mode against the same kdb+ license the kdbx pod uses.
+            - name: QLIC
+              value: {{ .Values.kdbx.licenseMountPath | default "/opt/kx-license" | quote }}
+            {{- if .Values.kdbx.pykxUnlicensed }}
+            # Operator opted into PyKX unlicensed/IPC-only mode (e.g., the
+            # license isn't accepted by PyKX's bundled q).  Forces pykx to
+            # skip license detection — IPC keeps working without one.
+            - name: PYKX_UNLICENSED
+              value: "1"
+            {{- end }}
+            {{- end }}
           {{- if .Values.livenessProbe }}
           livenessProbe:
 {{ toYaml .Values.livenessProbe | nindent 12 }}
@@ -72,8 +106,24 @@ spec:
             - name: prompt-volume
               mountPath: /prompt.yaml
               subPath: prompt.yaml
+            {{- if .Values.kdbx.enabled }}
+            - name: kdbx-license
+              mountPath: {{ .Values.kdbx.licenseMountPath | default "/opt/kx-license" | quote }}
+              readOnly: true
+            {{- end }}
       volumes:
         - name: prompt-volume
           configMap:
             name: {{ include "nvidia-blueprint-rag.fullname" . }}-prompt
             defaultMode: 0555
+        {{- if .Values.kdbx.enabled }}
+        - name: kdbx-license
+          secret:
+            secretName: {{ .Values.kdbx.licenseSecret.name }}
+            # Only project `kc.lic` (the raw, K8s-single-decoded license) into
+            # the mount; the secret's KDB_LICENSE_B64 env-var-format value would
+            # confuse PyKX (it expects the binary kc.lic, not double-b64).
+            items:
+              - key: kc.lic
+                path: kc.lic
+        {{- end }}

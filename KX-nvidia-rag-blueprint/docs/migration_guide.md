@@ -10,6 +10,30 @@ This documentation contains the information to upgrade [NVIDIA RAG Blueprint](re
 > To navigate this page more easily, click the outline button at the top of the page. (<img src="assets/outline-button.png">)
 
 
+## Migration Guide: v2.3.x to v2.4.0 (KX fork — KDB-X)
+
+Two breaking changes for KDB-X deployments (see also
+[change-vectordb-kdbx.md](change-vectordb-kdbx.md) and the 2.4.0 CHANGELOG):
+
+### `KDBX_PORT` → `KDBX_LISTEN_PORT`
+
+The kdb+ listen-port variable was renamed. `KDBX_PORT` is **intentionally not
+read**: a Kubernetes Service named `kdbx` auto-injects
+`KDBX_PORT=tcp://<clusterIP>:5000` (legacy Docker-link convention) into every
+pod in the namespace, which would clobber a plain port number. Set
+`KDBX_LISTEN_PORT` on the kdbx process instead; client pods are unaffected
+(they use `APP_VECTORSTORE_URL`).
+
+### `.rag.*` provisioning: push-on-connect removed → load at q startup
+
+Earlier builds pushed the `.rag.*` bootstrap over IPC on the adapter's first
+connect. That behavior is **removed**: `kdbx-init.q` must now be loaded by q
+**at process startup** (`q /opt/kx/conf/kdbx-init.q -p <port>`). The chart's
+test pod and the published kdbx image both do this automatically; a
+customer-managed KDB-X must add it to its launch configuration. If the
+functions are missing, the adapter fails fast with
+`KdbxNotBootstrappedError` (it will not push them).
+
 ## Migration Guide: v2.2.0 to v2.3.0
 
 This guide summarizes the key API changes and new features introduced in [NVIDIA RAG Blueprint](readme.md) v2.3.0. Update your integrations to take advantage of the new confidence threshold filtering capability and prepare for upcoming deprecations.

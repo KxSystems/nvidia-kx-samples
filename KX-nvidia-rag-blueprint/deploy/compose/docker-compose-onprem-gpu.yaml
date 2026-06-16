@@ -81,7 +81,7 @@ services:
   # ===========================================================================
   embedding-nim:
     container_name: embedding-nim
-    image: nvcr.io/nim/nvidia/llama-3.2-nv-embedqa-1b-v2:1.9.0
+    image: nvcr.io/nim/nvidia/llama-nemotron-embed-1b-v2:1.13.0
     ports:
       - "8000:8000"
     environment:
@@ -111,7 +111,7 @@ services:
   # ===========================================================================
   reranker-nim:
     container_name: reranker-nim
-    image: nvcr.io/nim/nvidia/llama-3.2-nv-rerankqa-1b-v2:1.7.0
+    image: nvcr.io/nim/nvidia/llama-nemotron-rerank-1b-v2:1.10.0
     ports:
       - "8001:8000"
     environment:

@@ -3,7 +3,7 @@ kind: ClusterConfig
 
 metadata:
   name: rag-dev
-  region: us-east-1
+  region: us-west-2
   version: "1.30"
 
 iam:
@@ -12,22 +12,41 @@ iam:
 managedNodeGroups:
   - name: gpu-pool
     instanceType: g5.2xlarge  # Upgraded from g5.xlarge for more memory (32GB vs 16GB)
-    amiFamily: AmazonLinux2
-    desiredCapacity: 8
+    # AL2023 NVIDIA AMI ships driver 580.159.03 / CUDA 13 — required by cuVS 25.10
+    # (CUDA 13.1, R580 floor). The old AmazonLinux2 GPU AMI shipped driver 570 and
+    # fails cuVS even on A10G (CUDA-version gate, not arch-specific). eksctl
+    # auto-selects the NVIDIA amiType for g5. To recreate just this nodegroup on a
+    # live cluster (e.g. to change AMI): eksctl delete nodegroup --cluster rag-dev
+    # --name gpu-pool --region us-west-2 --wait, then eksctl create nodegroup
+    # -f deploy/EKS/rag-dev-cluster.yaml --include=gpu-pool.
+    amiFamily: AmazonLinux2023
+    # 8 GPUs for NIMs (nv-ingest, embed/rerank, 3x nemoretriever) + 1 for KDB-X cuVS
+    # + 2 more if NeMo Guardrails is enabled (content-safety + topic-control)
+    desiredCapacity: 9
     minSize: 0
-    maxSize: 10
+    maxSize: 12
     volumeSize: 100
     volumeType: gp3
     spot: false
     labels:
       node-type: gpu
       nvidia.com/gpu.present: "true"
+    # NOTE: this pool is intentionally UNTAINTED. Every GPU workload in the stack
+    # (nv-ingest, embed/rerank, the nemoretriever NIMs, KDB-X cuVS) lands here via
+    # `nodeSelector: {node-type: gpu}`, and they share the pool. Tainting it
+    # `nvidia.com/gpu=present:NoSchedule` would harden bin-packing (keeping system
+    # pods off these expensive nodes) but then EVERY GPU pod — including the
+    # third-party NIM subcharts — must carry a matching toleration, which the base
+    # chart does not set today. If you want that hardening: add the taint here, set
+    # the NVIDIA device-plugin DaemonSet to tolerate it (`operator: Exists`), and
+    # add the toleration to each GPU pod's values. (The g7e LLM pool DOES taint
+    # `dedicated=llm:NoSchedule` because only the self-hosted LLM pod targets it.)
     iam:
       withAddonPolicies:
         ebs: true
 
   - name: cpu-system
-    instanceType: t3.medium
+    instanceType: t3.xlarge
     desiredCapacity: 3
     minSize: 0
     maxSize: 4

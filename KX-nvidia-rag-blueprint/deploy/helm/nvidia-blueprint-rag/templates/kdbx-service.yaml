@@ -1,0 +1,21 @@
+{{- if .Values.kdbx.enabled }}
+# KDB-X Vector Database Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.kdbx.fullnameOverride | default "kdbx" }}
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kdbx
+spec:
+  type: {{ .Values.kdbx.service.type }}
+  ports:
+    - name: kdbx
+      port: {{ .Values.kdbx.service.port }}
+      targetPort: 5000
+      protocol: TCP
+  selector:
+    app: {{ .Values.kdbx.fullnameOverride | default "kdbx" }}
+    app.kubernetes.io/component: kdbx
+    {{- include "nvidia-blueprint-rag.selectorLabels" . | nindent 4 }}
+{{- end }}

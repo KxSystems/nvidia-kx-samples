@@ -8,6 +8,12 @@ metadata:
     {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
 spec:
   replicas: {{ $cfg.replicaCount }}
+  # ingestor-server uses a ReadWriteOnce PVC; RollingUpdate causes Multi-Attach
+  # deadlock during helm upgrade. Recreate is correct for single-replica + RWO PVC.
+  {{- if $cfg.persistence.enabled }}
+  strategy:
+    type: Recreate
+  {{- end }}
   selector:
     matchLabels:
       app: {{ $cfg.appName }}
@@ -20,9 +26,19 @@ spec:
         app.kubernetes.io/component: ingestor-server
         {{- include "nvidia-blueprint-rag.selectorLabels" . | nindent 8 }}
     spec:
-      {{- if $cfg.imagePullSecret.name }}
+      {{- $needsKdbai := and .Values.kdbai.enabled .Values.kdbai.imagePullSecret.name -}}
+      {{- $needsKdbx  := and .Values.kdbx.enabled  .Values.kdbx.imagePullSecret.name -}}
+      {{- if or $cfg.imagePullSecret.name $needsKdbai $needsKdbx }}
       imagePullSecrets:
+        {{- if $cfg.imagePullSecret.name }}
         - name: {{ $cfg.imagePullSecret.name }}
+        {{- end }}
+        {{- if $needsKdbai }}
+        - name: {{ .Values.kdbai.imagePullSecret.name }}
+        {{- end }}
+        {{- if $needsKdbx }}
+        - name: {{ .Values.kdbx.imagePullSecret.name }}
+        {{- end }}
       {{- end }}
       {{- if $cfg.nodeSelector }}
       nodeSelector:
@@ -47,13 +63,39 @@ spec:
           - "{{ $cfg.server.workers }}"
           ports:
             - containerPort: 8082
-          {{- if $cfg.envVars }}
           env:
+          {{- if $cfg.envVars }}
           {{- range $k, $v := $cfg.envVars }}
             - name: "{{ $k }}"
               value: "{{ $v }}"
           {{- end }}
           {{- end }}
+            - name: NGC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ngcApiSecret.name }}
+                  key: NGC_API_KEY
+            - name: NGC_CLI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ngcApiSecret.name }}
+                  key: NGC_CLI_API_KEY
+            - name: NVIDIA_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ngcApiSecret.name }}
+                  key: NVIDIA_API_KEY
+            {{- if .Values.kdbx.enabled }}
+            # PyKX picks up kc.lic from $QLIC — see comment in
+            # deployment.yaml (rag-server).  Same license drives ingestor's
+            # write_to_index over IPC.
+            - name: QLIC
+              value: {{ .Values.kdbx.licenseMountPath | default "/opt/kx-license" | quote }}
+            {{- if .Values.kdbx.pykxUnlicensed }}
+            - name: PYKX_UNLICENSED
+              value: "1"
+            {{- end }}
+            {{- end }}
           {{- if $cfg.livenessProbe }}
           livenessProbe:
 {{ toYaml $cfg.livenessProbe | nindent 12 }}
@@ -66,16 +108,24 @@ spec:
           resources:
 {{ toYaml $cfg.resources | nindent 12 }}
           {{- end }}
-          {{- if $cfg.persistence.enabled }}
+          {{- if or $cfg.persistence.enabled .Values.kdbx.enabled }}
           volumeMounts:
+            {{- if $cfg.persistence.enabled }}
             - name: ingestor-server-data
               mountPath: {{ default $cfg.envVars.INGESTOR_SERVER_DATA_DIR $cfg.persistence.mountPath }}
               {{- if $cfg.persistence.subPath }}
               subPath: {{ $cfg.persistence.subPath }}
               {{- end }}
+            {{- end }}
+            {{- if .Values.kdbx.enabled }}
+            - name: kdbx-license
+              mountPath: {{ .Values.kdbx.licenseMountPath | default "/opt/kx-license" | quote }}
+              readOnly: true
+            {{- end }}
           {{- end }}
-      {{- if $cfg.persistence.enabled }}
+      {{- if or $cfg.persistence.enabled .Values.kdbx.enabled }}
       volumes:
+        {{- if $cfg.persistence.enabled }}
         - name: ingestor-server-data
           {{- if $cfg.persistence.existingClaim }}
           persistentVolumeClaim:
@@ -84,5 +134,14 @@ spec:
           persistentVolumeClaim:
             claimName: {{ printf "%s-data" $cfg.appName }}
           {{- end }}
+        {{- end }}
+        {{- if .Values.kdbx.enabled }}
+        - name: kdbx-license
+          secret:
+            secretName: {{ .Values.kdbx.licenseSecret.name }}
+            items:
+              - key: kc.lic
+                path: kc.lic
+        {{- end }}
       {{- end }}
 {{- end }}

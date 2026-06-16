@@ -5,6 +5,61 @@ All notable changes to the [NVIDIA RAG Blueprint](README.md) will be documented 
 To upgrade your version, see [Migration Guide](docs/migration_guide.md).
 
 
+## Version 2.4.0 (2026-06-03)
+
+This release adds KDB-X (bare kdb+) as a second vector database backend with GPU CAGRA support,
+validates Blackwell g7e EKS self-hosted LLM deployment, adds NeMo Guardrails helm chart support,
+and renames embed/rerank model references to the new llama-nemotron branding.
+
+### Added
+- **KDB-X vector database backend**: Connect to a customer-managed kdb+ endpoint over IPC as an
+  alternative to KDB.AI. The KDB-X process loads its `.rag.*` definitions from `kdbx-init.q` at
+  q startup (the chart's test pod does this automatically; the adapter fails fast with
+  `KdbxNotBootstrappedError` if they're missing — it does NOT push them on connect). See [docs/change-vectordb-kdbx.md](docs/change-vectordb-kdbx.md).
+- **GPU CAGRA index for KDB-X (Phase 2)**: kdb+ collections can use NVIDIA cuVS CAGRA GPU-
+  accelerated vector search via `KDBX_USE_CUVS=1`. Requires `APP_VECTORSTORE_ENABLEGPUINDEX=True`
+  and `APP_VECTORSTORE_ENABLEGPUSEARCH=True` on both rag-server and ingestor in addition to
+  `kdbx.useCuvs=true` in Helm — see [Known Issues](#kdbx-cagra-double-flag) below.
+- **KDB-X cuVS safety guards**: CAGRA crashloop protection — kill-switch
+  `KDBX_CAGRA_SKIP_PERSISTED_READ=1` (or `kdbx.cagra.skipPersistedRead=true`) to recover from
+  a corrupted .cagra blob by rebuilding from stored vectors. GPU stamp (`_cagrastamp`) and
+  readiness canary verify cuVS health before the pod accepts traffic.
+- **NeMo Guardrails helm chart**: Added helm chart support for NeMo Guardrails
+  (upstream had docker-compose only). Working end-to-end (safe → answer, unsafe → blocked).
+- **Blackwell g7e EKS self-hosted LLM**: Validated llama-3.3-nemotron-super-49b-v1.5 (FP8, TP1)
+  on g7e (RTX PRO 6000 Blackwell, 96 GB). Reference: `deploy/EKS/g7e-llm-nodegroup.yaml` and
+  `deploy/EKS/rag-values-llm-selfhost-g7e.yaml`.
+- **KDB-X per-collection metric persistence**: Collection metric (L2 or CS) is stamped at
+  creation and survives pod restarts. Configurable via `KDBX_METRIC` env (default: L2).
+- **Airgap NIM weight-cache overlay**: `deploy/EKS/rag-values-nim-cache.yaml` provisions PVCs
+  for pre-cached NIM model weights in airgapped EKS deployments.
+
+### Changed
+- **Breaking (KDB-X):** Provisioning model changed from adapter-push (WS-PROVISION) to
+  **server startup-load**. `kdbx-init.q` must now be loaded by q at process startup:
+  `q /opt/kx/conf/kdbx-init.q -p <port>`. The helm chart does this automatically.
+  Customer-managed KDB-X: add this to your q launch command. The adapter no longer
+  bundles or pushes `kdbx-init.q`; it raises `KdbxNotBootstrappedError` if the server
+  is not pre-provisioned. (`kdbx-init.q` ships at
+  `deploy/helm/nvidia-blueprint-rag/files/kdbx/kdbx-init.q`.)
+- Renamed embed model: `nvidia/llama-3.2-nv-embedqa-1b-v2` → `nvidia/llama-nemotron-embed-1b-v2`
+- Renamed rerank model: `nvidia/llama-3.2-nv-rerankqa-1b-v2` → `nvidia/llama-nemotron-rerank-1b-v2`
+- Renamed VLM embed model: `llama-3.2-nemoretriever-1b-vlm-embed-v1` → `llama-nemotron-embed-vl-1b-v2`
+- **Renamed env var** `KDBX_PORT` → `KDBX_LISTEN_PORT` (breaking change): the Kubernetes Service
+  named `kdbx` auto-injects `KDBX_PORT=tcp://...` into pod environments, causing a collision
+  with the listen-port variable. Update any custom configs using `KDBX_PORT`.
+
+### Fixed
+- Fixed non-unique chunk IDs in KDB-X `upload_text`: IDs were generated per-batch (0..N),
+  causing cross-batch collisions that silently dropped rows in search result joins.
+
+### Known Issues {#kdbx-cagra-double-flag}
+- **KDB-X CAGRA double-flag requirement**: `kdbx.useCuvs=true` in Helm alone does not activate
+  GPU CAGRA index creation. Both `rag-server` and `ingestor` pods must also set
+  `APP_VECTORSTORE_ENABLEGPUINDEX=True` and `APP_VECTORSTORE_ENABLEGPUSEARCH=True` via
+  `envVars`. The `deploy/EKS/rag-values-kdbx-cuvs.yaml` overlay sets all required values.
+
+
 ## Version 2.3.0 (2025-10-14)
 
 This release adds RTX6000 platform support, adds deployment by using NIM operator, improves vector database pluggability with the blueprint, and other changes.
@@ -203,7 +258,6 @@ This is the initial release of the NVIDIA RAG Blueprint.
 
 The following are the known issues for RAG Blueprint:
 
-- Currently, Helm-based deployment is not supported for [NeMo Guardrails](docs/nemo-guardrails.md).
 - The Blueprint responses can have significant latency when using [NVIDIA API Catalog cloud hosted models](./docs/deploy-docker-nvidia-hosted.md).
 - The accuracy of the pipeline is optimized for certain file types like `.pdf`, `.txt`, `.docx`. The accuracy may be poor for other file types supported by NvIngest, since image captioning is disabled by default.
 - The UI file upload interface has a hard limit of 100 files per upload batch. When selecting more than 100 files, only the first 100 are processed. For bulk uploads beyond this limit, use multiple upload batches or the [programmatic API](./notebooks/ingestion_api_usage.ipynb).

@@ -1,0 +1,22 @@
+{{- if .Values.kdbx.enabled }}
+# KDB-X ConfigMap: init script, probes, and entrypoint.
+# kdbx-init.q is loaded by q at process startup (q kdbx-init.q -p PORT), so
+# .rag.* functions and rehydrate/GPU-canary all complete before the first
+# connection is accepted. The adapter expects the server to be pre-provisioned.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kdbx-init
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kdbx
+data:
+  kdbx-init.q: |
+{{ .Files.Get "files/kdbx/kdbx-init.q" | indent 4 }}
+  healthcheck.q: |
+{{ .Files.Get "files/kdbx/healthcheck.q" | indent 4 }}
+  readiness.q: |
+{{ .Files.Get "files/kdbx/readiness.q" | indent 4 }}
+  kdbx-entrypoint.sh: |
+{{ .Files.Get "files/kdbx/kdbx-entrypoint.sh" | indent 4 }}
+{{- end }}

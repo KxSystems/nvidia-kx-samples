@@ -161,6 +161,15 @@ ingestor-server:
     maxReplicas: 10
     targetCPUUtilizationPercentage: 70
 
+  # In the hybrid topology the ingestor is a stateless orchestrator that points at
+  # an on-prem NV-Ingest (see envVars below) — it stores nothing locally. The base
+  # chart defaults persistence on with a ReadWriteOnce EBS PVC, which a single EBS
+  # volume cannot multi-attach: with replicaCount>1 / autoscaling, replicas 2+ would
+  # hang in ContainerCreating ("Multi-Attach error"). Disable persistence so the
+  # Deployment can actually scale out.
+  persistence:
+    enabled: false
+
   # Resource requests (no GPU - orchestration only)
   resources:
     requests:
@@ -209,15 +218,15 @@ nim-llm:
   enabled: false
 
 # Embedding NIM - Running on-prem with GPU
-nvidia-nim-llama-32-nv-embedqa-1b-v2:
+nvidia-nim-llama-nemotron-embed-1b-v2:
   enabled: false
 
 # VLM Embedding - Running on-prem with GPU
-nvidia-nim-llama-32-nemoretriever-1b-vlm-embed-v1:
+nvidia-nim-llama-nemotron-embed-vl-1b-v2:
   enabled: false
 
 # Reranker NIM - Running on-prem with GPU
-nvidia-nim-llama-32-nv-rerankqa-1b-v2:
+nvidia-nim-llama-nemotron-rerank-1b-v2:
   enabled: false
 
 # VLM - Running on-prem with GPU (if used)
@@ -256,14 +265,14 @@ envVars:
   # On-Prem Embedding NIM
   # ---------------------------------------------------------------------------
   APP_EMBEDDINGS_SERVERURL: "http://embedding-nim.onprem.internal:8000"
-  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nv-embedqa-1b-v2"
+  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-1b-v2"
   APP_EMBEDDINGS_DIMENSIONS: "2048"
 
   # ---------------------------------------------------------------------------
   # On-Prem Reranker NIM
   # ---------------------------------------------------------------------------
   APP_RANKING_SERVERURL: "http://reranker-nim.onprem.internal:8000"
-  APP_RANKING_MODELNAME: "nvidia/llama-3.2-nv-rerankqa-1b-v2"
+  APP_RANKING_MODELNAME: "nvidia/llama-nemotron-rerank-1b-v2"
   ENABLE_RERANKER: "True"
 
   # ---------------------------------------------------------------------------

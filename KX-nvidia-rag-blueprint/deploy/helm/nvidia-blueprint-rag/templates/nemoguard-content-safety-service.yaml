@@ -1,0 +1,20 @@
+{{- if and .Values.nemoGuardrails.enabled .Values.nemoGuardrails.contentSafety.enabled }}
+{{- $g := .Values.nemoGuardrails.contentSafety -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $g.service.name }}
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nemoguard-content-safety
+spec:
+  type: {{ $g.service.type | default "ClusterIP" }}
+  selector:
+    {{- include "nvidia-blueprint-rag.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: nemoguard-content-safety
+  ports:
+    - port: {{ $g.service.port }}
+      targetPort: {{ $g.service.port }}
+      protocol: TCP
+      name: http
+{{- end }}

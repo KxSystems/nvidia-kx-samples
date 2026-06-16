@@ -50,6 +50,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
     - [Change the LLM or Embedding Model](change-model.md)
     - [Customize LLM Parameters at Runtime](llm-params.md)
     - [Customize Prompts](prompt-customization.md)
+    - [Model Inventory (current models + fork upgrades)](model-inventory.md)
     - [Model Profiles for Hardware Configurations](model-profiles.md)
     - [Multi-Collection Retrieval](multi-collection-retrieval.md)
     - [Multi-Turn Conversation Support](multiturn.md)

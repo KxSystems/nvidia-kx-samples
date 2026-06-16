@@ -1,0 +1,70 @@
+{{- if and .Values.nemoGuardrails.enabled .Values.nemoGuardrails.jailbreakDetect.enabled }}
+{{- $g := .Values.nemoGuardrails.jailbreakDetect -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $g.service.name }}
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nemoguard-jailbreak
+spec:
+  replicas: 1
+  {{- if $g.persistence.enabled }}
+  strategy:
+    type: Recreate
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "nvidia-blueprint-rag.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: nemoguard-jailbreak
+  template:
+    metadata:
+      labels:
+        {{- include "nvidia-blueprint-rag.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: nemoguard-jailbreak
+    spec:
+      {{- if .Values.imagePullSecret.name }}
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret.name }}
+      {{- end }}
+      # NIM containers run as uid/gid 1000 (nvs); fsGroup ensures PVC mount is writable
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: nemoguard
+          image: "{{ $g.image.repository }}:{{ $g.image.tag }}"
+          imagePullPolicy: {{ $g.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - containerPort: {{ $g.service.port }}
+          env:
+            - name: NIM_SERVED_MODEL_NAME
+              value: {{ $g.modelName | quote }}
+            - name: NIM_CUSTOM_MODEL_NAME
+              value: {{ $g.modelName | quote }}
+            - name: NGC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ngcApiSecret.name }}
+                  key: NGC_API_KEY
+          {{- if $g.resources }}
+          resources:
+{{ toYaml $g.resources | nindent 12 }}
+          {{- end }}
+          {{- if $g.readinessProbe }}
+          readinessProbe:
+{{ toYaml $g.readinessProbe | nindent 12 }}
+          {{- end }}
+          {{- if $g.persistence.enabled }}
+          volumeMounts:
+            - name: model-cache
+              mountPath: /opt/nim/.cache
+          {{- end }}
+      {{- if $g.persistence.enabled }}
+      volumes:
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: {{ $g.service.name }}-cache
+      {{- end }}
+{{- end }}

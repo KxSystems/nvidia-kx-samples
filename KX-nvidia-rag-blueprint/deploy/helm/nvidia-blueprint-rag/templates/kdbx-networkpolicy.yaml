@@ -1,0 +1,45 @@
+{{- /* nil-safe: a `helm upgrade --reuse-values` from a pre-2.4.0 release has
+       no kdbx.networkPolicy key, and Go templates would nil-deref on
+       .enabled. `and` short-circuits, so guard on the map first. */ -}}
+{{- if and .Values.kdbx.enabled .Values.kdbx.networkPolicy .Values.kdbx.networkPolicy.enabled }}
+# Lock down q IPC (ship-readiness TODO 3.1): an unauthenticated kdb+ listener
+# is code-execution-equivalent for ANY pod that can reach it (`system"..."`
+# over IPC). Only the rag-server and ingestor-server may connect.
+#
+# Notes:
+# - Enforcement requires a CNI that implements NetworkPolicy. On EKS the stock
+#   AWS VPC CNI only enforces when its network-policy controller is enabled
+#   (enableNetworkPolicy: "true" / the aws-network-policy-agent); otherwise
+#   this object is accepted but inert. Calico/Cilium enforce natively.
+# - Ingress-only: egress is left open because the test pod's entrypoint
+#   downloads the cuVS module + CUDA libs at startup.
+# - The liveness/readiness probes are exec probes (q scripts run in-container
+#   against localhost), so they are unaffected by this policy.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.kdbx.fullnameOverride | default "kdbx" }}-ipc
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kdbx
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: kdbx
+      {{- include "nvidia-blueprint-rag.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: rag-server
+              {{- include "nvidia-blueprint-rag.selectorLabels" . | nindent 14 }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: ingestor-server
+              {{- include "nvidia-blueprint-rag.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.kdbx.networkPolicy.port | default 5000 }}
+{{- end }}

@@ -1,0 +1,19 @@
+{{- if and .Values.kdbx.enabled .Values.kdbx.persistence.enabled }}
+# KDB-X Persistent Volume Claim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.kdbx.fullnameOverride | default "kdbx" }}-data
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kdbx
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.kdbx.persistence.size }}
+  {{- if .Values.kdbx.persistence.storageClass }}
+  storageClassName: {{ .Values.kdbx.persistence.storageClass }}
+  {{- end }}
+{{- end }}

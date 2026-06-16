@@ -1,0 +1,83 @@
+{{- if .Values.nemoGuardrails.enabled }}
+{{- /*
+  Three sources of rails configs, merged with later sources winning:
+    1. Template-generated `nemoguard/config.yml` — conditional on which
+       in-cluster safety NIMs are enabled (contentSafety, topicControl,
+       jailbreakDetect). This is the canonical in-cluster config.
+    2. files/guardrails/<configId>/<filename> — verbatim copy of upstream
+       static files (prompts.yml for both configs, plus the cloud config.yml).
+    3. .Values.nemoGuardrails.configStore.configs — inline values overrides;
+       same key shape (configs[configId][filename] = content).
+  Final emitted ConfigMap keys are flattened to '<configId>__<filename>'
+  (k8s rejects '/' in ConfigMap keys); the orchestrator deployment's
+  volume.items maps each back to '<configId>/<filename>' under /config-store.
+*/ -}}
+{{- $merged := dict -}}
+
+{{- /* 1. Generate in-cluster `nemoguard/config.yml` from values */ -}}
+{{- $cs := .Values.nemoGuardrails.contentSafety -}}
+{{- $tc := .Values.nemoGuardrails.topicControl -}}
+{{- $jb := .Values.nemoGuardrails.jailbreakDetect | default (dict "enabled" false) -}}
+{{- if or $cs.enabled $tc.enabled $jb.enabled }}
+  {{- $models := list -}}
+  {{- $inputFlows := list -}}
+  {{- $outputFlows := list -}}
+  {{- if $cs.enabled }}
+    {{- $models = append $models (dict
+        "engine" "nim"
+        "type" "content_safety"
+        "model" $cs.modelName
+        "parameters" (dict "base_url" (printf "http://%s:%d/v1" $cs.service.name (int $cs.service.port)))) -}}
+    {{- $inputFlows = append $inputFlows "content safety check input $model=content_safety" -}}
+    {{- $outputFlows = append $outputFlows "content safety check output $model=content_safety" -}}
+  {{- end }}
+  {{- if $tc.enabled }}
+    {{- $models = append $models (dict
+        "engine" "nim"
+        "type" "topic_control"
+        "model" $tc.modelName
+        "parameters" (dict "base_url" (printf "http://%s:%d/v1" $tc.service.name (int $tc.service.port)))) -}}
+    {{- $inputFlows = append $inputFlows "topic safety check input $model=topic_control" -}}
+  {{- end }}
+  {{- if $jb.enabled }}
+    {{- $models = append $models (dict
+        "engine" "nim"
+        "type" "jailbreak_detection"
+        "model" $jb.modelName
+        "parameters" (dict "base_url" (printf "http://%s:%d/v1" $jb.service.name (int $jb.service.port)))) -}}
+    {{- $inputFlows = append $inputFlows "jailbreak detection input $model=jailbreak_detection" -}}
+  {{- end }}
+  {{- $rails := dict "input" (dict "flows" $inputFlows) -}}
+  {{- if $outputFlows }}
+    {{- $_ := set $rails "output" (dict "flows" $outputFlows) -}}
+  {{- end }}
+  {{- $cfg := dict "models" $models "rails" $rails -}}
+  {{- $_ := set $merged "nemoguard__config.yml" (toYaml $cfg) -}}
+{{- end }}
+
+{{- /* 2. Load static files (prompts.yml from both, plus nemoguard_cloud/config.yml) */ -}}
+{{- range $path, $_ := .Files.Glob "files/guardrails/*/*.yml" -}}
+  {{- $relParts := splitList "/" (trimPrefix "files/guardrails/" $path) -}}
+  {{- $key := printf "%s__%s" (index $relParts 0) (index $relParts 1) -}}
+  {{- $_ := set $merged $key ($.Files.Get $path) -}}
+{{- end -}}
+
+{{- /* 3. Inline overrides win over both file-loaded and generated defaults */ -}}
+{{- range $configId, $files := .Values.nemoGuardrails.configStore.configs -}}
+  {{- range $filename, $content := $files -}}
+    {{- $_ := set $merged (printf "%s__%s" $configId $filename) $content -}}
+  {{- end -}}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-guardrails-config
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+    app.kubernetes.io/component: guardrails-orchestrator
+data:
+  {{- range $key, $content := $merged }}
+  {{ $key }}: |
+{{ $content | indent 4 }}
+  {{- end }}
+{{- end }}

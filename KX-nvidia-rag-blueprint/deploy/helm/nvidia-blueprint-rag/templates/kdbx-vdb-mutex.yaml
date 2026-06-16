@@ -1,0 +1,7 @@
+{{- /*
+  KDB.AI and KDB-X collide on APP_VECTORSTORE_URL and on default rag-storage SC.
+  Enforce mutual exclusion at render time.
+*/ -}}
+{{- if and .Values.kdbai.enabled .Values.kdbx.enabled }}
+{{- fail "Both kdbai.enabled and kdbx.enabled are true. Pick one vector backend per release." }}
+{{- end }}
