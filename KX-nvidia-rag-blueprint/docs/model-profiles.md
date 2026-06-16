@@ -50,7 +50,9 @@ NIM_MODEL_PROFILE=vllm-bf16-tp2-pp1-32c3b968468aefcfb3ea1db5a16e3dc9d64395f02ef6
 
 ### 1xRTX PRO 6000
 ```bash
-NIM_MODEL_PROFILE=tensorrt_llm-rtx6000_blackwell_sv-fp8-tp1-pp1-throughput-2bb5:10de-d21d6986d29d8abf555f35c9a4c8146c4b10595d9e57e6efabd4a026efcc0c4a-1
+# Verified via list-model-profiles on a live RTX PRO 6000 Blackwell (NIM 1.15.5, 2026-06-16).
+# Equivalent profile ID: 1cafe40d906fd2c1f82cdcb56d141212826ad4521124276ee77611e776f1f04a
+NIM_MODEL_PROFILE=tensorrt_llm-rtx6000_blackwell_sv-fp8-tp1-pp1-throughput-pytorch-2bb5:10de-603587f8c487b7440b2a14a89044654ad141f072432604570c5cc8eef48f8bf4-1-true
 ```
 
 > **KDB-X GPU CAGRA on g7e nodes:** For KDB-X GPU CAGRA deployments on g7e nodes,
