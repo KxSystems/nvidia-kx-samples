@@ -1,0 +1,18 @@
+apiVersion: v2
+dependencies:
+- condition: nim-llm.enabled
+  name: nim-llm
+  repository: https://helm.ngc.nvidia.com/nim
+  version: 1.13.1
+# Second, aliased instance of the same nim-llm subchart for self-hosting the
+# Nemotron reasoning model in-chart (off by default). See values: nim-llm-nemotron.
+- condition: nim-llm-nemotron.enabled
+  name: nim-llm
+  alias: nim-llm-nemotron
+  repository: https://helm.ngc.nvidia.com/nim
+  version: 1.13.1
+
+description: A Helm chart for the NVIDIA Trading Agents Blueprint — a multi-agent financial workflow over KDB+/q market data and external market intelligence (news, sentiment, filings, fundamentals, macro), orchestrated for trading insights and decision support
+name: kxta
+type: application
+version: 1.2.0

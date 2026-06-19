@@ -1,0 +1,57 @@
+# Custom values template for AIQ-KX deployment
+# Copy this file and replace placeholder values:
+#   cp examples/values-custom.yaml ../aiq-values.yaml
+#   # Edit aiq-values.yaml with your registry and credentials
+#
+# Usage:
+#   helm upgrade --install kxta ./kxta -n kxta \
+#     -f aiq-values.yaml \
+#     --set imagePullSecret.password="$REGISTRY_PASSWORD" \
+#     --set ngcApiSecret.password="$NVIDIA_API_KEY"
+
+nim-llm:
+  enabled: false
+
+# Redis for KDB job tracking
+redis:
+  enabled: true
+
+# Container Registry Configuration
+# Replace with your registry details
+imagePullSecret:
+  name: "registry-secret"
+  registry: "YOUR_REGISTRY_URL"  # e.g., your-account.dkr.ecr.region.amazonaws.com
+  username: "YOUR_USERNAME"      # e.g., AWS for ECR
+  password: ""                   # Set via --set flag
+  create: true
+
+image:
+  repository: YOUR_REGISTRY_URL/kxta-backend
+  tag: latest
+  pullPolicy: Always
+
+frontend:
+  enabled: true
+  image:
+    repository: YOUR_REGISTRY_URL/kxta-frontend
+    tag: latest
+    pullPolicy: Always
+
+backendEnvVars:
+  INSTRUCT_MODEL_NAME: "meta/llama-3.3-70b-instruct"
+  INSTRUCT_MODEL_TEMP: "0.0"
+  NEMOTRON_MAX_TOKENS: "5000"
+  INSTRUCT_MAX_TOKENS: "20000"
+  INSTRUCT_BASE_URL: "https://integrate.api.nvidia.com/v1"
+  NEMOTRON_MODEL_NAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+  NEMOTRON_MODEL_TEMP: "0.5"
+  NEMOTRON_BASE_URL: "https://integrate.api.nvidia.com/v1"
+  KXTA_APPLY_GUARDRAIL: "false"
+  RAG_SERVER_URL: "http://rag-server.rag.svc.cluster.local:8081"
+  RAG_INGEST_URL: "http://ingestor-server.rag.svc.cluster.local:8082"
+  # KDB+ MCP Server Configuration - Internal deployment
+  KDB_ENABLED: "true"
+  KDB_USE_NAT_CLIENT: "true"
+  KDB_MCP_ENDPOINT: "http://kdb-mcp-kdb-x-mcp-server.aiq.svc.cluster.local:8000/mcp"
+  KDB_MCP_INTERNAL: "true"
+  KDB_TIMEOUT: "30"

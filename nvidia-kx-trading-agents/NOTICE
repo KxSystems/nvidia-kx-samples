@@ -1,0 +1,53 @@
+Copyright (c) 2025 KX Systems, Inc.
+
+This repository is a modified derivative work of the NVIDIA AI-Q Research
+Assistant Blueprint:
+
+    Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+    Licensed under the Apache License, Version 2.0 (the "License").
+    (NVIDIA AI Blueprints — AI-Q Research Assistant)
+
+The original blueprint is used under the terms of the Apache License, Version
+2.0, a copy of which is provided in the LICENSE file. NVIDIA copyright headers
+are retained on original and derived files.
+
+------------------------------------------------------------------------------
+Modifications by KX Systems, Inc.
+------------------------------------------------------------------------------
+
+Substantive modifications made by KX Systems, Inc. relative to the upstream
+blueprint include (non-exhaustive):
+
+  - KDB-X financial time-series integration via the Model Context Protocol.
+  - A pluggable N-source research-agent registry
+    (kxta/src/kxta/source_agents/) that generalizes the upstream
+    RAG/KDB retrieval branch into an arbitrary set of data sources.
+  - Borrowed data-source agents (web_search, market_data, news_headlines,
+    fundamentals, sec_filings, macro_economic).
+  - Source-aware query planning and LLM-chosen per-query source routing.
+  - Agent-activity streaming and a convergent (fan-in) activity UI.
+
+------------------------------------------------------------------------------
+Vendored components
+------------------------------------------------------------------------------
+
+Components under kxta/src/kxta/source_agents/_vendor/ are adapted from the
+following KX Systems internal projects (faithful copies; imports rewritten and
+heavy imports made lazy — no logic changes):
+
+  - "agentic-anomaly-market-research"  (web_search, market_data,
+    news_headlines, fundamentals agents and their tools)
+  - "alpha-agents-strategy-miner"      (sec_filings via SEC EDGAR, and
+    macro_economic via FRED)
+
+Both source projects are owned by KX Systems, Inc.
+
+------------------------------------------------------------------------------
+Third-party dependencies
+------------------------------------------------------------------------------
+
+This software depends on third-party open-source packages, each distributed
+under its own license, including but not limited to: NVIDIA NeMo Agent Toolkit
+(NAT), LangChain / LangGraph, Pydantic, FastAPI, edgartools, fredapi,
+yfinance, and langchain-mcp-adapters. Their licenses govern their respective
+components.

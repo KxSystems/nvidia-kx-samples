@@ -1,0 +1,85 @@
+general:
+  use_uvloop: true
+  front_end:
+    _type: kxta_frontend
+    endpoints:
+      - path: /generate_query
+        method: POST
+        description: Creates the query
+        function_name: generate_query
+      - path: /generate_summary
+        method: POST
+        description: Generates the summary
+        function_name: generate_summary
+      - path: /artifact_qa
+        method: POST
+        description: Q/A or chat about a previously generated artifact
+        function_name: artifact_qa
+      - path: /aiqhealth
+        method: GET
+        description: Health check for the AIQ KXTA service
+        function_name: health_check
+      - path: /default_collections
+        method: GET
+        description: Get the default collections
+        function_name: default_collections
+
+llms:
+  # The inst_llm is used for Q&A and report writing and should be an instruct model.
+  # The default configuration below is assuming a docker compose deployment of KXTA 
+  # that uses local NVIDIA NIM microservices.
+  # Update if you are deploying differently or using hosted NVIDIA NIM microservices.
+  instruct_llm:
+    _type: nim
+    model_name: ${INSTRUCT_MODEL_NAME}
+    temperature: 0.0
+    base_url: ${INSTRUCT_BASE_URL:-http://kxta-instruct-llm:8000/v1}
+    max_tokens: 20000
+    api_key: ${INSTRUCT_API_KEY}
+  # The reasoning llm is used for report planning and reflection and should be a reasoning model
+  # that supports thinking tokens. The default configuration below is used assuming a docker compose
+  # deployment of KXTA and RAG with a local NVIDIA NIM microservice for the nemotron model.
+  # Update if you are deploying differently or using hosted NVIDIA NIM microservices.
+  nemotron:
+    _type: nim
+    model_name : ${NEMOTRON_MODEL_NAME}
+    temperature: 0.5
+    base_url: ${NEMOTRON_BASE_URL:-http://nim-llm-ms:8000/v1}
+    max_tokens: 5000
+    stream: true
+    api_key: ${NEMOTRON_API_KEY}
+  
+
+functions:
+  generate_query:
+    _type: generate_queries
+
+  generate_summary:
+    _type: generate_summaries
+    # update to the IP address of the RAG server if you are not deploying RAG with docker compose
+    rag_url: ${RAG_SERVER_URL:-http://rag-server:8081/v1}
+
+  artifact_qa:
+    _type: artifact_qa
+    llm_name: instruct_llm
+    # update to the IP address of the RAG server if you are not deploying RAG with docker compose
+    rag_url: ${RAG_SERVER_URL:-http://rag-server:8081/v1}
+  
+  health_check:
+    _type: health_check
+
+  default_collections:
+    _type: default_collections
+    # Demo collections shown in the UI's RAG picker. NOTE: each `name` must match a
+    # RAG collection seeded into the deployed RAG server (see data/zip_to_collection.py).
+    collections:
+      - name: "Financial_Dataset"
+        topic: "Equity Research"
+        report_organization: "You are a sell-side equity analyst. Produce a decision-oriented research report on the named company. Organize it as: Market Overview & Price Action; Fundamentals & Valuation (revenue growth, margins, net income, balance-sheet trends); News, Catalysts & Sentiment; Risks & Counter-thesis; and a concluding Trade Thesis & Decision Support. Write in paragraphs, ground every claim in the retrieved sources, cross-analyze them for original conclusions, and present a balanced view with risks. Do not give personalized investment advice. I want a factual report with cited sources."
+      - name: "SEC_Filings_Dataset"
+        topic: "SEC Filings"
+        report_organization: "You are a financial analyst reviewing a company's most recent SEC filings (10-K/10-Q/8-K). Write a report covering: the business and segment overview; the principal risk factors and how they have changed; management's discussion and analysis (MD&A) of results and liquidity; and material disclosures or contingencies. Organize into a brief introduction, as many sections as necessary, and a conclusion. Format your answer in paragraphs, ground every claim in the filings, and do not make unverifiable claims. I want a factual report with cited sources."
+
+
+workflow:
+  _type: ai_researcher

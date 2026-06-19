@@ -1,0 +1,40 @@
+{{- if .Values.frontend.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-frontend
+spec:
+  replicas: {{ .Values.frontend.replicaCount }}
+  selector:
+    matchLabels:
+      app: kxta-frontend
+  template:
+    metadata:
+      labels:
+        app: kxta-frontend
+        tags.datadoghq.com/env: "{{ .Values.datadogEnv }}"
+        tags.datadoghq.com/service: "kxta-frontend"
+        tags.datadoghq.com/version: "{{ .Values.frontend.image.tag }}"
+    spec:
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret.name }}
+      containers:
+        - name: kxta-frontend
+          image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
+          imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.frontend.service.port }}
+              protocol: TCP
+          env:
+            {{- if .Values.frontendEnvVars }}
+            {{- range $k, $v := .Values.frontendEnvVars }}
+            - name: "{{ $k }}"
+              value: "{{ $v }}"
+            {{- end }}
+            {{- end }}
+            - name: HOSTNAME
+              value: "0.0.0.0"
+            - name: INFERENCE_ORIGIN
+              value: http://{{ .Release.Name }}-backend.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+{{- end }}

@@ -1,0 +1,254 @@
+# ------------------------------------------------------------
+# KDB-X MCP Server Helm Chart Values
+# ------------------------------------------------------------
+
+# Deployment mode:
+# - internal: Deploy KDB-X MCP Server as part of this chart (default)
+# - external: Use an external MCP server endpoint
+mode: "internal"
+
+# External MCP Server Configuration (used when mode: "external")
+# When using external mode, the internal deployment is disabled
+# and the AIRA backend connects to this external endpoint
+external:
+  # The MCP server endpoint URL (e.g., https://kdbxmcp.kxailab.com/mcp)
+  endpoint: ""
+  # Optional API key for authenticated external servers
+  apiKey: ""
+  # Connection timeout in seconds
+  timeout: 30
+
+# Internal deployment configuration (used when mode: "internal")
+replicaCount: 1
+
+image:
+  # Build and push to your own registry, or use the Dockerfile provided
+  repository: your-registry/kdb-x-mcp-server
+  tag: "0.1.0"
+  pullPolicy: Always
+
+# Image pull secrets for private registries
+# Example:
+# imagePullSecrets:
+#   - name: my-registry-secret
+imagePullSecrets: []
+
+# Create image pull secret (for private registries like ECR, NGC, etc.)
+imagePullSecret:
+  create: false
+  name: "kdb-mcp-registry-secret"
+  registry: ""  # e.g., "nvcr.io" or "123456789.dkr.ecr.us-east-1.amazonaws.com"
+  username: ""
+  password: ""
+nameOverride: ""
+fullnameOverride: ""
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 8000
+  annotations: {}
+
+# MCP Server Configuration
+mcp:
+  serverName: "KDBX_MCP_Server"
+  logLevel: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  transport: "streamable-http"  # stdio or streamable-http
+  host: "0.0.0.0"
+  port: 8000
+
+# KDB+/KDB-X Database Configuration
+# When kdbx.enabled=true, this is auto-configured to connect to the deployed KDB-X instance
+database:
+  # Leave empty to auto-configure when kdbx.enabled=true
+  host: ""
+  port: 5000
+  username: ""
+  password: ""
+  tls: false
+  timeout: 1
+  retry: 2
+  # Vector search configuration (KDB-X only)
+  metric: "CS"  # CS (Cosine), L2 (Euclidean), IP (Inner Product)
+  k: 5  # Number of results for vector search
+  embeddingCsvPath: ""
+
+# KDB-X Database Deployment (deploy KDB-X alongside MCP server)
+kdbx:
+  # Enable to deploy a KDB-X database instance
+  enabled: false
+
+  # Installation mode:
+  # - "prebuilt": Use a pre-built image (default, requires you to build and push first)
+  # - "runtime": Install KDB-X at container startup (slower startup, but no pre-build required)
+  installMode: "runtime"
+
+  image:
+    # For prebuilt mode: your custom KDB-X image
+    # For runtime mode: base image that will install KDB-X on startup
+    repository: python
+    tag: "3.12-slim-bookworm"
+    pullPolicy: IfNotPresent
+
+  # Build configuration (for building custom KDB-X image)
+  # Use these values with the provided build script or CI/CD pipeline
+  build:
+    # Your custom registry for the built image
+    repository: ""  # e.g., "123456789.dkr.ecr.us-east-1.amazonaws.com/kdb-x"
+    tag: "1.3.0"
+    # KX Portal OAuth bearer token (get from https://portal.kx.com)
+    bearerToken: ""
+    # Base64-encoded KDB-X license content
+    licenseB64: ""
+
+  # Image pull secret for private registry (prebuilt mode)
+  imagePullSecret:
+    create: false
+    name: "kx-registry-secret"
+    registry: ""  # e.g., "123456789.dkr.ecr.us-east-1.amazonaws.com"
+    username: ""
+    password: ""
+
+  # Service configuration
+  service:
+    port: 5000
+
+  # Resources
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+
+# TLS Configuration for KDB+ connection
+tls:
+  enabled: false
+  # Path to CA certificate file (mounted via secret)
+  caCertFile: "/etc/kdb-tls/ca.crt"
+  # Skip certificate verification (development only)
+  verifyServer: true
+
+# Secret configuration for database credentials
+dbSecret:
+  create: true
+  name: "kdb-db-secret"
+  # If not creating, specify existing secret name
+  existingSecret: ""
+
+# Secret for TLS certificates
+tlsSecret:
+  create: false
+  name: "kdb-tls-secret"
+  # CA certificate content (base64 encoded)
+  caCert: ""
+
+# Optional: OpenAI API key for embeddings
+openaiSecret:
+  create: false
+  name: "openai-api-secret"
+  apiKey: ""
+
+# KDB+/KDB-X License Configuration
+# PyKX requires a kdb Insights license for full functionality
+kdbLicense:
+  # Create a secret for the KDB license
+  create: false
+  name: "kdb-license-secret"
+  # License type: "personal" (kc.lic) or "commercial" (k4.lic)
+  type: "personal"
+  # Base64-encoded license content (for KDB_LICENSE_B64 or KDB_K4LICENSE_B64)
+  # You can get this by: cat kc.lic | base64
+  licenseB64: ""
+  # Alternative: path to existing license file (mounted via ConfigMap/Secret)
+  # If set, mounts license to /opt/kx/lic/
+  existingSecret: ""
+
+# Resources
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Pod configuration
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Pod security context
+podSecurityContext: {}
+
+securityContext: {}
+
+# Liveness and readiness probes
+# Note: The MCP server may not have a /health endpoint
+# Use TCP socket check instead of HTTP
+livenessProbe:
+  enabled: false
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 3
+
+readinessProbe:
+  enabled: false
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# Ingress configuration
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: kdb-mcp.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+  #  - secretName: kdb-mcp-tls
+  #    hosts:
+  #      - kdb-mcp.local
+
+# ServiceAccount
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Additional environment variables
+extraEnvVars: []
+  # - name: CUSTOM_VAR
+  #   value: "custom-value"
+
+# Additional volume mounts (e.g., for embedding CSV files)
+extraVolumes: []
+extraVolumeMounts: []
+
+# Pod annotations
+podAnnotations: {}
+
+# Pod labels
+podLabels: {}
+
+# Autoscaling (HPA)
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80

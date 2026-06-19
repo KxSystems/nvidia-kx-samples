@@ -1,0 +1,24 @@
+apiVersion: v2
+name: kdb-x-mcp-server
+description: A Helm chart for KDB-X MCP Server - Model Context Protocol server for KDB+/KDB-X databases
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords:
+  - kdb
+  - kdb+
+  - kdbx
+  - mcp
+  - model-context-protocol
+  - database
+  - time-series
+  - financial-data
+
+home: https://github.com/KxSystems/kdb-x-mcp-server
+sources:
+  - https://github.com/KxSystems/kdb-x-mcp-server
+
+maintainers:
+  - name: KX Systems
+    url: https://kx.com

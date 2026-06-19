@@ -1,0 +1,272 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 KX Systems, Inc. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# AIQ-KX Docker Compose - Full Local Deployment with Self-Hosted NIMs
+#
+# =============================================================================
+# DEVELOPMENT/TESTING ONLY
+# =============================================================================
+# This configuration is intended for development and testing purposes.
+# For production deployments, use Kubernetes (Helm charts) with:
+#   - Horizontal pod autoscaling (HPA)
+#   - Load balancing and high availability
+#   - Proper resource limits and requests
+#   - Production-grade monitoring and alerting
+#   - See: deploy/helm/kxta/ for production deployment
+# =============================================================================
+#
+# Example GPU Allocation (8x NVIDIA RTX PRO 6000 Blackwell), FP8 single-GPU:
+#   - GPU 0: Llama 3.3 70B Instruct (report writing, FP8 TP1, ~70GB)
+#   - GPU 1: Nemotron Super 49B (reasoning, FP8 TP1, ~49GB)
+#   - GPU 2-7: Available for RAG services or additional models
+# FP8 collapses each LLM from 2 GPUs (bf16 TP2) to 1, freeing GPUs 2,3.
+#
+# Usage:
+#   export NGC_API_KEY="nvapi-xxx"
+#   docker compose -f docker-compose-kx-local.yaml up -d
+#
+# Access: http://localhost:3000
+
+services:
+  # =============================================================================
+  # LLM Services (Self-Hosted NIMs)
+  # =============================================================================
+
+  # Llama 3.3 70B Instruct - For report writing and Q&A
+  # NIM 1.x image (TRT-LLM), parity with nemotron. FP8 (~70GB) fits one 96GB GPU
+  # (TP1); 1 GPU auto-selects FP8 TP1 (bf16 ~140GB won't fit). ~26GB KV headroom —
+  # NIM_MAX_MODEL_LEN capped at 32K keeps it comfortable.
+  llm-instruct:
+    container_name: llm-instruct
+    image: nvcr.io/nim/meta/llama-3.3-70b-instruct:1.15.5
+    ports:
+      - "8051:8000"
+    environment:
+      NGC_API_KEY: ${NGC_API_KEY}
+      NIM_MAX_MODEL_LEN: ${NIM_MAX_MODEL_LEN:-32768}
+    volumes:
+      - nim-cache-instruct:/opt/nim/.cache
+    shm_size: 32gb
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['0']
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
+      interval: 30s
+      timeout: 20s
+      retries: 100
+      start_period: 300s
+    networks:
+      - kxta-network
+
+  # Nemotron Super 49B - For reasoning and query planning
+  # FP8 (~49GB) fits one 96GB GPU (TP1). NIM 1.x image → 1 GPU auto-selects the
+  # FP8 TP1 profile (bf16 ~98GB won't fit). For bf16 TP2, restore device_ids ['2','3'].
+  llm-nemotron:
+    container_name: llm-nemotron
+    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.15.5
+    ports:
+      - "8052:8000"
+    environment:
+      NGC_API_KEY: ${NGC_API_KEY}
+      NIM_MODEL_PROFILE: ${NIM_MODEL_PROFILE:-}
+      NIM_MAX_MODEL_LEN: ${NIM_MAX_MODEL_LEN:-32768}
+      NIM_MAX_BATCH_SIZE: ${NIM_MAX_BATCH_SIZE:-32}
+      NIM_KV_CACHE_FREE_GPU_MEM_FRACTION: ${NIM_KV_CACHE_FREE_GPU_MEM_FRACTION:-0.90}
+      NIM_ENABLE_CHUNKED_PREFILL: ${NIM_ENABLE_CHUNKED_PREFILL:-1}
+      NIM_MAX_CONCURRENT_REQUESTS: ${NIM_MAX_CONCURRENT_REQUESTS:-64}
+    volumes:
+      - nim-cache-nemotron:/opt/nim/.cache
+    shm_size: 32gb
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['1']
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
+      interval: 30s
+      timeout: 20s
+      retries: 100
+      start_period: 300s
+    networks:
+      - kxta-network
+
+  # =============================================================================
+  # KDB-X MCP Server
+  # Installs from GitHub at runtime - no pre-built image needed
+  # =============================================================================
+
+  kdb-mcp-server:
+    container_name: kdb-mcp-server
+    image: ghcr.io/astral-sh/uv:python3.12-bookworm
+    ports:
+      - "8000:8000"
+    environment:
+      KDBX_MCP_TRANSPORT: "streamable-http"
+      KDBX_MCP_HOST: "0.0.0.0"
+      KDBX_MCP_PORT: "8000"
+      KDBX_MCP_LOG_LEVEL: "INFO"
+      KDBX_DB_HOST: "${KDBX_DB_HOST:-localhost}"
+      KDBX_DB_PORT: "${KDBX_DB_PORT:-5000}"
+      KDBX_DB_TLS: "false"
+      # KX License (required) - Base64 encoded license file
+      # Personal license: export KDB_LICENSE_B64=$(cat kc.lic | base64)
+      # Commercial license: export KDB_K4LICENSE_B64=$(cat k4.lic | base64)
+      KDB_LICENSE_B64: "${KDB_LICENSE_B64:-}"
+      KDB_K4LICENSE_B64: "${KDB_K4LICENSE_B64:-}"
+    networks:
+      - kxta-network
+    volumes:
+      # Mount entrypoint script for patches
+      - ../helm/kdb-x-mcp-server/entrypoint.sh:/entrypoint.sh:ro
+    working_dir: /app
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        set -e
+        echo "=== Installing KDB-X MCP Server at runtime ==="
+
+        # Install git for cloning
+        apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates
+
+        # Clone the MCP server repository
+        echo "=== Cloning kdb-x-mcp-server from GitHub ==="
+        cd /app
+        git clone --depth 1 https://github.com/KxSystems/kdb-x-mcp-server.git .
+        rm -rf .git
+
+        # Install dependencies
+        echo "=== Installing dependencies with uv ==="
+        uv sync
+
+        # Upgrade PyKX to latest beta
+        echo "=== Upgrading PyKX ==="
+        uv pip install --upgrade "pykx>=4.0.0b4"
+
+        # Create license directory
+        mkdir -p /opt/kx/lic
+
+        # Run the entrypoint script (handles license setup and patches)
+        echo "=== Running entrypoint script ==="
+        cp /entrypoint.sh /tmp/entrypoint.sh
+        chmod +x /tmp/entrypoint.sh
+        export PATH="/app/.venv/bin:$PATH"
+        exec /tmp/entrypoint.sh
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/localhost/8000' 2>/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 180s
+
+  # =============================================================================
+  # AIQ-KX Application
+  # =============================================================================
+
+  # AIQ-KX Backend
+  kxta-backend:
+    container_name: kxta-backend
+    image: ${KXTA_BACKEND_IMAGE:-kxta-backend:local}
+    ports:
+      - "3838:3838"
+    volumes:
+      - ../../configs:/app/configs:ro
+    command: ["uv", "run", "nat", "serve", "--config_file", "/app/configs/docker-config.yml", "--host", "0.0.0.0", "--port", "3838"]
+    environment:
+      # Use local LLMs
+      INSTRUCT_BASE_URL: "http://llm-instruct:8000/v1"
+      NEMOTRON_BASE_URL: "http://llm-nemotron:8000/v1"
+      INSTRUCT_MODEL_NAME: "meta/llama-3.3-70b-instruct"
+      NEMOTRON_MODEL_NAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+
+      # KDB Configuration - Internal MCP server deployed by this compose
+      KDB_ENABLED: "true"
+      KDB_MCP_ENDPOINT: "http://kdb-mcp-server:8000/mcp"
+      KDB_MCP_INTERNAL: "true"  # Enables data loader (write operations)
+      KDB_TIMEOUT: "30"
+
+      # Optional APIs
+      NVIDIA_API_KEY: ${NGC_API_KEY:-}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      # Source agent API keys (optional; each source is available when its key is set)
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      ALPHAVANTAGE_API_KEY: ${ALPHAVANTAGE_API_KEY:-}
+      SEC_EDGAR_EMAIL: ${SEC_EDGAR_EMAIL:-kxta@example.com}
+      FRED_API_KEY: ${FRED_API_KEY:-}
+
+      # RAG (optional)
+      # RAG_SERVER_URL: "http://rag-server:8081/v1"
+      # RAG_INGEST_URL: "http://ingestor-server:8082/v1"
+
+      # Settings
+      KXTA_APPLY_GUARDRAIL: "false"
+      KXTA_HOSTED_NIMS: "false"
+
+      # Redis
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      REDIS_URL: "redis://redis:6379"
+    depends_on:
+      llm-instruct:
+        condition: service_healthy
+      llm-nemotron:
+        condition: service_healthy
+      kdb-mcp-server:
+        condition: service_started
+      redis:
+        condition: service_started
+    networks:
+      - kxta-network
+
+  # AIQ-KX Frontend
+  kxta-frontend:
+    container_name: kxta-frontend
+    image: ${KXTA_FRONTEND_IMAGE:-kxta-frontend:local}
+    ports:
+      - "3000:3000"
+    environment:
+      INFERENCE_ORIGIN: "http://kxta-backend:3838"
+      VITE_API_BASE_URL: "http://kxta-backend:3838"
+    depends_on:
+      - kxta-backend
+    networks:
+      - kxta-network
+
+  # Redis for job tracking
+  redis:
+    container_name: kxta-redis
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - kxta-network
+
+# =============================================================================
+# Volumes & Networks
+# =============================================================================
+
+volumes:
+  nim-cache-instruct:
+    driver: local
+  nim-cache-nemotron:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  kxta-network:
+    driver: bridge
