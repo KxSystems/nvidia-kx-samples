@@ -1,4 +1,4 @@
-# AI Trader Agents — Sequence Diagrams
+# AI Trading Agents — Sequence Diagrams
 
 These diagrams describe the runtime flow of the orchestration loop:
 **Plan → Route → Reflect → Write**. The three public endpoints
@@ -185,7 +185,7 @@ sequenceDiagram
     User->>+FE: POST /kdb/chat<br/>{message: "Show NVDA trades today"}
     FE-->>User: SSE: {event: "thinking", data: "Planning query..."}
     FE->>+Client: simple_chat_query(message)
-    Client->>+MCP: initialize() → discover AIRA-owned tables & schema
+    Client->>+MCP: initialize() → discover KXTA-owned tables & schema
     MCP-->>-Client: Available tables, columns, types
     Client->>+LLM: Generate SQL from NL + schema
     LLM-->>-Client: SELECT ... FROM trades WHERE sym=`NVDA ...

@@ -316,7 +316,7 @@ backendEnvVars:
   KDB_ENABLED: "true"
   KDB_USE_NAT_CLIENT: "true"
   # For internal mode:
-  KDB_MCP_ENDPOINT: "http://kdb-mcp-kdb-x-mcp-server.aiq.svc.cluster.local:8000/mcp"
+  KDB_MCP_ENDPOINT: "http://kdb-mcp-kdb-x-mcp-server.kxta.svc.cluster.local:8000/mcp"
   # For external mode:
   # KDB_MCP_ENDPOINT: "https://kdbxmcp.kxailab.com/mcp"
   KDB_TIMEOUT: "30"

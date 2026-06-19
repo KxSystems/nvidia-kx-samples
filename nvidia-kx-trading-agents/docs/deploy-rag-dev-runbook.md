@@ -2,12 +2,13 @@
 
 This documents the deployment used for live testing: running KXTA **inside an
 existing NVIDIA RAG cluster** (`rag-dev`, us-west-2, account `590780615264`) so
-that **all nine source agents are available in one place** — including
-Documents (RAG) via the in-cluster `rag-server`, and KDB-X via the cluster's
-existing `kdbx` database.
+that **all eleven source agents are available in one place** (plus the synthetic
+`web` fallback) — including Documents (RAG) via the in-cluster `rag-server`, and
+KDB-X via the cluster's existing `kdbx` database.
 
-Result: `rag`, `kdb`, `web_search`, `market_data`, `news_headlines`,
-`fundamentals`, `sec_filings`, `macro_economic`, `web` — all `available`.
+Result: `rag`, `kdb`, `kdb_docs`, `kdb_pit`, `onetick`, `web_search`,
+`market_data`, `news_headlines`, `fundamentals`, `sec_filings`,
+`macro_economic` (plus the synthetic `web` fallback) — all `available`.
 
 ---
 

@@ -1,7 +1,7 @@
-# AI Trader Agents Blueprint Documentation
+# AI Trading Agents Blueprint Documentation
 
-Welcome to the **AI Trader Agents** documentation (a KX variant of the NVIDIA AI-Q
-Research Assistant blueprint). AI Trader Agents is an on-premise, multi-agent system for
+Welcome to the **AI Trading Agents** documentation (a KX variant of the NVIDIA AI-Q
+Research Assistant blueprint). AI Trading Agents is an on-premise, multi-agent system for
 financial research: an orchestrator plans research queries, routes each to the best-fit
 source agent (KDB-X market data, documents, web, news, fundamentals, filings, macro),
 judges and reroutes on relevance, then writes a citation-backed report. The following

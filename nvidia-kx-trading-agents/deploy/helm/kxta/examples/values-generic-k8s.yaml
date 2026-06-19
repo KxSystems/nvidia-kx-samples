@@ -85,7 +85,7 @@ backendEnvVars:
 
   # KDB-X Configuration - uses internal MCP server (deployed separately)
   KDB_ENABLED: "true"
-  KDB_MCP_ENDPOINT: "http://kdb-mcp-kdb-x-mcp-server.aiq.svc.cluster.local:8000/mcp"
+  KDB_MCP_ENDPOINT: "http://kdb-mcp-kdb-x-mcp-server.kxta.svc.cluster.local:8000/mcp"
   KDB_TIMEOUT: "30"
 
   # Guardrails

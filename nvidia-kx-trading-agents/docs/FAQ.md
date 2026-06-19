@@ -36,7 +36,7 @@ File types supported by Nvidia-Ingest are supported by this blueprint. This incl
 
 ## Can I use Custom RAG or Other Data Sources?
 
-The RAG service in this blueprint is accessed by a REST API call; compatible services with the same API can be used instead. Beyond RAG, AI Trader Agents ships an extensible **source-agent registry** with 11 agents — KDB-X (`kdb` time-series, `kdb_docs` documents, `kdb_pit` point-in-time), `onetick`, `market_data`, `news_headlines`, `fundamentals`, `sec_filings`, `macro_economic`, `web_search`, and `rag`. Each agent declares its own availability and routing rules; new sources are added by registering an agent in `kxta/src/kxta/source_agents/`. See [What's Different from AI-Q](./whats-different-from-aiq.md).
+The RAG service in this blueprint is accessed by a REST API call; compatible services with the same API can be used instead. Beyond RAG, AI Trading Agents ships an extensible **source-agent registry** with 11 agents — KDB-X (`kdb` time-series, `kdb_docs` documents, `kdb_pit` point-in-time), `onetick`, `market_data`, `news_headlines`, `fundamentals`, `sec_filings`, `macro_economic`, `web_search`, and `rag`. Each agent declares its own availability and routing rules; new sources are added by registering an agent in `kxta/src/kxta/source_agents/`. See [What's Different from AI-Q](./whats-different-from-aiq.md).
 
 ## Can it Run Without the RAG Blueprint?
 
@@ -60,7 +60,7 @@ The main driver of report length is the number of queries in the report plan. Ad
 
 ## Has the Tool Been Evaluated?
 
-The AI Trader Agents is evaluated using metrics such as accuracy, groundness, and context relevance. For more information about evaluations, see the [evaluation page](./evaluate.md).
+The AI Trading Agents is evaluated using metrics such as accuracy, groundness, and context relevance. For more information about evaluations, see the [evaluation page](./evaluate.md).
 
 ## How are the REST Endpoints Served?
 

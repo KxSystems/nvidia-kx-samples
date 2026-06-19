@@ -1,7 +1,7 @@
 # Change Log
 
-Unreleased — AI Trader Agents (KX edition)
-- Re-targeted the blueprint as **AI Trader Agents**: a multi-agent financial-research
+Unreleased — AI Trading Agents (KX edition)
+- Re-targeted the blueprint as **AI Trading Agents**: a multi-agent financial-research
   system over KDB-X market data and external market intelligence (derived from the
   NVIDIA AI-Q Research Assistant; see `NOTICE` and `docs/whats-different-from-aiq.md`)
 - Added an **11-source agent registry** with per-query routing (planner tag → keyword →
@@ -26,7 +26,7 @@ Unreleased — AI Trader Agents (KX edition)
 - **Standalone (no-RAG) support** — the `rag` agent is reachability-gated, so the
   blueprint runs as KDB-X + external agents + the two LLMs without the RAG blueprint
 - Backend hardening: HPA/PDB, client-disconnect cancellation, context-truncation guard,
-  KDB chat/agent scoped to AIRA-owned tables
+  KDB chat/agent scoped to KXTA-owned tables
 - Documentation overhaul (README, architecture/sequence diagrams, REST API reference,
   configuration reference, troubleshooting, deployment guides)
 

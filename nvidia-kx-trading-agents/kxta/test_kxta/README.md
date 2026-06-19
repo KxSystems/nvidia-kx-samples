@@ -1,6 +1,6 @@
-## Testing AI Trader Agents
+## Testing AI Trading Agents
 
-AI Trader Agents is a complex system with many integrations, which can make testing hard. Currently there are a few tests to avoid regressions. To run them: 
+AI Trading Agents is a complex system with many integrations, which can make testing hard. Currently there are a few tests to avoid regressions. To run them: 
 
 Open the `kxta` directory. Create a virtual environment using uv, and then run:
 
@@ -35,7 +35,7 @@ The mock rag web server is designed to validate the inputs from web_research, an
 uv run pytest test_kxta/test_module_loads.py 
 ```
 
-This test requires docker. The test runs the docker compose build of the AI Trader Agents backend and then confirms that the resulting image can start the AIQ webserver and that the AI Trader Agents functions can all be properly imported.
+This test requires docker. The test runs the docker compose build of the AI Trading Agents backend and then confirms that the resulting image can start the AIQ webserver and that the AI Trading Agents functions can all be properly imported.
 
 ### Test configmap structure
 
@@ -54,7 +54,7 @@ The `-s` flag enables output of the hierarchical key comparison, which is helpfu
 
 ### Test artifact QA functionality
 
-**Requires running RAG server and proper AI Trader Agents config.yaml file**
+**Requires running RAG server and proper AI Trading Agents config.yaml file**
 
 ```bash
 uv run pytest test_kxta/test_artifact_qa.py -s
@@ -74,7 +74,7 @@ Each test verifies:
 - Proper integration with the workflow builder
 - Model validation of input data
 
-The `-s` flag enables output of the test execution, including any logging messages from the AI Trader Agents backend.
+The `-s` flag enables output of the test execution, including any logging messages from the AI Trading Agents backend.
 
 ### Test query generation
 
@@ -93,11 +93,11 @@ Each test verifies:
 - Query structure and content (query, report_section, and rationale fields)
 - Model validation of input data
 
-The `-s` flag enables output of the test execution, including any logging messages from the AI Trader Agents backend.
+The `-s` flag enables output of the test execution, including any logging messages from the AI Trading Agents backend.
 
 ### Test summary generation
 
-**Requires running RAG server and proper AI Trader Agents config.yaml file**
+**Requires running RAG server and proper AI Trading Agents config.yaml file**
 
 ```bash
 uv run pytest test_kxta/test_generate_summary.py -s
@@ -116,5 +116,5 @@ Each test verifies:
 - Model validation of input data
 - Correct intermediate stream results
 
-The `-s` flag enables output of the test execution, including any logging messages from the AI Trader Agents backend.
+The `-s` flag enables output of the test execution, including any logging messages from the AI Trading Agents backend.
 

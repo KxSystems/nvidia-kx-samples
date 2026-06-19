@@ -15,9 +15,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# AI Trader Agents Helm Chart Examples (KDB-X)
+# AI Trading Agents Helm Chart Examples (KDB-X)
 
-This directory contains example Helm values files for deploying AI Trader Agents with KDB-X.
+This directory contains example Helm values files for deploying AI Trading Agents with KDB-X.
 
 ## Important: Image Hosting
 
@@ -33,6 +33,8 @@ include the KDB-X integration / source agents.
 | `values-generic-k8s.yaml` | On-premise / Self-hosted | Your registry | Any K8s |
 | `values-docker-hub.yaml` | Docker Hub images | Docker Hub | Any K8s |
 | `values-private-registry.yaml` | Enterprise registries | Harbor, GitLab, etc. | Any K8s |
+| `values-custom.yaml` | Custom single-source / minimal deployment | Your registry | Any K8s |
+| `values-hybrid.yaml` | Hybrid KDB-X + RAG deployment | Your registry | Any K8s |
 
 ## Building the Images
 

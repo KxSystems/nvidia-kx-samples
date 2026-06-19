@@ -1,10 +1,10 @@
 # Prompt Content Filtering Tests
 
-This guide covers basic testing of prompt content filtering in the AI Trader Agents application.
+This guide covers basic testing of prompt content filtering in the AI Trading Agents application.
 
 ## Overview
 
-AI Trader Agents implements **pattern-based content filtering** for user prompts. This validates user input to detect and reject prompts containing suspicious text patterns that may indicate prompt injection attempts.
+AI Trading Agents implements **pattern-based content filtering** for user prompts. This validates user input to detect and reject prompts containing suspicious text patterns that may indicate prompt injection attempts.
 
 ### What This Does:
 - **Instruction Override Detection** - Blocks prompts containing patterns like "ignore all instructions"
@@ -301,7 +301,7 @@ blocked_patterns: []
 
 ```bash
 # Check if server is responding
-curl http://localhost:3838/health  # or your BASE_URL
+curl http://localhost:3838/aiqhealth  # or your BASE_URL
 ```
 
 ### Timeout Errors

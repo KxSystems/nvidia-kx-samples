@@ -1,13 +1,13 @@
-# Get Started with AI Trader Agents Using Docker Compose
+# Get Started with AI Trading Agents Using Docker Compose
 
-This guide describes how to deploy the AI Trader Agents using Docker.
+This guide describes how to deploy the AI Trading Agents using Docker.
 
 ## Prerequisites 
 
 
 1. This blueprint depends on the [NVIDIA RAG blueprint](https://github.com/KxSystems/nvidia-kx-samples/tree/main/KX-nvidia-rag-blueprint). The deployment guide includes instructions for deploying RAG using docker compose, but please consult the latest RAG documentation as well. The RAG blueprint requires NVIDIA NIM microservices that are either running on-premise or hosted by NVIDIA, including the Nemo Retriever microservices and LLM, by default Llama 3.3 Nemotron Super 49B. For a self-contained local deployment, 2xH100, 3xA100, 3xB200 or 2xRTX PRO 6000 GPUs are required.
 
-2. In addition to the LLM used by RAG, Llama 3.3 Nemotron Super 49B (llama-3_3-nemotron-super-49b-v1_5), the AI Trader Agents also requires access to the Llama 3.3 Instruct 70B (llama-3.3-70b-instruct) model. Deploying this model requires an additional 2xB200, 2xH100 GPUs, 4xA100 GPUs or 2xRTX PRO 6000 GPUs.
+2. In addition to the LLM used by RAG, Llama 3.3 Nemotron Super 49B (llama-3_3-nemotron-super-49b-v1_5), the AI Trading Agents also requires access to the Llama 3.3 Instruct 70B (llama-3.3-70b-instruct) model. Deploying this model requires an additional 2xB200, 2xH100 GPUs, 4xA100 GPUs or 2xRTX PRO 6000 GPUs.
 
 3. Docker Compose
 
@@ -36,7 +36,7 @@ Access the following NVIDIA NIM microservices
 - Llama Nemotron 3.3 Super 49B
 
 ## Deployment using on-prem
-This section demonstrates how to deploy AI Trader Agents.
+This section demonstrates how to deploy AI Trading Agents.
 
 ### Git clone
 
@@ -44,7 +44,7 @@ Clone the aiq-research-assistant and set it as the working directory:
 
 ```bash
 git clone https://github.com/KxSystems/nvidia-kx-samples.git
-cd nvidia-kx-samples/KX-AIQ-nvidia-rag-blueprint
+cd nvidia-kx-samples/nvidia-kx-trading-agents
 ```
 
 ### Setup Environment Variables
@@ -93,7 +93,7 @@ export MODEL_DIRECTORY=~/.cache/model-cache
 
 ### Deploy RAG
 
-Before deploying the AI Trader Agents, deploy RAG by following [these instructions](https://github.com/KxSystems/nvidia-kx-samples/blob/main/KX-nvidia-rag-blueprint/docs/deploy-docker-self-hosted.md).
+Before deploying the AI Trading Agents, deploy RAG by following [these instructions](https://github.com/KxSystems/nvidia-kx-samples/blob/main/KX-nvidia-rag-blueprint/docs/deploy-docker-self-hosted.md).
 
 ```bash
 git clone https://github.com/KxSystems/nvidia-kx-samples.git
@@ -256,7 +256,7 @@ To confirm that the deployment was successful, run `docker ps --format "table {{
 kxta-instruct-llm                Up 5 minutes (healthy)
 ```
 
-### Deploy the AI Trader Agents
+### Deploy the AI Trading Agents
 
 This step deploys the KXTA backend, KXTA proxy, and the pre-built KXTA demo frontend. The KXTA demo frontend is provided as a pre-built docker container containing a fully functional web application. The source code for this web application is not distributed.
 
@@ -285,7 +285,7 @@ localhost:3838/docs
 
 ### Add Default Collections
 
-The AI Trader Agents demo web application requires two default collections. One collection supports a biomedical research prompt and contains reports on Cystic Fibrosis. The second supports a financial research prompt and contains public financial documents from Alphabet, Meta, and Amazon. To pre-populate RAG with these two collections, run:
+The AI Trading Agents demo web application requires two default collections. One collection supports a biomedical research prompt and contains reports on Cystic Fibrosis. The second supports a financial research prompt and contains public financial documents from Alphabet, Meta, and Amazon. To pre-populate RAG with these two collections, run:
 
 ```bash
 docker run \
@@ -318,7 +318,7 @@ Troubleshooting tips if the default collection creation fails:
 
 To stop all services, run the following commands in order:
 
-1. Stop the AI Trader Agents services:
+1. Stop the AI Trading Agents services:
 ```bash
 docker compose -f deploy/compose/docker-compose.yaml --profile kxta down
 ```
@@ -364,9 +364,9 @@ docker ps
 
 To deploy using hosted NVIDIA NIM microservices, follow the instructions for [deploying the RAG blueprint using hosted models](https://github.com/KxSystems/nvidia-kx-samples/blob/main/KX-nvidia-rag-blueprint/docs/deploy-docker-nvidia-hosted.md). 
 
-### Update AI Trader Agents Configuration 
+### Update AI Trading Agents Configuration 
 
-Edit the *AI-Q configuration file* located at `configs/config.yml`. 
+Edit the *AI Trading Agents configuration file* located at `configs/config.yml`. 
 
 Update the following values, leaving the rest of the file with the default values.
 
@@ -390,7 +390,7 @@ Edit the *Docker Compose file* located at `deploy/compose/docker-compose.yaml`.
   > **WARNING:** The rag ingest IP address must be resolvable outside the docker network, so addresses such as `localhost` or `rag-server` will not work. Currently only http addresses are supported. HTTPS rag deployments, or authenticated RAG deployments, will require updates to the NGINX proxy.
 
 
-### Deploy AI Trader Agents
+### Deploy AI Trading Agents
 
 ```bash
 # Uncomment and run this command if you have deployed RAG on a different server
@@ -416,7 +416,7 @@ export KDB_LICENSE_B64=$(cat kc.lic | base64 | tr -d '\n')
 # Verify the nvidia-rag network exists
 docker network ls | grep nvidia-rag
 
-# Deploy AI Trader Agents (connects to existing NIMs)
+# Deploy AI Trading Agents (connects to existing NIMs)
 docker compose -f deploy/compose/docker-compose-kx-reuse-nim.yaml up -d
 ```
 
@@ -456,7 +456,7 @@ curl -s http://localhost:3838/kdb/status | jq .
 echo "Frontend available at: http://localhost:3000"
 ```
 
-For full KDB-X deployment instructions, see the [AI Trader Agents Deployment Guide](../kxta-deployment-guide.md).
+For full KDB-X deployment instructions, see the [AI Trading Agents Deployment Guide](../kxta-deployment-guide.md).
 
 ## Troubleshooting
 

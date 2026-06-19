@@ -52,6 +52,6 @@ backendEnvVars:
   # KDB+ MCP Server Configuration - Internal deployment
   KDB_ENABLED: "true"
   KDB_USE_NAT_CLIENT: "true"
-  KDB_MCP_ENDPOINT: "http://kdb-mcp-kdb-x-mcp-server.aiq.svc.cluster.local:8000/mcp"
+  KDB_MCP_ENDPOINT: "http://kdb-mcp-kdb-x-mcp-server.kxta.svc.cluster.local:8000/mcp"
   KDB_MCP_INTERNAL: "true"
   KDB_TIMEOUT: "30"

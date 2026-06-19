@@ -1,6 +1,6 @@
 # Get Started with NVIDIA AI Workbench 
 
-The AI-Q NVIDIA Research Assistant Blueprint allows you to create a deep research assistant that can run on-premise, allowing anyone to create detailed research reports using on-premise data and web search.
+AI Trading Agents allows you to create a deep research assistant that can run on-premise, allowing anyone to create detailed research reports using on-premise data and web search.
 
 > **Note**
 > This Blueprint runs in [NVIDIA AI Workbench](https://docs.nvidia.com/ai-workbench/user-guide/latest/overview/introduction.html). It is a free, lightweight developer platform that you can run on your own systems to get up and running with complex AI applications and workloads quickly.
@@ -25,7 +25,7 @@ The main research agent is written in LangGraph and managed using NVIDIA NeMo Ag
 - **Parallel Search**: During the research phase, multiple research questions are searched in parallel. For each query, the RAG service is consulted and an LLM-as-a-judge is used to check the relevancy of the results. If more information is needed, a fallback web search is performed. This search approach ensures internal documents are given preference over generic web results while maintaining accuracy. Performing query search in parallel allows for many data sources to be consulted in an efficient manner.
 - **Human-in-the-loop**: Human feedback on the report plan, interactive report edits, and Q&A with the final report.
 - **Data Sources**: Integration with the NVIDIA RAG blueprint to search multimodal documents with text, charts, and tables. Optional web search through Tavily.
-- **Demo Web Application**: Frontend web application showcasing end-to-end use of the AI Trader Agents.
+- **Demo Web Application**: Frontend web application showcasing end-to-end use of the AI Trading Agents.
 
 [Read More](../../README.md)
 

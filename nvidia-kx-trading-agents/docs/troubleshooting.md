@@ -1,10 +1,10 @@
-# Troubleshooting for AI Trader Agents
+# Troubleshooting for AI Trading Agents
 
 The software components in the blueprint interact in the following way:
 
-![architecture](/docs/images/kxta-service-architecture.png)
+![architecture](/docs/images/reference_architecture.png)
 
-Start troubleshooting by narrowing down which sub-service is failing. The first step is to determine if the UI is misconfigured, the middleware proxy, or the backend. We also recommend following the RAG blueprint documentation to ensure RAG is fully functional prior to deploying the AI Trader Agents.
+Start troubleshooting by narrowing down which sub-service is failing. The first step is to determine if the UI is misconfigured, the middleware proxy, or the backend. We also recommend following the RAG blueprint documentation to ensure RAG is fully functional prior to deploying the AI Trading Agents.
 
 ## Errors with Collections or Document Upload
 
@@ -45,22 +45,22 @@ For additional known issues related to the RAG Blueprint, see the [CHANGELOG](ht
 
 To identify errors with Rreport planning generation, follow the steps below.
 
-1. Attempt to connect to the AI Trader Agents backend API. In a browser, navigate to http://kxta-backend:3838/docs, replacing `<kxta-backend>` with the *PUBLIC* IP address of the AI Trader Agents service or `localhost`. Use the API docs to run the `/generate_query`. If the docs do not load, check the AI Trader Agents services logs `docker logs kxta-backend -f`. 
+1. Attempt to connect to the AI Trading Agents backend API. In a browser, navigate to http://kxta-backend:3838/docs, replacing `<kxta-backend>` with the *PUBLIC* IP address of the AI Trading Agents service or `localhost`. Use the API docs to run the `/generate_query`. If the docs do not load, check the AI Trading Agents services logs `docker logs kxta-backend -f`. 
 
-2. If the docs load, but the example API request fails or the UI stalls after saying "Generating queries", the issue will likely be with the `nemotron` model configuration in the AI Trader Agents configuration file. Verify this model configuration is correct, and attempt to make a sample request directly to the LLM. Example requests are provided on `build.nvidia.com`.
+2. If the docs load, but the example API request fails or the UI stalls after saying "Generating queries", the issue will likely be with the `nemotron` model configuration in the AI Trading Agents configuration file. Verify this model configuration is correct, and attempt to make a sample request directly to the LLM. Example requests are provided on `build.nvidia.com`.
 
 
 ## Errors with Q&A
 
 To identify errors with Q&A, follow the steps below.
 
-1. Attempt to connect to the AI Trader Agents backend API. In a browser, navigate to http://kxta-backend:3838/docs, replacing `<kxta-backend>` with the *PUBLIC* IP address of the AI Trader Agents service or `localhost`. Use the API docs to run the `/artifact_qa` call. If the docs do not load, check the AI Trader Agents services logs `docker logs kxta-backend -f`. 
+1. Attempt to connect to the AI Trading Agents backend API. In a browser, navigate to http://kxta-backend:3838/docs, replacing `<kxta-backend>` with the *PUBLIC* IP address of the AI Trading Agents service or `localhost`. Use the API docs to run the `/artifact_qa` call. If the docs do not load, check the AI Trading Agents services logs `docker logs kxta-backend -f`. 
 
-2. If the docs load, but the example API request fails or the UI stalls after showing "AIQ Thinking", the issue is likely with the `instruct_llm` model configuration in the AI Trader Agents configuration file. Verify this model configuration is correct, and attempt to make a sample request directly to the LLM. Example requests are provided on https://build.nvidia.com.
+2. If the docs load, but the example API request fails or the UI stalls after showing "AIQ Thinking", the issue is likely with the `instruct_llm` model configuration in the AI Trading Agents configuration file. Verify this model configuration is correct, and attempt to make a sample request directly to the LLM. Example requests are provided on https://build.nvidia.com.
 
 ## Errors with RAG Search During Report Generation
 
-Ensure you have appropriately configured the `rag_url` settings in the AI Trader Agents configuration file, or provided appropriate values in the helm `values.yaml` file.
+Ensure you have appropriately configured the `rag_url` settings in the AI Trading Agents configuration file, or provided appropriate values in the helm `values.yaml` file.
 
 If you are using one of the default report topics and prompts, ensure you have [loaded the default collections](./get-started/get-started-docker-compose.md#add-default-collections).
 
@@ -173,7 +173,7 @@ kubectl -n kxta exec deployment/kxta-backend -- env | grep KDB_ENABLED
 
 # Verify MCP endpoint is reachable from backend
 kubectl -n kxta exec deployment/kxta-backend -- \
-  curl -s http://kdb-mcp-kdb-x-mcp-server.aiq.svc.cluster.local:8000/mcp \
+  curl -s http://kdb-mcp-kdb-x-mcp-server.kxta.svc.cluster.local:8000/mcp \
   -X POST -H "Content-Type: application/json" \
   -d '{"jsonrpc": "2.0", "method": "tools/list", "id": 1}'
 
@@ -210,8 +210,6 @@ echo "$KDB_LICENSE_B64" | base64 -d | head -1
 kubectl -n kxta logs deployment/kxta-backend --tail=100 | grep -i "Generated SQL"
 # Verify column names are quoted: SELECT "date", "open", "close" FROM daily
 ```
-
-If queries still fail, ensure you're using the latest `kdb-discovery` image tag.
 
 ### KDB Queries Return Empty Results
 

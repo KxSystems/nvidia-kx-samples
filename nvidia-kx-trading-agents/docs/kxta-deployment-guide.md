@@ -15,9 +15,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# AI Trader Agents — KDB-X Deployment Guide
+# AI Trading Agents — KDB-X Deployment Guide
 
-A comprehensive guide for deploying the AI Trader Agents with KDB-X (KX) financial data integration.
+A comprehensive guide for deploying the AI Trading Agents with KDB-X (KX) financial data integration.
 
 ## Table of Contents
 
@@ -45,7 +45,7 @@ A comprehensive guide for deploying the AI Trader Agents with KDB-X (KX) financi
 
 ### What it is
 
-AI Trader Agents integrates with KDB-X, a high-performance time-series database optimized for financial data. This guide covers the KDB-X-enabled deployment, which enables:
+AI Trading Agents integrates with KDB-X, a high-performance time-series database optimized for financial data. This guide covers the KDB-X-enabled deployment, which enables:
 
 - **Real-time financial data queries** - Access stock prices, trading volumes, and market data
 - **Historical data analysis** - Query years of tick-by-tick financial data
@@ -323,20 +323,22 @@ imagePullSecrets:
 
 ### Example Values Files
 
-Pre-configured examples are available in `deploy/helm/kxta/examples/`:
+The default values file lives at the chart root (`deploy/helm/kxta/values.yaml`). Pre-configured examples are available in `deploy/helm/kxta/examples/`:
 
 | File | Description |
 |------|-------------|
-| `values.yaml` (default) | Build-and-push template — set `image.repository` to your registry |
-| `values-generic-k8s.yaml` | Minimal config for any K8s cluster |
-| `values-hybrid.yaml` | Hybrid cloud + on-prem deployment |
-| `values-private-registry.yaml` | Enterprise private registry template |
+| `deploy/helm/kxta/values.yaml` (default) | Build-and-push template — set `image.repository` to your registry |
+| `examples/values-custom.yaml` | Customized deployment overrides |
+| `examples/values-docker-hub.yaml` | Pull images from Docker Hub |
+| `examples/values-generic-k8s.yaml` | Minimal config for any K8s cluster |
+| `examples/values-hybrid.yaml` | Hybrid cloud + on-prem deployment |
+| `examples/values-private-registry.yaml` | Enterprise private registry template |
 
 ---
 
 ## Deployment Options
 
-AI Trader Agents supports two deployment modes for KDB-X integration:
+AI Trading Agents supports two deployment modes for KDB-X integration:
 
 ### Option 1: External KDB-X MCP Server (Recommended for Production)
 
@@ -391,7 +393,7 @@ See [Docker Compose Deployment](#docker-compose-deployment) section below.
 
 ## Docker Compose Deployment
 
-This section covers deploying AI Trader Agents using Docker Compose on a single server.
+This section covers deploying AI Trading Agents using Docker Compose on a single server.
 
 ### Docker Compose Prerequisites
 
@@ -480,7 +482,7 @@ Add automatic loading to your `.bashrc` or `.zshrc`:
 ```bash
 # Add to ~/.bashrc (for bash) or ~/.zshrc (for zsh)
 echo '
-# Load AI Trader Agents environment variables
+# Load AI Trading Agents environment variables
 if [ -f ~/.config/kxta/env ]; then
     source ~/.config/kxta/env
 fi
@@ -508,12 +510,12 @@ If you already have the NVIDIA RAG blueprint running with NIMs:
 ```bash
 # Clone the repository
 git clone https://github.com/KxSystems/nvidia-kx-samples.git
-cd nvidia-kx-samples/KX-AIQ-nvidia-rag-blueprint
+cd nvidia-kx-samples/nvidia-kx-trading-agents
 
 # Verify the nvidia-rag network exists
 docker network ls | grep nvidia-rag
 
-# Deploy AI Trader Agents (connects to existing NIMs)
+# Deploy AI Trading Agents (connects to existing NIMs)
 docker compose -f deploy/compose/docker-compose-kx-reuse-nim.yaml up -d
 
 # Watch startup logs
@@ -597,7 +599,7 @@ If you already have a KDB-X MCP server running, use this quick start:
 ```bash
 # 1. Clone the repository
 git clone https://github.com/KxSystems/nvidia-kx-samples.git
-cd nvidia-kx-samples/KX-AIQ-nvidia-rag-blueprint
+cd nvidia-kx-samples/nvidia-kx-trading-agents
 
 # 2. Set required environment variables
 export NVIDIA_API_KEY="nvapi-xxx"
@@ -623,7 +625,7 @@ kubectl -n kxta port-forward svc/kxta-frontend 3000:3000
 
 ## Full Deployment (Internal KDB-X)
 
-This section provides step-by-step instructions for deploying AI Trader Agents with an internal KDB-X database and MCP server.
+This section provides step-by-step instructions for deploying AI Trading Agents with an internal KDB-X database and MCP server.
 
 ### Prerequisites for Internal Deployment
 
@@ -636,7 +638,7 @@ Before starting, you'll need:
 
 ### Obtaining Required Credentials
 
-This section explains how to obtain all credentials needed for AI Trader Agents deployment.
+This section explains how to obtain all credentials needed for AI Trading Agents deployment.
 
 #### 1. NVIDIA API Key (Required)
 
@@ -753,7 +755,7 @@ ECR_PASSWORD=$(aws ecr get-login-password --region us-east-1)
 ```bash
 # Clone the repository
 git clone https://github.com/KxSystems/nvidia-kx-samples.git
-cd nvidia-kx-samples/KX-AIQ-nvidia-rag-blueprint
+cd nvidia-kx-samples/nvidia-kx-trading-agents
 
 # Verify cluster access
 kubectl cluster-info
@@ -771,7 +773,7 @@ export ECR_REGISTRY="123456789.dkr.ecr.us-east-1.amazonaws.com"
 ### Step 2: Create Namespace
 
 ```bash
-kubectl create namespace aiq
+kubectl create namespace kxta
 ```
 
 ### Step 3: Deploy KDB-X MCP Server
@@ -830,7 +832,7 @@ kubectl -n kxta get pods -l app.kubernetes.io/instance=kdb-mcp
 kubectl -n kxta logs deployment/kdb-mcp-kdb-x-mcp-server --tail=20
 ```
 
-### Step 4: Deploy AI Trader Agents Backend and Frontend
+### Step 4: Deploy AI Trading Agents Backend and Frontend
 
 The `aiq-values.yaml` should point to the internal KDB-X MCP server:
 
@@ -842,7 +844,7 @@ backendEnvVars:
   # KDB-X Configuration - Internal MCP server
   KDB_ENABLED: "true"
   KDB_USE_NAT_CLIENT: "true"
-  KDB_MCP_ENDPOINT: "http://kdb-mcp-kdb-x-mcp-server.aiq.svc.cluster.local:8000/mcp"
+  KDB_MCP_ENDPOINT: "http://kdb-mcp-kdb-x-mcp-server.kxta.svc.cluster.local:8000/mcp"
   KDB_TIMEOUT: "30"
 ```
 
@@ -852,7 +854,7 @@ Deploy the main application:
 # Get ECR password if expired
 ECR_PASSWORD=$(aws ecr get-login-password --region us-east-1 --profile $AWS_PROFILE)
 
-# Deploy AI Trader Agents
+# Deploy AI Trading Agents
 helm upgrade --install kxta deploy/helm/kxta \
   -n kxta \
   -f deploy/helm/kxta/aiq-values.yaml \
@@ -888,7 +890,7 @@ kubectl -n kxta exec deployment/kxta-backend -- curl -s http://localhost:3838/ai
 
 # Test MCP connectivity from backend
 kubectl -n kxta exec deployment/kxta-backend -- \
-  curl -s http://kdb-mcp-kdb-x-mcp-server.aiq.svc.cluster.local:8000/mcp \
+  curl -s http://kdb-mcp-kdb-x-mcp-server.kxta.svc.cluster.local:8000/mcp \
   -X POST -H "Content-Type: application/json" \
   -d '{"jsonrpc": "2.0", "method": "tools/list", "id": 1}'
 # Should return a JSON response (even if error, confirms connectivity)
@@ -979,7 +981,7 @@ backendEnvVars:
 
 ## Loading Historical Data
 
-The AI Trader Agents blueprint includes a data loader for populating KDB-X with historical stock data.
+The AI Trading Agents blueprint includes a data loader for populating KDB-X with historical stock data.
 
 > **Warning: Testing & Development Only**
 >
@@ -991,7 +993,7 @@ The AI Trader Agents blueprint includes a data loader for populating KDB-X with 
 > - Data includes synthetic intraday trades/quotes generated from real daily OHLCV
 > - For production systems, use proper ETL pipelines with appropriate data governance
 >
-> This feature enables quick testing of the AI Trader Agents integration without requiring a pre-configured KDB-X database with financial data.
+> This feature enables quick testing of the AI Trading Agents integration without requiring a pre-configured KDB-X database with financial data.
 
 > **Note:** When deploying with internal KDB-X (`kdbx.enabled: true`), the database comes **pre-loaded with sample data** for immediate testing:
 > - **Date Range**: 2023-2024
@@ -1152,7 +1154,7 @@ kubectl -n kxta get deployment kxta-backend -o jsonpath='{.spec.template.spec.co
 
 # Test MCP connectivity from backend
 kubectl -n kxta exec deployment/kxta-backend -- \
-  curl -s http://kdb-mcp-kdb-x-mcp-server.aiq.svc.cluster.local:8000/mcp \
+  curl -s http://kdb-mcp-kdb-x-mcp-server.kxta.svc.cluster.local:8000/mcp \
   -X POST -H "Content-Type: application/json" \
   -d '{"jsonrpc": "2.0", "method": "tools/list", "id": 1}'
 ```
@@ -1169,7 +1171,7 @@ kubectl -n kxta logs deployment/kxta-frontend --tail=20
 kubectl -n kxta get deployment kxta-frontend -o jsonpath='{.spec.template.spec.containers[0].env}'
 
 # The INFERENCE_ORIGIN should match the backend service name:
-# http://kxta-backend.aiq.svc.cluster.local:3838
+# http://kxta-backend.kxta.svc.cluster.local:3838
 
 # If using custom release name, update accordingly
 ```
@@ -1370,7 +1372,7 @@ kubectl -n kxta port-forward svc/kxta-frontend 3000:3000 &
 
 ### Kubernetes Secrets Configuration
 
-AI Trader Agents uses Kubernetes secrets to securely store sensitive credentials. This section explains how secrets are created, used, and managed.
+AI Trading Agents uses Kubernetes secrets to securely store sensitive credentials. This section explains how secrets are created, used, and managed.
 
 #### Secret Architecture
 
@@ -1490,7 +1492,7 @@ This happens when a secret was created outside of Helm management:
 # Option 1: Adopt the secret into Helm release
 kubectl -n kxta annotate secret ngc-api \
   meta.helm.sh/release-name=kxta \
-  meta.helm.sh/release-namespace=aiq
+  meta.helm.sh/release-namespace=kxta
 kubectl -n kxta label secret ngc-api \
   app.kubernetes.io/managed-by=Helm
 

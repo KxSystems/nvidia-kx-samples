@@ -1,4 +1,4 @@
-# What's Different — AI Trader Agents vs. NVIDIA AI-Q Research Assistant
+# What's Different — AI Trading Agents vs. NVIDIA AI-Q Research Assistant
 
 This blueprint is a modified derivative of the **NVIDIA AI-Q Research Assistant**
 blueprint (Apache-2.0, see [`NOTICE`](../NOTICE)). It keeps AI-Q's three-stage

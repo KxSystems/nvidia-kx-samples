@@ -15,9 +15,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# AI Trader Agents Evaluation Suite
+# AI Trading Agents Evaluation Suite
 
-A complete evaluation framework for AI Trader Agents workflows, featuring **automatic dataset preprocessing** and comprehensive assessment of AI-generated research reports.
+A complete evaluation framework for AI Trading Agents workflows, featuring **automatic dataset preprocessing** and comprehensive assessment of AI-generated research reports.
 
 > Evaluation runs the full `generate_summary` orchestration loop — the reports
 > scored below are produced by the same source-agent routing, relevancy gate, and
@@ -37,9 +37,9 @@ The evaluation suite now **automatically generates missing evaluation fields** f
 ### Required Versions
 - **Python 3.12+**
 
-### RAG/AI-Q Deployment Required
+### RAG/KXTA Deployment Required
 - **RAG Server**: Must be deployed and accessible for document retrieval
-- **AI-Q Backend Services**: Instruct LLM, Nemotron, and other backend services must be running
+- **KXTA Backend Services**: Instruct LLM, Nemotron, and other backend services must be running
 - **Default Collections**: Biomedical and Financial datasets must be loaded into RAG (required for evaluation)
 
 **Deployment Options:**
@@ -59,7 +59,7 @@ If you encounter dependency conflicts, reference the tested dependency versions 
 
 ## Quick Start
 
-**Interactive Tutorial**: For a step-by-step walkthrough of the evaluation process, see the [AI-Q Evaluation Tutorial Notebook](../notebooks/kxta_evaluation_tutorial.ipynb) which provides hands-on examples and detailed explanations.
+**Interactive Tutorial**: For a step-by-step walkthrough of the evaluation process, see the [AI Trading Agents Evaluation Tutorial Notebook](../notebooks/kxta_evaluation_tutorial.ipynb) which provides hands-on examples and detailed explanations.
 
 ### 1. Branch Checkout
 After cloning the repository, make sure to checkout to the correct branch:
@@ -411,7 +411,7 @@ kxta/                      # KXTA workflow package
 │       ├── generator_register.py     # Registers generator entry-points
 │       ├── evaluator_register.py     # Registers evaluator entry-points
 │       └── schema.py                 # Pydantic data models
-│   └── test_kxta/             # Unit / integration tests
+├── test_kxta/                 # Unit / integration tests
 ├── configs/                   # YAML configuration files (e.g. eval_config.yml)
 ├── data/                      # Example dataset (eval_dataset.json, sample zips)
 ├── notebooks/                 # Jupyter notebooks (kxta_evaluation tutorial here)

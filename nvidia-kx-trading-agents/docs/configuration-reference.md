@@ -17,7 +17,7 @@ limitations under the License.
 
 # Configuration Reference
 
-This document provides a comprehensive reference for all configurable values in the AI Trader Agents.
+This document provides a comprehensive reference for all configurable values in the AI Trading Agents.
 
 ## Table of Contents
 
@@ -109,7 +109,7 @@ How each mode self-hosts the two **required** LLMs:
 
 ### Standalone (no RAG)
 
-The NVIDIA RAG blueprint is **optional**. AI Trader Agents boots and serves without
+The NVIDIA RAG blueprint is **optional**. AI Trading Agents boots and serves without
 it: the `rag` agent is gated on a TCP reachability probe of `RAG_SERVER_URL`, so when
 RAG is absent it simply reports *"RAG not deployed"* and drops out of routing — nothing
 crashes. A standalone deployment is therefore **KDB-X + the external

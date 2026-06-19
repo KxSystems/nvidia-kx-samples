@@ -2,7 +2,7 @@
 
 ## Overview 
 
-The AI Trader Agents web demo allows users to test with two default collections:
+The AI Trading Agents web demo allows users to test with two default collections:
 
 - Biomedical_Dataset: Scientific journals on the Cystic Fibrosis CFTR gene from 2021-2024
 - Financial_Dataset: Financial reports from Apple, Facebook, Google, Meta from 2020-2024
@@ -46,7 +46,7 @@ uv venv --python 3.12 --python-preference managed
 uv run pip install -r data/requirements.txt
 ```
 
-Copy the zip files you wnat to upload to the current directory:
+Copy the zip files you want to upload to the current directory:
 
 ```bash
 cd data

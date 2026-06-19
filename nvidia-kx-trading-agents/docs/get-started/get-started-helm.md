@@ -3,25 +3,25 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Get Started with AI Trader Agents Helm Deployment
+# Get Started with AI Trading Agents Helm Deployment
 
-This guide provides instructions for deploying the NVIDIA AI Trader Agents blueprint using Helm on a Kubernetes cluster.
+This guide provides instructions for deploying the AI Trading Agents blueprint using Helm on a Kubernetes cluster.
 
 ## Prerequisites 
 
 
-1. A NGC API key that is able to access the AI-Q blueprint images. A key can be generated at https://org.ngc.nvidia.com/setup/api-keys. For **Services Included**, select **NGC Catalog** and **Public API Endpoints**.
+1. A NGC API key that is able to access the AI Trading Agents images. A key can be generated at https://org.ngc.nvidia.com/setup/api-keys. For **Services Included**, select **NGC Catalog** and **Public API Endpoints**.
 2. Kubernetes and Helm with [NVIDIA GPU Operator installed](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/getting-started.html#operator-install-guide). This helm chart was tested on [Cloud Native Stack](https://github.com/NVIDIA/cloud-native-stack?tab=readme-ov-file)
 3. [Optional] A Tavily API key to support web search.
 
 ## Hardware Requirements
 
-The AI Trader Agents blueprint requires the deployment of the NVIDIA RAG blueprint. To deploy both blueprints using Helm requires the following hardware configurations:
+The AI Trading Agents blueprint requires the deployment of the NVIDIA RAG blueprint. To deploy both blueprints using Helm requires the following hardware configurations:
 
 | Option | RAG Deployment | KXTA Deployment | Total Hardware Requirement |
 |--------|----------------|-----------------|---------------------------|
-| Single Node - MIG Sharing | [Use MIG sharing](https://github.com/KxSystems/nvidia-kx-samples/blob/main/KX-nvidia-rag-blueprint/docs/mig-deployment.md) | [Default Deployment](#deploy-the-ai-q-research-assistant) | 4 x H100 80GB for RAG<br/>2 x H100 80GB for KXTA<br/> |
-| Multi Node | [Default Deployment](https://github.com/KxSystems/nvidia-kx-samples/blob/main/KX-nvidia-rag-blueprint/docs/deploy-helm.md) | [Default Deployment](#deploy-the-ai-q-research-assistant) | 8 x H100 80GB for RAG<br/>2 x H100 80GB for KXTA<br/>---<br/>9 x A100 80GB for RAG<br/>4 x A100 80GB for KXTA<br/>---<br/>9 x B200 for RAG<br/>2 x B200 for KXTA<br/>---<br/>8 x RTX PRO 6000 for RAG<br/>2 x RTX PRO 6000 for KXTA |
+| Single Node - MIG Sharing | [Use MIG sharing](https://github.com/KxSystems/nvidia-kx-samples/blob/main/KX-nvidia-rag-blueprint/docs/mig-deployment.md) | [Default Deployment](#deploy-the-ai-trading-agents) | 4 x H100 80GB for RAG<br/>2 x H100 80GB for KXTA<br/> |
+| Multi Node | [Default Deployment](https://github.com/KxSystems/nvidia-kx-samples/blob/main/KX-nvidia-rag-blueprint/docs/deploy-helm.md) | [Default Deployment](#deploy-the-ai-trading-agents) | 8 x H100 80GB for RAG<br/>2 x H100 80GB for KXTA<br/>---<br/>9 x A100 80GB for RAG<br/>4 x A100 80GB for KXTA<br/>---<br/>9 x B200 for RAG<br/>2 x B200 for KXTA<br/>---<br/>8 x RTX PRO 6000 for RAG<br/>2 x RTX PRO 6000 for KXTA |
 
 > **Note:** Mixed MIG support requires GPU operator 25.3.2 or higher and NVIDIA Driver 570.172.08 or higher.
 
@@ -31,7 +31,7 @@ The AI Trader Agents blueprint requires the deployment of the NVIDIA RAG bluepri
 
 Follow the [NVIDIA RAG blueprint Helm deployment guide](https://github.com/KxSystems/nvidia-kx-samples/blob/main/KX-nvidia-rag-blueprint/docs/deploy-helm.md).
 
-### Deploy the AI Trader Agents
+### Deploy the AI Trading Agents
 
 #### Set environment variables
 
@@ -49,29 +49,18 @@ git clone https://github.com/KxSystems/nvidia-kx-samples.git
 #### Navigate to the helm chart directory
 
 ```bash
-cd nvidia-kx-samples/KX-AIQ-nvidia-rag-blueprint/deploy/helm
+cd nvidia-kx-samples/nvidia-kx-trading-agents/deploy/helm
 ```
 
-#### Create a namespace for AIQ helm chart
+#### Create a namespace for the KXTA helm chart
 
 ```bash
-kubectl create namespace aiq
+kubectl create namespace kxta
 ```
 
 #### Deploy the chart
 
-To deploy pre-built chart from NGC:
-
-```bash
-helm install kxta https://helm.ngc.nvidia.com/nvidia/blueprint/charts/kxta-v1.2.0.tgz \
---username='$oauthtoken'  \
---password=$NGC_API_KEY \
---set imagePullSecret.password=$NGC_API_KEY \
---set ngcApiSecret.password=$NGC_API_KEY \
---set tavilyApiSecret.password=$TAVILY_API_KEY -n kxta
-```
-
-To deploy from source:
+This repository does not publish pre-built charts; deploy from source:
 
 ```bash
 helm install kxta kxta/ \
@@ -108,7 +97,7 @@ helm install kxta kxta/ \
 ```
 
 For KDB-X (the `kdb`, `kdb_docs`, and `kdb_pit` agents) and the KDB-X MCP server,
-see the [AI Trader Agents Deployment Guide](../kxta-deployment-guide.md). The full list of
+see the [AI Trading Agents Deployment Guide](../kxta-deployment-guide.md). The full list of
 variables is in the [Configuration Reference](../configuration-reference.md).
 
 **Self-hosting the LLM NIMs:** the chart bundles a local Instruct NIM
@@ -212,7 +201,7 @@ The UI can also be viewed from outside the cluster at: `http://<cluster-node-nam
 
 ## Create Default Collections
 
-The AI-Q NVIDIA Research Assistant demo web application requires two default collections. One collection supports a biomedical research prompt and contains reports on Cystic Fibrosis. The second supports a financial research prompt and contains public financial documents from Alphabet, Meta, and Amazon.
+The AI Trading Agents demo web application requires two default collections. One collection supports a biomedical research prompt and contains reports on Cystic Fibrosis. The second supports a financial research prompt and contains public financial documents from Alphabet, Meta, and Amazon.
 
 Follow the steps in [Bulk Upload via Python](../../data/readme.md#bulk-upload-via-python) to create these default collections.
 
@@ -223,7 +212,7 @@ This adds KDB-X time-series database integration for real-time financial data qu
 ### Quick Setup (Using Docker Hub Images)
 
 ```bash
-# Deploy AI Trader Agents with pre-built images (no KDB license required for external MCP)
+# Deploy AI Trading Agents with pre-built images (no KDB license required for external MCP)
 helm upgrade --install kxta deploy/helm/kxta \
   -n kxta --create-namespace \
   -f deploy/helm/kxta/examples/values-docker-hub.yaml \
@@ -250,7 +239,7 @@ kubectl -n kxta port-forward svc/kxta-backend 3838:3838 &
 curl -s http://localhost:3838/kdb/status | jq .
 ```
 
-For full KDB-X deployment instructions including internal database setup, see the [AI Trader Agents Deployment Guide](../kxta-deployment-guide.md).
+For full KDB-X deployment instructions including internal database setup, see the [AI Trading Agents Deployment Guide](../kxta-deployment-guide.md).
 
 ## Stopping Services
 
@@ -268,6 +257,6 @@ helm delete rag -n rag
 
 3. Delete the namespaces:
 ```bash
-kubectl delete namespace aiq
+kubectl delete namespace kxta
 kubectl delete namespace rag
 ```

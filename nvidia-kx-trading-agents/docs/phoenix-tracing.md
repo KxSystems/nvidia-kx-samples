@@ -1,6 +1,6 @@
 # Phoenix Tracing Configuration for Docker Deployment
 
-This guide describes how to enable Phoenix tracing for both the AI Trader Agents and RAG components in a Docker-based deployment.
+This guide describes how to enable Phoenix tracing for both the AI Trading Agents and RAG components in a Docker-based deployment.
 
 ## Deploy Phoenix Dashboard
 
@@ -20,9 +20,9 @@ services:
 
 This will deploy a Phoenix server accessible at port 6006.
 
-## Enable Phoenix Tracing in AI Trader Agents
+## Enable Phoenix Tracing in AI Trading Agents
 
-Update the AI Trader Agents configuration file (`configs/config.yml`) to include telemetry settings:
+Update the AI Trading Agents configuration file (`configs/config.yml`) to include telemetry settings:
 
 ```yaml
 general:
@@ -68,7 +68,7 @@ If you encounter pydantic version errors, add `"pydantic==2.10.6"` to your `pypr
 Traces from different services appear as separate traces in the dashboard:
 - RAG server: "POST /generate"
 - Ingest server: "http-submit-job"
-- AgentIQ: function names (e.g., "generate_queries", "generate_summary")
+- KXTA: function names (e.g., "generate_queries", "generate_summary")
 
 This is being addressed with distributed tracing implementation.
 

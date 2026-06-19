@@ -1,10 +1,12 @@
-# AI-Q NVIDIA Research Assistant Blueprint - API Interaction and Deployment Notebooks
+# AI Trading Agents - API Interaction and Deployment Notebooks
 
 ## Overview
-This repository contains a Jupyter notebook demonstrating the usage of NVIDIA Agent Intelligence Research Assistant (AI Trader Agents) Blueprint APIs.
+This repository contains Jupyter notebooks demonstrating the usage of AI Trading Agents APIs.
 
-### Notebook:
-- **`get_started_nvidia_api.ipynb`**: Demonstrates how to deploy AI Trader Agents, explore backend APIs, and create reports.
+### Notebooks:
+- **`get_started_nvidia_api.ipynb`**: Get-started API walkthrough — deploy AI Trading Agents, explore backend APIs, and create reports.
+- **`kxta_evaluation_tutorial.ipynb`**: Evaluation tutorial — run the evaluation framework against the research workflow.
+- **`test_rest_apis.ipynb`**: REST API smoke-test — exercise the backend REST endpoints to verify they respond correctly.
 
 
 ## Setting Up the Environment
@@ -36,7 +38,7 @@ Once running, you can access JupyterLab by navigating to `http://<your-server-ip
 - Navigate to the desired notebook and run the cells sequentially.
 
 ## Deployment (Brev.dev)
-For deploying `get_started_nvidia_api.ipynb` in [brev.dev](https://console.brev.dev/environment/new), follow the platform's instructions for executing Jupyter notebooks within a cloud-based environment selected based on the hardware requirements specified in the launchable.
+For deploying the notebooks (e.g. `get_started_nvidia_api.ipynb`) in [brev.dev](https://console.brev.dev/environment/new), follow the platform's instructions for executing Jupyter notebooks within a cloud-based environment selected based on the hardware requirements specified in the launchable.
 
 ## Notes
 - Ensure API keys and credentials are correctly set up before making API requests.

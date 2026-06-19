@@ -1,8 +1,8 @@
-# API Documentation for AI-Q NVIDIA Research Assistant Blueprint
+# API Documentation for AI Trading Agents
 
-The AI Trader Agents uses APIs provided by the NVIDIA RAG blueprint and the AI Trader Agents backend. An [example notebook](/notebooks/test_rest_apis.ipynb) is also provided for testing the backend service.
+The AI Trading Agents uses APIs provided by the NVIDIA RAG blueprint and the AI Trading Agents backend. An [example notebook](/notebooks/test_rest_apis.ipynb) is also provided for testing the backend service.
 
-## AI Trader Agents Service Endpoints 
+## AI Trading Agents Service Endpoints 
 
 1.  **Generate Summary (Stream)**
     *   **Method**: `POST`
@@ -15,25 +15,23 @@ The AI Trader Agents uses APIs provided by the NVIDIA RAG blueprint and the AI T
         *   `search_web` (boolean)
         *   `rag_collection` (string, name of the collection to use for RAG)
         *   `reflection_count` (integer, number of times the agent should revise the first draft with new queries and sections)
-        *   `llm_name` (string, name of the LLM in the AI Trader Agents configuration file to use for report generation, typically "nemotron")
+        *   `llm_name` (string, name of the LLM in the AI Trading Agents configuration file to use for report generation, typically "nemotron")
     *   **Response**: Server-Sent Events (SSE) stream. JSON objects within the stream can represent intermediate thinking steps (e.g., `{"intermediate_step": "..."}`) or the final report content (e.g., `{"final_report": "...", "citations": [...]}`).
 
 2.  **Generate Query (Stream)**
     *   **Method**: `POST`
-    *   **Default Path**: `/generate_query/stream`
-    *   **Env Var**: `GENERATE_QUERY_STREAM_ENDPOINT`
+    *   **Default Path**: `/generate_query/stream` (fixed; configured by the service, not overridable via an environment variable)
     *   **Description**: Generates research queries based on a topic and report structure, streaming tokens.
     *   **Request**: JSON payload including:
         *   `topic` (string)
         *   `report_organization` (string, a prompt containing the desired report structure and details) 
         *   `num_queries` (integer)
-        *   `llm_name` (string, name of the LLM in the AI Trader Agents configuration file to use for report generation, typically "nemotron")
+        *   `llm_name` (string, name of the LLM in the AI Trading Agents configuration file to use for report generation, typically "nemotron")
     *   **Response**: Server-Sent Events (SSE) stream. JSON objects within the stream can represent intermediate thinking steps (e.g., `{"intermediate_step": "..."}`) or the final list of queries (e.g., `{"queries": [...]}`).
 
 3.  **Artifact Q&A / Edit**
     *   **Method**: `POST`
-    *   **Default Path**: `/artifact_qa`
-    *   **Env Var**: `ARTIFACT_QA_ENDPOINT`
+    *   **Default Path**: `/artifact_qa` (fixed; configured by the service, not overridable via an environment variable)
     *   **Description**: Performs question/answering about a given text artifact or allows editing the artifact based on instructions.
     *   **Request**: JSON payload including:
         *   `artifact` (string, the current text of the report or queries)
@@ -107,7 +105,7 @@ requires `KDB_MCP_INTERNAL=true` and a direct `KDB_DB_HOST`.
 
 ## NVIDIA RAG Endpoints - RAG Server 
 
-The NVIDIA RAG blueprint provides a rag server, typically running on port 8081. These endpoints are used by AI Trader Agents code to send queries to RAG, parsing the response and citation for use in report generation. See the NVIDIA RAG blueprint [API schema](https://github.com/KxSystems/nvidia-kx-samples/blob/main/KX-nvidia-rag-blueprint/docs/api_reference/openapi_schema_rag_server.json) for full details.
+The NVIDIA RAG blueprint provides a rag server, typically running on port 8081. These endpoints are used by AI Trading Agents code to send queries to RAG, parsing the response and citation for use in report generation. See the NVIDIA RAG blueprint [API schema](https://github.com/KxSystems/nvidia-kx-samples/blob/main/KX-nvidia-rag-blueprint/docs/api_reference/openapi_schema_rag_server.json) for full details.
 
 1.  **Generate**
     *   **Method**: `POST`

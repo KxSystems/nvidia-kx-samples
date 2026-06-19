@@ -12,13 +12,13 @@ uv venv --python 3.12 --python-preference managed
 uv pip install -e ".[dev]"
 ```
 
-Update the configuration file located at `configs/config.yaml`, providing values for a RAG deployment and your reasoning and instruct LLMs. The configuration file includes comments on what values to update.
+Update the configuration file located at `configs/config.yml`, providing values for a RAG deployment and your reasoning and instruct LLMs. The configuration file includes comments on what values to update.
 
 **Note**: Both NVIDIA Build and local deployments use the same model name format:
 - **NVIDIA Build**: `nvidia/llama-3.3-nemotron-super-49b-v1.5` (with dots)  
 - **Local Deployment**: `nvidia/llama-3.3-nemotron-super-49b-v1.5` (with dots)
 
-The configuration files are set up for local deployments using the underscore format.
+The configuration files are set up for local deployments using the dot format.
 
 Run the backend service:
 
@@ -62,7 +62,7 @@ To run the developer unit tests, follow the instructions in `test_kxta/README.md
 
 ## Developer Architecture
 
-One of the main benefits of the AI Trader Agents is the ability to do human-in-the-loop intervention in the deep research process, and to do so at scale via a stateless REST interface. This capability is achieved by breaking the deep research process into 3 distinct steps:
+One of the main benefits of the AI Trading Agents is the ability to do human-in-the-loop intervention in the deep research process, and to do so at scale via a stateless REST interface. This capability is achieved by breaking the deep research process into 3 distinct steps:
 
 1. `generate_queries` (**Plan**) - takes the user's desired report structure and asks the reasoning model (Nemotron 49B) to create relevant research queries. The planner is told which source agents are enabled/available and tags each query with a preferred source.
 2. `generate_summary` (**Route → Reflect → Write**) - takes the research questions and desired report structure and performs deep research: each query is routed to the best-fit source agent(s), results are relevance-checked and rerouted on a miss, gaps are filled in reflection loops, and the findings are written into a citation-backed report (Llama 3.3 70B).

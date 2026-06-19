@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Hybrid Search Enhancement Plan for AI Trader Agents
+# Hybrid Search Enhancement Plan for AI Trading Agents
 
 > **⚠️ Superseded — historical design note.** This document describes the original
 > v1.0 binary KDB+/RAG "hybrid search" and a forward-looking roadmap. The system
@@ -383,7 +383,7 @@ INFO - HYBRID SEARCH complete. Sources used: KDB+, RAG
 
 ```bash
 # Run hybrid search tests
-uv run pytest test_kxta/test_search_utils.py -k "hybrid" -v
+uv run pytest kxta/test_kxta/test_search_utils_unit.py -k "hybrid" -v
 ```
 
 ---
