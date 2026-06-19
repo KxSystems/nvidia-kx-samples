@@ -10,6 +10,7 @@ This repository contains samples that highlight the combination of KX and NVIDIA
 | [KX-AIQ-nvidia-rag-blueprint](KX-AIQ-nvidia-rag-blueprint) | **AI-Q Research Assistant with KDB-X** - Deep research assistant that creates detailed reports using on-premise data and web search. Includes KDB-X financial data integration for real-time and historical time-series analysis. Pre-built Docker images available on KX Portal. |
 | [NVIDIA_accelerated_RAG](NVIDIA_accelerated_RAG) | **Accelerated RAG Notebook** - Jupyter notebook demonstrating KDB.AI with NVIDIA NeMo Retriever, RAPIDS cuVS, and NIM LLMs. Shows ingestion and querying of vector embeddings with GPU acceleration. |
 | [ai-model-distillation-for-financial-data](ai-model-distillation-for-financial-data) | **AI Model Distillation for Financial Data** - Production-ready developer example demonstrating how to distill large language models into smaller, cost-efficient models for financial workloads using the NVIDIA Data Flywheel Blueprint. Built on NVIDIA NeMo Microservices and KDB-X, it shows how to fine-tune and evaluate student models for financial news classification, achieving teacher-model accuracy while reducing inference costs by up to 98%. |
+| [nvidia-kx-trading-agents](nvidia-kx-trading-agents) | **AI Trading Agents Blueprint** - On-premise, multi-agent system for financial research and trading decision support. An orchestration layer turns a research question into a plan, routes each query to one of 11 specialized source agents (news/sentiment, web research, SEC filings, fundamentals, macro data) that run in parallel, and synthesizes a citation-backed report. Built on the NVIDIA NeMo Agent Toolkit with NIM LLMs (Llama 3.3 Instruct for writing, Nemotron for reasoning). KDB-X serves three agents from one engine: time-series SQL via MCP, GPU vector search over filings (cuVS/CAGRA), and point-in-time as-of joins. Includes a React demo frontend and Docker Compose / Helm deployment. A derivative of the NVIDIA AI-Q Research Assistant blueprint. |
 
 
 ## NVIDIA AI Software Stack
@@ -24,11 +25,12 @@ The samples in this repository leverage the following NVIDIA technologies:
 
 **NVIDIA NeMo Microservices** is a platform for building, customizing, and deploying enterprise AI applications. The platform includes several key components used across the samples:
 
-- **NeMo Retriever** — GPU-accelerated retrieval models enabling efficient and accurate information retrieval from large datasets. Includes embedding models (NV-EmbedQA), reranking models, document parsing NIMs (Page Elements, Table Structure, Graphic Elements, OCR), and multimodal embeddings. Used in the [RAG Blueprint](KX-nvidia-rag-blueprint), [AIQ Research Assistant](KX-AIQ-nvidia-rag-blueprint), and [Accelerated RAG](NVIDIA_accelerated_RAG) samples.
+- **NeMo Retriever** — GPU-accelerated retrieval models enabling efficient and accurate information retrieval from large datasets. Includes embedding models (NV-EmbedQA), reranking models, document parsing NIMs (Page Elements, Table Structure, Graphic Elements, OCR), and multimodal embeddings. Used in the [RAG Blueprint](KX-nvidia-rag-blueprint), [AIQ Research Assistant](KX-AIQ-nvidia-rag-blueprint), and [Accelerated RAG](NVIDIA_accelerated_RAG) samples, and as the relevancy-gate reranker in the [AI Trading Agents](nvidia-kx-trading-agents) sample.
+- **NeMo Agent Toolkit** — Framework for building and orchestrating multi-agent systems with NVIDIA NIM LLMs, including planning, routing, and reflection loops. Used in the [AI Trading Agents](nvidia-kx-trading-agents) sample to coordinate its fleet of specialized source agents.
 - **NeMo Customizer** — Fine-tuning service supporting LoRA (Low-Rank Adaptation), P-tuning, and multi-GPU/multi-node training. Used in the [Accelerated RAG](NVIDIA_accelerated_RAG) and [AI Model Distillation](ai-model-distillation-for-financial-data) samples.
 - **NeMo Evaluator** — Model evaluation service for measuring metrics like F1-score across base and customized models. Used in the [AI Model Distillation](ai-model-distillation-for-financial-data) sample.
 - **NeMo Datastore** — Dataset management and versioning service. Used in the [AI Model Distillation](ai-model-distillation-for-financial-data) sample.
-- **NeMo Guardrails** — Content safety and topic control using NemoGuard NIMs. Used in the [RAG Blueprint](KX-nvidia-rag-blueprint) sample for input/output guardrails.
+- **NeMo Guardrails** — Content safety and topic control using NemoGuard NIMs. Used in the [RAG Blueprint](KX-nvidia-rag-blueprint) sample for input/output guardrails, and as optional content safety in the [AI Trading Agents](nvidia-kx-trading-agents) sample.
 
 ### NVIDIA RAPIDS, cuVS, RAFT
 
@@ -40,14 +42,15 @@ The samples in this repository leverage the following NVIDIA technologies:
 
 ### Technology Matrix
 
-| Technology | [RAG Blueprint](KX-nvidia-rag-blueprint) | [AIQ Research Assistant](KX-AIQ-nvidia-rag-blueprint) | [Accelerated RAG](NVIDIA_accelerated_RAG) | [Model Distillation](ai-model-distillation-for-financial-data) |
-|------------|:---:|:---:|:---:|:---:|
-| NIM | ✓ | ✓ | ✓ | ✓ |
-| NeMo Retriever | ✓ | ✓ | ✓ | |
-| NeMo Customizer | | | ✓ | ✓ |
-| NeMo Evaluator | | | | ✓ |
-| NeMo Guardrails | ✓ | | | |
-| RAPIDS / cuVS | ✓ | ✓ | ✓ | |
+| Technology | [RAG Blueprint](KX-nvidia-rag-blueprint) | [AIQ Research Assistant](KX-AIQ-nvidia-rag-blueprint) | [Accelerated RAG](NVIDIA_accelerated_RAG) | [Model Distillation](ai-model-distillation-for-financial-data) | [AI Trading Agents](nvidia-kx-trading-agents) |
+|------------|:---:|:---:|:---:|:---:|:---:|
+| NIM | ✓ | ✓ | ✓ | ✓ | ✓ |
+| NeMo Retriever | ✓ | ✓ | ✓ | | ✓ |
+| NeMo Customizer | | | ✓ | ✓ | |
+| NeMo Evaluator | | | | ✓ | |
+| NeMo Guardrails | ✓ | | | | ✓ |
+| NeMo Agent Toolkit | | | | | ✓ |
+| RAPIDS / cuVS | ✓ | ✓ | ✓ | | ✓ |
 
 ## Setup
 
@@ -57,6 +60,7 @@ Each sample has its own setup instructions in its respective directory:
 - [KX-AIQ-nvidia-rag-blueprint Setup](KX-AIQ-nvidia-rag-blueprint/README.md#aiq-kx-quick-start)
 - [NVIDIA_accelerated_RAG Setup](NVIDIA_accelerated_RAG/README.md#setup)
 - [AI Model Distillation for Financial Data Setup](ai-model-distillation-for-financial-data/docs/02-quickstart.md)
+- [AI Trading Agents Setup](nvidia-kx-trading-agents/README.md#quick-start)
 
 ## Dataset Disclaimer
 
